@@ -1,0 +1,131 @@
+\documentclass{article}
+\usepackage[preprint]{neurips_2024}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\title{Aletheion: Fractal Epistemic Architecture for Large Language Models}
+
+\author{Aletheion Research Collective}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Large language models (LLMs) remain prone to hallucination, inconsistency, and sycophancy because their decoding stack treats uncertainty as a nuisance rather than a first-class signal. We argue that the ubiquitous softmax operator is the root cause: it enforces a normalized distribution even when the latent representation contains no evidence for any hypothesis. We introduce epistemic softmax, a drop-in replacement that decomposes predictive confidence into four interacting components---local uncertainty ($Q_1$), cross-context consensus ($Q_2$), variance-adjusted ranking optimization (VARO), and an exploration controller. Applied fractally to every softmax instance in the transformer pipeline, epistemic softmax produces uncertainty-aware attention, gating, and output distributions. We formalize the resulting architecture, Aletheion, and outline a staged implementation roadmap spanning output-only adoption to full-stack integration. Our theoretical analysis shows how epistemic signals propagate hierarchically and why they mitigate five prevalent failure modes of LLMs: hallucination, inconsistency, sycophancy, prompt brittleness, and the inability to express doubt. We further specify the VARO training objective that aligns predictive entropy with ground-truth ambiguity, discuss complexity overhead, and present an experimental blueprint covering calibration, hallucination detection, and ablations. While empirical validation is ongoing, Aletheion reframes uncertainty modeling as an architectural primitive rather than a post-hoc patch, enabling language models that know when they do not know.
+\end{abstract}
+
+\section{Introduction}
+Large language models (LLMs) have delivered impressive generative capabilities yet remain unreliable in high-stakes settings. They hallucinate citations, contradict themselves across turns, flatter users even when prompted with false statements, and rarely admit uncertainty~\cite{aletheion_failures}. Contemporary mitigation strategies---retrieval augmentation, reinforcement learning from human feedback (RLHF), prompt engineering, and temperature heuristics---address symptoms but leave the architectural root cause intact.
+
+We identify four pervasive shortcomings: (i) hallucination of fabricated facts, (ii) inconsistency across contexts, (iii) sycophancy stemming from preference optimization, and (iv) the inability to express epistemic doubt. These behaviors undermine safety, reliability, and trustworthiness.
+
+Softmax appears throughout the transformer pipeline: attention weights, head aggregation, output vocabularies, mixture-of-experts gates, and auxiliary routing mechanisms~\cite{aletheion_fundamentals}. Each instance forces a probability distribution even when the upstream representation encodes insufficient evidence. We observe that epistemic softmax---a composite of two gating signals ($Q_1$ and $Q_2$), a variance-adjusted ranking objective (VARO), and an exploration strategy---can replace any softmax invocation. The central question becomes: \emph{what if this replacement is applied fractally across the entire network?}
+
+Our contributions are: (1) identifying forced normalization via softmax as the shared trigger of five dominant failure modes, (2) defining an epistemic softmax primitive that augments logits with explicit confidence, (3) formalizing the fractal architecture that replaces every softmax instance, (4) introducing the VARO objective for calibrating epistemic confidence, and (5) presenting theoretical analysis and an experimental roadmap.
+
+\section{Background}
+\subsection{Transformer Architecture}
+Transformers encode tokens into contextual representations using multi-head self-attention, feed-forward networks, and layer normalization. Given query, key, and value projections $Q, K, V \in \mathbb{R}^{n \times d_k}$ per head, attention computes weights via scaled dot-product softmax and aggregates values accordingly. Feed-forward sublayers apply position-wise non-linear transformations, while residual connections and layer normalization stabilize training~\cite{aletheion_fundamentals}.
+
+\subsection{The Softmax Function}
+For logits $\mathbf{z} \in \mathbb{R}^m$, softmax produces $\operatorname{softmax}(z)_i = \frac{\exp(z_i)}{\sum_j \exp(z_j)}$. It yields a simplex-valued vector with positive entries summing to one. Transformers rely on softmax to generate attention scores, vocabulary distributions, and gating coefficients. However, forcing a probability distribution even under epistemic uncertainty masks the model's ignorance.
+
+\subsection{Where Softmax Appears}
+Softmax is ubiquitous:
+\begin{enumerate}
+    \item Attention scores: $\operatorname{softmax}(QK^\top / \sqrt{d_k})$
+    \item Multi-head aggregation: normalization of head contributions
+    \item Output vocabulary: $P(y_t \mid y_{<t}, x) = \operatorname{softmax}(\mathbf{W} h_t)$
+    \item Mixture-of-experts gates: routing probabilities across experts
+    \item Auxiliary modules: adaptive span, sparse attention, and routing layers
+\end{enumerate}
+
+\subsection{Epistemic vs. Aleatoric Uncertainty}
+Aleatoric uncertainty arises from inherent data noise, while epistemic uncertainty reflects ignorance that can be reduced with more information. LLMs trained on static corpora primarily face epistemic uncertainty when encountering novel facts, adversarial prompts, or contradictory instructions. Softmax conflates these modes by always returning a confident distribution.
+
+\subsection{Related Work}
+Bayesian neural networks, deep ensembles, Monte Carlo dropout, and conformal prediction provide valuable uncertainty estimates but are costly or post-hoc. Calibration studies for LLMs rely on selective prediction or verbalized confidence. Our approach differs by embedding epistemic reasoning directly within the attention and decoding primitives, avoiding ensembling or expensive sampling.
+
+\section{Failure Modes}
+We synthesize five dominant failure modes~\cite{aletheion_failures}:
+\paragraph{Hallucination.} When the final hidden state lacks evidence for any candidate token, softmax still returns a peaked distribution, leading to fabricated facts or citations. Cross-entropy loss reinforces whichever hallucination receives accidental reinforcement, without penalizing unjustified confidence.
+\paragraph{Inconsistency.} Transformers lack an explicit belief state. Autoregressive decoding conditions on prior outputs, so early confident errors propagate. Softmax never signals ``insufficient evidence,'' preventing the model from pausing or branching.
+\paragraph{Sycophancy.} RLHF incentivizes agreement with human raters. Softmax offers no mechanism to represent disagreement or uncertainty, so the model converges to high-confidence agreement even under contradictory evidence.
+\paragraph{Prompt Brittleness.} Small paraphrases perturb token-level logits, and softmax amplifies minor logit differences into categorical preferences.
+\paragraph{Inability to Express Uncertainty.} The model cannot emit an ``I do not know'' distribution because softmax enforces confidence.
+
+\section{Epistemic Softmax}
+\subsection{Motivation}
+Standard softmax treats logits as fully reliable. We seek an operator that preserves differentiability but factors epistemic uncertainty into every decision.
+
+\subsection{Components}
+Local uncertainty $Q_1$ maps contextual features to $[0,1]$, signaling whether evidence supports a confident decision. Global consensus $Q_2$ aggregates sibling contexts (e.g., attention heads or decoder layers) to estimate agreement. VARO adds a variance-sensitive penalty,
+\begin{equation}
+    L_{\mathrm{VARO}} = -\log p(y^*) + \lambda \cdot \operatorname{Var}(p),
+\end{equation}
+encouraging calibrated confidence. An exploration controller adjusts sampling temperature based on epistemic confidence.
+
+\subsection{Definition}
+Epistemic softmax returns both a distribution and an uncertainty scalar:
+\begin{algorithm}[H]
+\caption{Epistemic Softmax}
+\begin{algorithmic}[1]
+\STATE $q_1 \leftarrow Q_1(\text{context})$
+\STATE $q_2 \leftarrow Q_2(\text{context})$
+\STATE $c \leftarrow \max(q_1 q_2, \epsilon)$
+\STATE $\tau \leftarrow \text{base temp} / c$ if $c < \theta$ else base temp
+\STATE $p \leftarrow \operatorname{softmax}(\text{logits} / \tau)$
+\STATE $u \leftarrow 1 - c$
+\STATE $\tilde{p} \leftarrow c p + (1-c) \cdot \text{uniform}$
+\RETURN $\tilde{p}, u$
+\end{algorithmic}
+\end{algorithm}
+
+The operator reduces to softmax when $Q_1 = Q_2 = 1$ and yields a uniform distribution when $Q_1 = Q_2 = 0$.
+
+\subsection{Comparison}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lcc}
+    \toprule
+    Property & Softmax & Epistemic Softmax \\
+    \midrule
+    Always outputs distribution & \checkmark & \checkmark \\
+    Expresses uncertainty & \texttimes & \checkmark \\
+    Trainable confidence & \texttimes & \checkmark \\
+    Acts on uncertainty & \texttimes & \checkmark \\
+    Overhead & $0$ & $O(d)$ \\
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Fractal Architecture}
+Wherever a transformer applies softmax, Aletheion applies epistemic softmax. We describe three implementation levels: output-only (Level~1), attention plus output (Level~2), and full fractal replacement (Level~3). Uncertainty propagates hierarchically; conservative deployments use $u_{\text{final}} = \max_l u^{(l)}_{\text{att}} \lor u_{\text{out}}$.
+
+\section{Training with VARO}
+We augment cross-entropy with the VARO penalty,
+\begin{equation}
+    L = L_{\mathrm{CE}} + \lambda \lVert u - u^* \rVert_2^2,
+\end{equation}
+where $u$ is epistemic uncertainty and $u^*$ is a supervisory signal derived from data ambiguity, head variance, or distributional shift detectors. Training proceeds in three phases: baseline pretraining, epistemic fine-tuning with VARO, and uncertainty-aware decoding. VARO supplies gradients that increase confidence when predictions are correct yet uncertain and reduce confidence when predictions are wrong but overconfident.
+
+\section{Theoretical Analysis}
+Epistemic uncertainty composes monotonically: if any layer emits high uncertainty, downstream uncertainty cannot collapse to zero. Epistemic gates add $O(nd)$ operations per layer---negligible relative to $O(n^2 d)$ attention---and modest parameter overhead. With sufficient supervision, expected calibration error decreases because VARO aligns epistemic signals with empirical accuracy.
+
+\section{Experimental Design}
+We propose evaluating Aletheion on hallucination (TruthfulQA, FreshQA), synthetic ``unknown'' questions, consistency benchmarks (ParaRel, CREAK), and calibration tasks (MMLU with confidence labels). Baselines include a standard transformer, temperature tuning, Monte Carlo dropout, deep ensembles, and Levels~1--3 of Aletheion. Metrics cover accuracy, expected calibration error, Brier score, hallucination rate, uncertainty expression, and computational overhead. Ablations examine $Q_1$ vs. $Q_2$, VARO weight $\lambda$, and gate architectures.
+
+\section{Discussion}
+The fractal metaphor captures self-similarity and hierarchical propagation: epistemic softmax governs every scale of decision-making, ensuring consistent treatment of uncertainty. The architecture introduces epistemic humility, a critical ingredient for safe AI. Limitations include additional parameters, training complexity, and the need for uncertainty supervision. Future work spans multimodal extensions, epistemic diffusion, reinforcement learning, scaling studies, and epistemic chain-of-thought reasoning.
+
+\section{Conclusion}
+Aletheion replaces all softmax operations with uncertainty-aware epistemic softmax, combining local and global gates, variance-aware training, and exploration strategies. The resulting architecture offers a principled path toward truthful, calibrated language models. We invite the community to implement the roadmap, validate the theoretical claims, and extend epistemic primitives to future AI systems.
+
+\bibliographystyle{plainnat}
+\bibliography{bibliography}
+
+\end{document}
