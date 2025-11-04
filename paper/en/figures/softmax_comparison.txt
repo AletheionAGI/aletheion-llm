@@ -1,0 +1,9 @@
++-----------------------+------------------------+
+| Standard Softmax      | Epistemic Softmax      |
++=======================+========================+
+| Inputs logits         | Inputs logits + gates  |
+| Temperature fixed     | Temperature adaptive   |
+| Outputs p             | Outputs p~, u          |
+| Forced confidence     | Confidence modulated   |
+| No uncertainty signal | Explicit uncertainty   |
++-----------------------+------------------------+

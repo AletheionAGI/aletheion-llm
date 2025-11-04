@@ -1,0 +1,10 @@
+Layer 1 Uncertainty (u₁) ──┐
+                                   ▼
+Layer 2 Uncertainty (u₂) ──┐    Aggregate g(u)
+                           │         │
+⋮                          │         ▼
+Layer N Uncertainty (uₙ) ──┘   u_final → Exploration Controller
+                                       │
+                           Confidence-aware Decoding
+                                       │
+                             Response + uncertainty_final
