@@ -16,20 +16,34 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
+import os
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import torch
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-import numpy as np
 
 from src import BaselineTransformer, get_device, set_seed
 from src.aletheion.model import AletheionTransformer
 from src.aletheion.loss import VaroLoss, compute_calibration_metrics
-from data.dataset import collate_fn, load_wikitext_dataset
+from data.dataset import load_wikitext_dataset
+
+
+# FIX: Custom collate function to handle variable sequence lengths during evaluation/training
+def collate_fn(batch: Tuple[Dict[str, torch.Tensor], ...]) -> Dict[str, torch.Tensor]:
+    """Pad variable length sequences for input IDs and labels."""
+
+    input_ids = [item["input_ids"] for item in batch]
+    labels = [item["labels"] for item in batch]
+
+    input_ids_padded = pad_sequence(input_ids, batch_first=True, padding_value=0)
+    labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)
+
+    return {"input_ids": input_ids_padded, "labels": labels_padded}
 
 
 def create_baseline_model(vocab_size: int, device: torch.device) -> BaselineTransformer:
@@ -71,9 +85,10 @@ def train_step(
     batch: Dict,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
-    varo_loss: VaroLoss = None
-) -> float:
-    """Perform one training step."""
+    varo_loss: VaroLoss | None = None,
+    varo_weight: float | None = None,
+) -> Dict[str, float]:
+    """Perform one training step and return diagnostics."""
     model.train()
     optimizer.zero_grad()
 
@@ -84,9 +99,9 @@ def train_step(
     vocab_size = model.token_embedding.num_embeddings
     max_token = input_ids.max().item()
     min_token = input_ids.min().item()
-    
+
     print(f"🔍 Vocab: {vocab_size} | Input range: [{min_token}, {max_token}]")
-    
+
     if max_token >= vocab_size:
         print(f"❌ ERROR: Token ID {max_token} >= vocab_size {vocab_size}")
         print(f"   Batch shape: {input_ids.shape}")
@@ -99,12 +114,18 @@ def train_step(
         outputs = model(input_ids, labels=labels, return_uncertainty=True)
     else:
         outputs = model(input_ids, labels=labels)
-    
+
+    metrics: Dict[str, float] = {}
+
     # Compute loss
-    if isinstance(model, AletheionTransformer) and varo_loss is not None:
+    if isinstance(model, AletheionTransformer) and varo_loss is not None and outputs.uncertainty is not None:
         shift_logits = outputs.logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
         shift_uncertainty = outputs.uncertainty[..., :-1, :].contiguous()
+
+        if varo_weight is not None:
+            # FIX: Dynamically adjust VARO weight during training
+            varo_loss.lambda_varo = varo_weight
 
         loss_dict = varo_loss(
             logits=shift_logits,
@@ -112,15 +133,34 @@ def train_step(
             uncertainty=shift_uncertainty
         )
         loss = loss_dict['loss']
+        metrics.update({
+            "loss": loss.item(),
+            "ce_loss": loss_dict['ce_loss'].item(),
+            "uncertainty_loss": loss_dict['uncertainty_loss'].item(),
+            "u_star_mean": loss_dict['u_star_mean'].item(),
+            "u_pred_mean": loss_dict['u_pred_mean'].item(),
+            "varo_weight": varo_loss.lambda_varo,
+        })
+
+        if outputs.q1 is not None:
+            metrics["q1_mean"] = outputs.q1.mean().item()
+            metrics["q1_std"] = outputs.q1.std().item()
+        if outputs.q2 is not None:
+            metrics["q2_mean"] = outputs.q2.mean().item()
+            metrics["q2_std"] = outputs.q2.std().item()
+        if outputs.uncertainty is not None:
+            metrics["uncertainty_mean"] = outputs.uncertainty.mean().item()
+            metrics["uncertainty_std"] = outputs.uncertainty.std().item()
     else:
         loss = outputs.loss
+        metrics["loss"] = float(loss.item())
 
     # Backward pass
     loss.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     optimizer.step()
 
-    return loss.item()
+    return metrics
 
 
 
@@ -151,7 +191,7 @@ def evaluate_model(
                     return_uncertainty=True
                 )
             except TypeError:
-                # Baseline doesn't support return_uncertainty
+                # FIX: Baseline model forward does not accept return_uncertainty flag
                 outputs = model(input_ids, labels=labels)
 
             total_loss += outputs.loss.item()
@@ -186,9 +226,10 @@ def evaluate_model(
         all_probs = torch.cat(all_probs, dim=0)
         all_targets = torch.cat(all_targets, dim=0)
 
-        if isinstance(model, AletheionTransformer) and all_uncertainties:
+        if isinstance(model, AletheionTransformer) and len(all_uncertainties) > 0:
             all_uncertainties = torch.cat(all_uncertainties, dim=0)
         else:
+            # FIX: Provide dummy uncertainty for baseline so calibration metrics do not crash
             all_uncertainties = torch.zeros(all_targets.size(0), 1)
 
         calib_metrics = compute_calibration_metrics(
@@ -294,29 +335,108 @@ def main(args):
 
     # Training
     print(f"\n🚀 Training for {args.steps} steps...")
-    print()
-
     if args.dry_run:
-        print("DRY RUN MODE: Skipping actual training")
-        return
+        print("DRY RUN MODE: Running abbreviated training/evaluation for smoke test")
+
+    train_iter = iter(train_loader)
+    checkpoints_dir = Path("checkpoints")
+    checkpoints_dir.mkdir(exist_ok=True)
+
+    last_baseline_metrics: Dict[str, float] = {}
+    last_aletheion_metrics: Dict[str, float] = {}
 
     for step in tqdm(range(args.steps), desc="Training"):
         # Get batch
         try:
             batch = next(train_iter)
-        except (StopIteration, NameError):
+        except StopIteration:
             train_iter = iter(train_loader)
             batch = next(train_iter)
 
-        # Train both models
-        baseline_loss = train_step(baseline_model, batch, baseline_opt, device)
-        aletheion_loss = train_step(aletheion_model, batch, aletheion_opt, device, varo_loss)
+        progress = (step + 1) / max(1, args.steps)
+        # FIX: Increase VARO regularization weight via linear schedule
+        varo_weight = 0.01 + progress * 0.09
 
-        # Log progress
-        if (step + 1) % 50 == 0:
+        # Train both models
+        last_baseline_metrics = train_step(baseline_model, batch, baseline_opt, device)
+        last_aletheion_metrics = train_step(
+            aletheion_model,
+            batch,
+            aletheion_opt,
+            device,
+            varo_loss=varo_loss,
+            varo_weight=varo_weight,
+        )
+
+        # FIX: Persist checkpoints every 100 steps and on the final step
+        if (step + 1) % 100 == 0 or (step + 1) == args.steps:
+            torch.save(
+                {
+                    "step": step + 1,
+                    "model_state_dict": baseline_model.state_dict(),
+                    "optimizer_state_dict": baseline_opt.state_dict(),
+                    "loss": last_baseline_metrics.get("loss"),
+                },
+                checkpoints_dir / f"baseline_step{step + 1}.pt",
+            )
+
+            torch.save(
+                {
+                    "step": step + 1,
+                    "model_state_dict": aletheion_model.state_dict(),
+                    "optimizer_state_dict": aletheion_opt.state_dict(),
+                    "loss": last_aletheion_metrics.get("loss"),
+                    "varo_weight": last_aletheion_metrics.get("varo_weight", varo_weight),
+                },
+                checkpoints_dir / f"aletheion_step{step + 1}.pt",
+            )
+
+        # IMPROVED: Detailed logging for epistemic statistics
+        if (step + 1) % 50 == 0 or (step + 1) == args.steps:
             print(f"\nStep {step + 1}/{args.steps}")
-            print(f"  Baseline loss: {baseline_loss:.4f}")
-            print(f"  Aletheion loss: {aletheion_loss:.4f}")
+            print(f"  Baseline loss: {last_baseline_metrics.get('loss', float('nan')):.4f}")
+            print(f"  Aletheion loss: {last_aletheion_metrics.get('loss', float('nan')):.4f}")
+            if "varo_weight" in last_aletheion_metrics:
+                print(f"  VARO λ: {last_aletheion_metrics['varo_weight']:.4f}")
+            if "q1_mean" in last_aletheion_metrics:
+                print(
+                    "  Q₁: mean="
+                    f"{last_aletheion_metrics['q1_mean']:.3f}, std="
+                    f"{last_aletheion_metrics['q1_std']:.3f}"
+                )
+            if "q2_mean" in last_aletheion_metrics:
+                print(
+                    "  Q₂: mean="
+                    f"{last_aletheion_metrics['q2_mean']:.3f}, std="
+                    f"{last_aletheion_metrics['q2_std']:.3f}"
+                )
+            if "uncertainty_mean" in last_aletheion_metrics:
+                print(
+                    "  Confidence (1-uncertainty): "
+                    f"{1.0 - last_aletheion_metrics['uncertainty_mean']:.3f}"
+                )
+
+    # FIX: Persist final full checkpoints for convenience
+    torch.save(
+        {
+            "step": args.steps,
+            "model_state_dict": baseline_model.state_dict(),
+            "optimizer_state_dict": baseline_opt.state_dict(),
+            "loss": last_baseline_metrics.get("loss"),
+        },
+        checkpoints_dir / "baseline_final.pt",
+    )
+
+    torch.save(
+        {
+            "step": args.steps,
+            "model_state_dict": aletheion_model.state_dict(),
+            "optimizer_state_dict": aletheion_opt.state_dict(),
+            "loss": last_aletheion_metrics.get("loss"),
+            "varo_weight": last_aletheion_metrics.get("varo_weight", 0.1),
+        },
+        checkpoints_dir / "aletheion_final.pt",
+    )
 
     # Final evaluation
     print("\n📊 Final Evaluation...")
@@ -370,7 +490,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compare Baseline vs Aletheion Level 1")
     parser.add_argument("--steps", type=int, default=1000, help="Number of training steps")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
-    parser.add_argument("--dry-run", action="store_true", help="Dry run (no actual training)")
+    parser.add_argument("--dry-run", action="store_true", help="Dry run (smoke test mode)")
     args = parser.parse_args()
 
     main(args)
