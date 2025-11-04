@@ -10,6 +10,10 @@ Tests the complete pipeline:
     7. Test generation with uncertainty
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 import pytest
 import torch
 from pathlib import Path
