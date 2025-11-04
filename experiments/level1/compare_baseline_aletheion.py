@@ -12,7 +12,9 @@ Usage:
     python experiments/level1/compare_baseline_aletheion.py --steps 100 --dry-run
     python experiments/level1/compare_baseline_aletheion.py --steps 10000
 """
-
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -78,9 +80,26 @@ def train_step(
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
 
-    # Forward pass
-    outputs = model(input_ids, labels=labels, return_uncertainty=True if isinstance(model, AletheionTransformer) else False)
+    # === DEBUG CRÍTICO ===
+    vocab_size = model.token_embedding.num_embeddings
+    max_token = input_ids.max().item()
+    min_token = input_ids.min().item()
+    
+    print(f"🔍 Vocab: {vocab_size} | Input range: [{min_token}, {max_token}]")
+    
+    if max_token >= vocab_size:
+        print(f"❌ ERROR: Token ID {max_token} >= vocab_size {vocab_size}")
+        print(f"   Batch shape: {input_ids.shape}")
+        print(f"   Invalid count: {(input_ids >= vocab_size).sum().item()}")
+        raise ValueError(f"Token {max_token} out of vocab range!")
+    # === FIM DEBUG ===
 
+    # Forward pass
+    if isinstance(model, AletheionTransformer):
+        outputs = model(input_ids, labels=labels, return_uncertainty=True)
+    else:
+        outputs = model(input_ids, labels=labels)
+    
     # Compute loss
     if isinstance(model, AletheionTransformer) and varo_loss is not None:
         shift_logits = outputs.logits[..., :-1, :].contiguous()
@@ -104,6 +123,7 @@ def train_step(
     return loss.item()
 
 
+
 def evaluate_model(
     model: torch.nn.Module,
     loader: DataLoader,
@@ -124,11 +144,15 @@ def evaluate_model(
             input_ids = batch["input_ids"].to(device)
             labels = batch["labels"].to(device)
 
-            outputs = model(
-                input_ids,
-                labels=labels,
-                return_uncertainty=True if isinstance(model, AletheionTransformer) else False
-            )
+            try:
+                outputs = model(
+                    input_ids,
+                    labels=labels,
+                    return_uncertainty=True
+                )
+            except TypeError:
+                # Baseline doesn't support return_uncertainty
+                outputs = model(input_ids, labels=labels)
 
             total_loss += outputs.loss.item()
             total_batches += 1
@@ -221,11 +245,14 @@ def main(args):
 
     # Load dataset
     print("\n📚 Loading WikiText-2 dataset...")
-    train_ds, val_ds, tokenizer, vocab_size = load_wikitext_dataset(
+    train_ds, val_ds, test_ds, tokenizer= load_wikitext_dataset(
         tokenizer_name="gpt2",
         dataset_config="wikitext-2-raw-v1",
         max_length=512
     )
+    vocab_size = tokenizer.vocab_size  # Atributo correto do tokenizer GPT-2
+    print(f"📊 Vocab size: {vocab_size}")
+    print(f"📊 Tokenizer: {tokenizer}")
 
     train_loader = DataLoader(
         train_ds,

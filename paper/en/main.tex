@@ -84,6 +84,31 @@ Throughout this paper, we use the following conventions:
     \item $\mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda \mathcal{L}_{\text{VARO}}$: total loss
 \end{itemize}
 
+\section*{Theoretical Foundation}
+
+The epistemic framework underlying Aletheion originates 
+from the author's Quality Function of Truth, formalized 
+in a manuscript submitted to \textit{Episteme: A Journal 
+of Individual and Social Epistemology} [CITATION].
+
+That work proposed that truth manifests through varying 
+degrees of symbolic fidelity $q(s) = F(\psi_s, T)$, where 
+consciousness evolves its capacity to reflect absolute 
+truth $T$ through representational states $\psi_s$ within 
+a stratified field of cognition $\Phi$.
+
+Aletheion represents the computational realization of this 
+framework: epistemic uncertainty in language models mirrors 
+the variable fidelity with which consciousness translates 
+invariant truth. The Q₁ gate quantifies local uncertainty 
+(analogous to $\psi_s$), while Q₂ captures cross-context 
+consensus (analogous to field $\Phi$), together modulating 
+temperature adaptively based on epistemic confidence.
+
+This work thus bridges philosophical epistemology and 
+machine learning, demonstrating that uncertainty quantification 
+in AI can be grounded in formal theories of truth and cognition.
+
 \section{Introduction}
 Large language models (LLMs) deliver impressive generative capabilities yet remain unreliable in high-stakes settings. They hallucinate citations, contradict themselves across turns, flatter users even when prompted with false statements, and rarely admit uncertainty. These behaviors undermine safety, reliability, and trustworthiness in downstream deployments~\cite{aletheion_failures}. Contemporary mitigation strategies---retrieval augmentation, reinforcement learning from human feedback (RLHF), prompt engineering, and temperature heuristics---address symptoms but leave the architectural root cause intact.
 

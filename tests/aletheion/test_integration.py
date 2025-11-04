@@ -176,7 +176,7 @@ class TestAletheionIntegration:
     def test_checkpoint_save_load(self, device):
         """Test saving and loading Aletheion checkpoint."""
         set_seed(42)
-
+        
         # Create model
         model = AletheionTransformer(
             vocab_size=1000,
@@ -186,42 +186,34 @@ class TestAletheionIntegration:
             d_ff=1024,
             max_seq_len=128
         ).to(device)
-
-        # Save checkpoint
+        
+        model.eval()  # ADICIONAR ESTA LINHA
+        
+        # Generate test input
+        input_ids = torch.randint(0, 1000, (2, 16), device=device)
+        
+        # Get output from original model
+        with torch.no_grad():
+            output1 = model(input_ids, return_uncertainty=True)
+        
+        # Save and load using proper methods
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_path = Path(tmpdir) / "test_checkpoint.pt"
-
-            torch.save({
-                'model_state_dict': model.state_dict(),
-                'config': {
-                    'vocab_size': 1000,
-                    'd_model': 256,
-                    'n_layers': 2
-                }
-            }, checkpoint_path)
-
-            # Create new model and load checkpoint
-            model2 = AletheionTransformer(
-                vocab_size=1000,
-                d_model=256,
-                n_layers=2,
-                n_heads=4,
-                d_ff=1024,
-                max_seq_len=128
-            ).to(device)
-
-            checkpoint = torch.load(checkpoint_path, map_location=device)
-            model2.load_state_dict(checkpoint['model_state_dict'])
-
-            # Test that loaded model produces same output
-            input_ids = torch.randint(0, 1000, (2, 16), device=device)
-
+            # Save checkpoint
+            model.save_pretrained(tmpdir)
+            
+            # Load checkpoint
+            model2 = AletheionTransformer.load_pretrained(tmpdir, device=str(device))
+            model2.eval()  # ADICIONAR ESTA LINHA
+            
+            # Get output from loaded model
             with torch.no_grad():
-                output1 = model(input_ids, return_uncertainty=True)
                 output2 = model2(input_ids, return_uncertainty=True)
-
-            assert torch.allclose(output1.logits, output2.logits, atol=1e-5)
-            assert torch.allclose(output1.uncertainty, output2.uncertainty, atol=1e-5)
+            
+            # Compare outputs
+            assert torch.allclose(output1.logits, output2.logits, atol=1e-5), \
+                "Loaded model produces different logits"
+            assert torch.allclose(output1.uncertainty, output2.uncertainty, atol=1e-5), \
+                "Loaded model produces different uncertainty"
 
     def test_generation_with_uncertainty(self, device):
         """Test generation with uncertainty-aware decoding."""

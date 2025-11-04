@@ -1,99 +1,113 @@
-# Baseline Transformer
+# Aletheion: Epistemic Uncertainty for Large Language Models
 
-Baseline transformer implementation used as a control experiment for the Aletheion LLM project. The code in this
-folder intentionally mirrors a standard GPT-style architecture **without** epistemic gating so that we can measure the
-impact of the fractal gating mechanism in isolation.
+Implementation of fractally-applied epistemic softmax for calibrated, 
+uncertainty-aware language models.
 
-## Features
+⚠️ **Status:** Level 1 training in progress (50% complete)
 
-- Clean PyTorch implementation of a decoder-only transformer
-- Modular attention, feed-forward, and block definitions
-- Config-driven training and evaluation flows
-- Hugging Face dataset/tokenizer integration for WikiText out of the box
-- Support for mixed precision, gradient accumulation, and cosine decay with warmup
-- Optional Weights & Biases and TensorBoard logging
-- Comprehensive unit tests for core components
+![Python](https://img.shields.io/badge/python-3.10-blue)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
+![Status](https://img.shields.io/badge/status-training-yellow)
 
-## Project Layout
+## Background
 
-```
-implementation/baseline/
-├── README.md
-├── requirements.txt
-├── config/
-│   ├── default.yaml
-│   ├── medium.yaml
-│   └── small.yaml
-├── src/
-│   ├── __init__.py
-│   ├── attention.py
-│   ├── model.py
-│   ├── tokenizer.py
-│   └── utils.py
-├── data/
-│   ├── __init__.py
-│   ├── dataset.py
-│   └── prepare.py
-├── train.py
-├── eval.py
-├── generate.py
-├── tests/
-│   ├── test_attention.py
-│   ├── test_model.py
-│   └── test_training.py
-└── scripts/
-    ├── evaluate.sh
-    ├── train_full.sh
-    └── train_small.sh
-```
+Large language models hallucinate, contradict themselves, and rarely 
+express calibrated uncertainty. Aletheion addresses this by replacing 
+softmax operations with **epistemic softmax**—a gating mechanism that 
+factors uncertainty into every decision.
+
+This repository implements three progressive levels:
+- **Level 1:** Output-only gating (current)
+- **Level 2:** Attention-level gating (planned)
+- **Level 3:** Full fractal architecture (planned)
+
+**Theoretical foundation:**
+- [The Quality of Truth](link) - Philosophical framework (2021)
+- Aletheion preprint - Coming soon
+
+---
 
 ## Quick Start
-
 ```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### Training
-
-```bash
-# Debug-friendly run
-python train.py --config config/small.yaml
-
-# Default configuration
+# Train baseline
 python train.py --config config/default.yaml
+
+# Train Aletheion Level 1
+python experiments/level1/compare_baseline_aletheion.py
 ```
 
-### Evaluation
+---
 
-```bash
-python eval.py --checkpoint checkpoints/best_model.pt
+## Project Structure
+```
+aletheion-llm/
+├── src/              # Baseline transformer
+├── src/aletheion/    # Epistemic components (Q₁, Q₂, VARO)
+├── experiments/      # Training scripts
+│   └── level1/       # Level 1 experiments
+├── paper/            # Theoretical papers
+├── tests/            # Unit tests
+└── config/           # Training configs
 ```
 
-### Text Generation
+---
 
-```bash
-python generate.py \
-  --checkpoint checkpoints/best_model.pt \
-  --prompt "The future of AI is" \
-  --max_tokens 100
+## Results
+
+### Level 1 (Output-Only)
+
+**Training:** 50% complete (500/1000 steps)
+
+**Early indicators:** Aletheion pulling ahead on loss (-0.014 gap)
+
+**Full metrics:** Will be posted when training completes (~3h)
+
+**Expected:**
+- ECE improvement: -20% to -40%
+- Perplexity improvement: -5% to -10%
+- Parameter overhead: ~2%
+
+---
+
+## Roadmap
+
+- [x] Baseline transformer implementation
+- [x] Level 1 epistemic gates (Q₁, Q₂, VARO)
+- [ ] Level 1 validation results (in progress)
+- [ ] Level 2: Attention-level gates
+- [ ] Level 3: Full fractal architecture
+- [ ] Paper submission (NeurIPS/ICML)
+
+---
+
+## Citation
+```bibtex
+@misc{aletheion2024,
+  title={Aletheion: Epistemic Uncertainty for Large Language Models},
+  author={[Your Name]},
+  year={2024},
+  note={In preparation}
+}
 ```
 
-## Expected Baselines
-
-| Model | Parameters | Dataset | Expected PPL |
-|-------|------------|---------|--------------|
-| Small | ~10M       | WikiText-2 | 35 - 40 |
-| Medium | ~50M      | WikiText-103 | 25 - 30 |
-
-The numbers above assume full training on the specified dataset splits with cosine decay and warmup. They provide a
-sanity check that the baseline is operating as expected before introducing epistemic gates.
-
-## Next Steps
-
-1. Train the baseline to convergence on the desired dataset.
-2. Record validation perplexity, training curves, and qualitative samples.
-3. Introduce the epistemic gating mechanism on top of this foundation.
+---
 
 ## License
 
-AGPL 3.0
+AGPL-3.0 - See LICENSE file
+
+---
+
+## Contact
+
+- Discord: [.lacivo]
+- Email: [contact@alethea.tech]
+- Issues: Use GitHub issues for bugs/questions
+
+---
+
+**Note:** This is active research. Results are preliminary and 
+subject to change as experiments complete.

@@ -115,7 +115,9 @@ class AletheionTransformer(BaselineTransformer):
         print(f"   - Q₂ threshold: {q2_threshold}")
         print(f"   - Base temperature: {base_temperature}")
         print(f"   - Epistemic parameters: {self._count_epistemic_params():,}")
-
+        
+        
+    
     def _count_epistemic_params(self) -> int:
         """Count parameters in epistemic gates."""
         q1_params = sum(p.numel() for p in self.q1_gate.parameters())
@@ -340,3 +342,69 @@ class AletheionTransformer(BaselineTransformer):
             "uncertainty_min": u_flat.min().item(),
             "uncertainty_max": u_flat.max().item()
         }
+
+    def save_pretrained(self, save_dir: str) -> None:
+        """Save model checkpoint including epistemic gates.
+        
+        Args:
+            save_dir: Directory to save checkpoint
+        """
+        import os
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # Get config from first attention block (BaselineTransformer doesn't expose these)
+        first_block = self.blocks[0]
+        n_heads = first_block.attn.n_heads
+        d_ff = first_block.ffn.fc1.out_features
+        
+        # Save full state dict (includes all parameters)
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'config': {
+                'vocab_size': self.token_embedding.num_embeddings,
+                'd_model': self.token_embedding.embedding_dim,
+                'n_layers': len(self.blocks),
+                'n_heads': n_heads,
+                'd_ff': d_ff,
+                'max_seq_len': self.pos_embedding.num_embeddings,
+                'dropout': 0.1,  # Default, extracted from blocks if needed
+                'tie_weights': self.token_embedding.weight.data_ptr() == self.lm_head.weight.data_ptr(),
+                'use_flash_attention': False,
+                'q1_threshold': self.q1_threshold,
+                'q2_threshold': self.q2_threshold,
+                'base_temperature': self.base_temperature,
+            }
+        }
+        
+        torch.save(checkpoint, os.path.join(save_dir, 'pytorch_model.bin'))
+        print(f"✅ Model saved to {save_dir}")
+
+    @classmethod
+    def load_pretrained(cls, load_dir: str, device: str = 'cpu') -> 'AletheionTransformer':
+        """Load model checkpoint including epistemic gates.
+        
+        Args:
+            load_dir: Directory containing checkpoint
+            device: Device to load model on
+            
+        Returns:
+            Loaded AletheionTransformer instance
+        """
+        import os
+        checkpoint_path = os.path.join(load_dir, 'pytorch_model.bin')
+        
+        if not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
+        
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        config = checkpoint['config']
+        
+        # Instantiate model with saved config
+        model = cls(**config)
+        
+        # Load weights
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.to(device)
+        
+        print(f"✅ Model loaded from {load_dir}")
+        return model

@@ -84,7 +84,7 @@ def load_wikitext_dataset(
 ):
     """Load WikiText splits and return tokenized datasets with a tokenizer."""
 
-    from ..src.tokenizer import build_tokenizer
+    from src.tokenizer import build_tokenizer
 
     tokenizer = build_tokenizer(tokenizer_name, cache_dir=cache_dir)
     dataset = load_dataset("wikitext", dataset_config)
