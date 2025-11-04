@@ -50,7 +50,6 @@ implementation/baseline/
 ## Quick Start
 
 ```bash
-cd implementation/baseline
 pip install -r requirements.txt
 ```
 
@@ -97,4 +96,4 @@ sanity check that the baseline is operating as expected before introducing epist
 
 ## License
 
-This code inherits the license of the main repository.
+AGPL 3.0
