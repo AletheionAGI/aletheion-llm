@@ -1,0 +1,33 @@
+Input Tokens
+     |
+[Embedding + Positional]
+     |
+┌───────────────────────────┐
+│ Layer ℓ                    │
+│ ┌───────────────────────┐ │
+│ │ Attention Logits      │ │
+│ │ epistemic_softmax     │◄┤ Q₁ (per-head)
+│ └───────────────────────┘ │
+│             │              │
+│      Attention Output      │
+│             │              │
+│ ┌───────────────────────┐ │
+│ │ Head Aggregation      │ │
+│ │ Q₂ Consensus Gate     │◄┤ Cross-head
+│ └───────────────────────┘ │
+│             │              │
+│     Residual + MLP         │
+│             │              │
+│   uncertainty_ℓ propagated │
+└───────────────────────────┘
+     |
+    ... (repeat for L layers)
+     |
+[Final Hidden State + aggregated uncertainty]
+     |
+┌───────────────────────────┐
+│ Output Logits             │
+│ epistemic_softmax         │◄┤ Q₁ + Q₂ (global)
+└───────────────────────────┘
+     |
+P(tokens), uncertainty_final
