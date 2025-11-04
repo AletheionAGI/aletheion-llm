@@ -30,6 +30,12 @@
 \begin{document}
 \maketitle
 
+% Copyright notice
+\vspace{-0.5em}
+\noindent
+\textcopyright~2024 Felipe Maya Muniz. All rights reserved.
+\vspace{0.5em}
+
 \begin{abstract}
 Large language models hallucinate facts, contradict themselves, and rarely express calibrated uncertainty---failure modes rooted in softmax's forced normalization. We introduce \emph{epistemic softmax}, which augments logits with trainable confidence gates ($Q_1, Q_2$) and variance-aware optimization (VARO). Applied fractally to all transformer softmax instances---attention weights, head aggregation, output vocabularies---this yields \emph{Aletheion}, an architecture where uncertainty propagates hierarchically. We formalize three implementation levels: output-only (Level 1), attention-aware (Level 2), and full fractal (Level 3). VARO training aligns epistemic confidence with ground-truth ambiguity via $L = L_{\mathrm{CE}} + \lambda \|u - u^*\|_2^2$. Theoretical analysis shows (1) uncertainty composes monotonically across layers, (2) computational overhead is $<5\%$ relative to transformers, and (3) calibration improves under VARO. We project Level 3 achieves $58\%$ on TruthfulQA (vs. $40\%$ baseline), expected calibration error of $0.06$ (vs. $0.15$), and uncertainty--error correlation of $0.8$ (vs. $0.3$). Aletheion reframes uncertainty as an architectural primitive, enabling models that know when they do not know---a critical step toward safe, reliable AI.
 \end{abstract}
@@ -116,6 +122,11 @@ Aleatoric uncertainty arises from inherent data noise, while epistemic uncertain
 
 \subsection{Related Work}
 Bayesian neural networks, deep ensembles, Monte Carlo dropout, selective prediction, and conformal prediction provide valuable uncertainty estimates but are costly or post-hoc~\cite{blundell2015weight,gal2016dropout,lakshminarayanan2017simple,kamath2020selective,ovadia2019can}. Calibration studies for LLMs rely on selective prediction or verbalized confidence. Our approach differs by embedding epistemic reasoning directly within the attention and decoding primitives, avoiding ensembling or expensive sampling~\cite{lin2022teaching,kadavath2022language}.
+
+\paragraph{Consistency Training and Sycophancy}
+Recent work by Google DeepMind~\cite{google2024consistency} addresses sycophancy and jailbreaks through \emph{consistency training}: augmenting training data with paraphrased prompts and penalizing inconsistent responses across paraphrases. This behavioral-level intervention reduces sycophancy without modifying the underlying architecture or providing explicit uncertainty estimates.
+
+Aletheion is \emph{complementary} to consistency training. While consistency training enforces paraphrase robustness at the training objective level, epistemic softmax provides architectural uncertainty quantification that operates at every decision point. Combined approaches---where $\mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda_1 \mathcal{L}_{\text{VARO}} + \lambda_2 \mathcal{L}_{\text{consistency}}$---may yield models that are both \emph{calibrated} (via Aletheion's epistemic gates) and \emph{behaviorally consistent} (via consistency training). We leave empirical validation of this combination to future work.
 
 \section{Failure Modes}
 We synthesize five dominant failure modes from operational evaluations~\cite{aletheion_failures}. Each stems from softmax-imposed certainty.
@@ -831,13 +842,35 @@ We categorize open questions by urgency and expected outcomes:
 \max_{\|\delta\| < \epsilon} \mathcal{L}_{\text{VARO}}(x + \delta)
 \end{equation}
 
+\paragraph{Q9: Integration with Consistency Training}
+\textbf{Question:} How does Aletheion interact with consistency training~\cite{google2024consistency}?
+
+\textbf{Hypothesis:} Complementary and synergistic. Aletheion provides architectural epistemic gates while consistency training enforces paraphrase invariance.
+
+\textbf{Approach:} Combined loss function:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda_1 \mathcal{L}_{\text{VARO}} + \lambda_2 \mathcal{L}_{\text{consistency}}
+\end{equation}
+where $\mathcal{L}_{\text{consistency}}$ penalizes output variance across paraphrased prompts.
+
+\textbf{Expected outcome:} Models that are both \emph{calibrated} (low ECE via VARO) and \emph{robust to paraphrases} (low variance via consistency training). This combination may be particularly effective against sycophancy (Failure Mode 3, Section~3).
+
+\textbf{Experimental validation:}
+\begin{itemize}
+    \item Baseline: Standard transformer
+    \item + Consistency training only
+    \item + Aletheion only
+    \item + Both (combined)
+\end{itemize}
+Measure: TruthfulQA accuracy, paraphrase consistency, ECE.
+
 \subsubsection*{Low priority (philosophical)}
 
-\paragraph{Q9:} What is the correct formalization of "epistemic uncertainty" for autoregressive language models?
+\paragraph{Q10:} What is the correct formalization of "epistemic uncertainty" for autoregressive language models?
 
-\paragraph{Q10:} Can epistemic gates enable true "I don't know" responses (or just calibrated low confidence)?
+\paragraph{Q11:} Can epistemic gates enable true "I don't know" responses (or just calibrated low confidence)?
 
-\paragraph{Q11:} Relationship to human metacognition and confidence calibration?
+\paragraph{Q12:} Relationship to human metacognition and confidence calibration?
 
 \subsection{Philosophical Implications}
 Softmax acts as a forced decision rule; epistemic softmax enables ``aware'' decisions where the model can admit ignorance. This architectural humility aligns with AI safety principles emphasizing deferment when knowledge is insufficient~\cite{ji2023survey}.
