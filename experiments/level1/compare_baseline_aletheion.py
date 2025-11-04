@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple
+import os  # FIX: Added for checkpoint directory creation
 
 import torch
 import torch.nn.functional as F
@@ -66,14 +67,49 @@ def create_aletheion_model(vocab_size: int, device: torch.device) -> AletheionTr
     ).to(device)
 
 
+def save_checkpoint(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    step: int,
+    loss: float,
+    checkpoint_dir: Path,
+    model_name: str
+) -> None:
+    """FIX: Save model checkpoint.
+
+    Args:
+        model: Model to save
+        optimizer: Optimizer to save
+        step: Current training step
+        loss: Current loss value
+        checkpoint_dir: Directory to save checkpoint
+        model_name: Name of the model (baseline or aletheion)
+    """
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = checkpoint_dir / f"{model_name}_step{step}.pt"
+
+    torch.save({
+        'step': step,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss,
+    }, checkpoint_path)
+
+    print(f"  💾 Saved {model_name} checkpoint to {checkpoint_path}")
+
+
 def train_step(
     model: torch.nn.Module,
     batch: Dict,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     varo_loss: VaroLoss = None
-) -> float:
-    """Perform one training step."""
+) -> Tuple[float, Dict]:
+    """Perform one training step.
+
+    Returns:
+        Tuple of (loss, stats_dict) where stats_dict contains optional statistics
+    """
     model.train()
     optimizer.zero_grad()
 
@@ -84,9 +120,9 @@ def train_step(
     vocab_size = model.token_embedding.num_embeddings
     max_token = input_ids.max().item()
     min_token = input_ids.min().item()
-    
+
     print(f"🔍 Vocab: {vocab_size} | Input range: [{min_token}, {max_token}]")
-    
+
     if max_token >= vocab_size:
         print(f"❌ ERROR: Token ID {max_token} >= vocab_size {vocab_size}")
         print(f"   Batch shape: {input_ids.shape}")
@@ -99,7 +135,20 @@ def train_step(
         outputs = model(input_ids, labels=labels, return_uncertainty=True)
     else:
         outputs = model(input_ids, labels=labels)
-    
+
+    # IMPROVED: Collect statistics for Aletheion model
+    stats = {}
+    if isinstance(model, AletheionTransformer):
+        # Extract Q1, Q2, confidence from outputs if available
+        if hasattr(outputs, 'q1') and outputs.q1 is not None:
+            stats['q1_mean'] = outputs.q1.mean().item()
+            stats['q1_std'] = outputs.q1.std().item()
+        if hasattr(outputs, 'q2') and outputs.q2 is not None:
+            stats['q2_mean'] = outputs.q2.mean().item()
+            stats['q2_std'] = outputs.q2.std().item()
+        if hasattr(outputs, 'confidence') and outputs.confidence is not None:
+            stats['confidence_mean'] = outputs.confidence.mean().item()
+
     # Compute loss
     if isinstance(model, AletheionTransformer) and varo_loss is not None:
         shift_logits = outputs.logits[..., :-1, :].contiguous()
@@ -112,6 +161,10 @@ def train_step(
             uncertainty=shift_uncertainty
         )
         loss = loss_dict['loss']
+
+        # IMPROVED: Add VARO loss components to stats
+        stats['ce_loss'] = loss_dict.get('ce_loss', 0.0)
+        stats['varo_loss'] = loss_dict.get('varo_loss', 0.0)
     else:
         loss = outputs.loss
 
@@ -120,7 +173,7 @@ def train_step(
     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     optimizer.step()
 
-    return loss.item()
+    return loss.item(), stats
 
 
 
@@ -292,31 +345,95 @@ def main(args):
     # Create VARO loss
     varo_loss = VaroLoss(lambda_varo=0.1, u_star_method='head_variance')
 
+    # FIX: Create checkpoint directory
+    checkpoint_dir = Path("checkpoints")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    print(f"   - Checkpoint directory: {checkpoint_dir}")
+
     # Training
     print(f"\n🚀 Training for {args.steps} steps...")
     print()
 
+    # FIX: Remove dry-run early exit - let it run but with fewer steps if needed
+    actual_steps = 5 if args.dry_run else args.steps
     if args.dry_run:
-        print("DRY RUN MODE: Skipping actual training")
-        return
+        print("DRY RUN MODE: Running 5 steps for testing")
+        print()
 
-    for step in tqdm(range(args.steps), desc="Training"):
+    train_iter = None  # Initialize train_iter
+
+    for step in tqdm(range(actual_steps), desc="Training"):
         # Get batch
         try:
             batch = next(train_iter)
-        except (StopIteration, NameError):
+        except (StopIteration, TypeError):  # TypeError for when train_iter is None
             train_iter = iter(train_loader)
             batch = next(train_iter)
 
         # Train both models
-        baseline_loss = train_step(baseline_model, batch, baseline_opt, device)
-        aletheion_loss = train_step(aletheion_model, batch, aletheion_opt, device, varo_loss)
+        baseline_loss, baseline_stats = train_step(baseline_model, batch, baseline_opt, device)
+        aletheion_loss, aletheion_stats = train_step(aletheion_model, batch, aletheion_opt, device, varo_loss)
 
-        # Log progress
+        # IMPROVED: Log progress with Q1, Q2 statistics every 50 steps
         if (step + 1) % 50 == 0:
-            print(f"\nStep {step + 1}/{args.steps}")
+            print(f"\nStep {step + 1}/{actual_steps}")
             print(f"  Baseline loss: {baseline_loss:.4f}")
             print(f"  Aletheion loss: {aletheion_loss:.4f}")
+
+            # IMPROVED: Print Q1, Q2 statistics if available
+            if 'q1_mean' in aletheion_stats:
+                print(f"  Q₁: mean={aletheion_stats['q1_mean']:.3f}, std={aletheion_stats['q1_std']:.3f}")
+            if 'q2_mean' in aletheion_stats:
+                print(f"  Q₂: mean={aletheion_stats['q2_mean']:.3f}, std={aletheion_stats['q2_std']:.3f}")
+            if 'confidence_mean' in aletheion_stats:
+                print(f"  Confidence: {aletheion_stats['confidence_mean']:.3f}")
+            if 'varo_loss' in aletheion_stats:
+                print(f"  VARO loss: {aletheion_stats['varo_loss']:.4f}")
+
+        # FIX: Save checkpoints every 100 steps
+        if (step + 1) % 100 == 0 or (step + 1) == actual_steps:
+            print(f"\n💾 Saving checkpoints at step {step + 1}...")
+            save_checkpoint(
+                baseline_model, baseline_opt, step + 1, baseline_loss,
+                checkpoint_dir, "baseline"
+            )
+            save_checkpoint(
+                aletheion_model, aletheion_opt, step + 1, aletheion_loss,
+                checkpoint_dir, "aletheion"
+            )
+
+    # FIX: Save final models after training
+    print("\n💾 Saving final models...")
+    final_model_dir = results_dir / "final_models"
+    final_model_dir.mkdir(parents=True, exist_ok=True)
+
+    torch.save({
+        'model_state_dict': baseline_model.state_dict(),
+        'optimizer_state_dict': baseline_opt.state_dict(),
+        'config': {
+            'vocab_size': vocab_size,
+            'd_model': 512,
+            'n_layers': 6,
+            'n_heads': 8,
+            'd_ff': 2048,
+        }
+    }, final_model_dir / "baseline_final.pt")
+
+    torch.save({
+        'model_state_dict': aletheion_model.state_dict(),
+        'optimizer_state_dict': aletheion_opt.state_dict(),
+        'config': {
+            'vocab_size': vocab_size,
+            'd_model': 512,
+            'n_layers': 6,
+            'n_heads': 8,
+            'd_ff': 2048,
+            'q1_threshold': 0.7,
+            'q2_threshold': 0.7,
+        }
+    }, final_model_dir / "aletheion_final.pt")
+
+    print(f"  ✓ Final models saved to {final_model_dir}")
 
     # Final evaluation
     print("\n📊 Final Evaluation...")
