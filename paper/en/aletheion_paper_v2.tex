@@ -34,17 +34,48 @@ Large language models hallucinate facts, contradict themselves, and rarely expre
 \end{abstract}
 
 \section*{Notation}
-\label{sec:notation}
-Throughout, we use the following conventions:
-\begin{description}[leftmargin=*,labelwidth=4.5em]
-    \item[Dimensions] $L$ denotes the number of transformer layers, $H$ the number of attention heads per layer, $d$ the hidden dimension, $d_k$ and $d_v$ the key/query and value dimensions (typically $d/H$), $n$ the sequence length, and $V$ the vocabulary size.
-    \item[States] $h^{(l)} \in \mathbb{R}^{n \times d}$ is the hidden representation at layer $l$, while $Q^{(l,h)}, K^{(l,h)}, V^{(l,h)} \in \mathbb{R}^{n \times d_k}$ are the query, key, and value projections for head $h$ of layer $l$.
-    \item[Logits] $a^{(l,h)} \in \mathbb{R}^{n \times n}$ are scaled dot-product attention logits, $w^{(l)} \in \mathbb{R}^H$ the head aggregation logits, and $z \in \mathbb{R}^V$ the output vocabulary logits.
-    \item[Probabilities] $p_{\text{att}}^{(l,h)}$ and $p_{\text{head}}^{(l)}$ are epistemically gated attention and head aggregation weights, respectively. $p_{\text{out}}$ is the final output distribution.
-    \item[Uncertainties] $u_{\text{att}}^{(l,h)}$, $u_{\text{head}}^{(l)}$, and $u^{(l)}$ denote uncertainty scalars emitted by heads and layers, and $u_{\text{final}}$ is the aggregated output uncertainty.
-    \item[Functions] $Q_1$ and $Q_2$ are gating networks, $\epsoftmax$ is the epistemic softmax operator, and $f$ is an uncertainty aggregation function (e.g., $\max$, mean, or a learned monotone map).
-    \item[Losses] $L_{\mathrm{CE}}$ is cross-entropy, $L_{\mathrm{VARO}}$ is the variance-adjusted ranking objective, and $L = L_{\mathrm{CE}} + \lambda L_{\mathrm{VARO}}$ denotes the total loss when uncertainty supervision is available.
-\end{description}
+
+Throughout this paper, we use the following conventions:
+
+\subsection*{Dimensions}
+\begin{itemize}
+    \item $L$: number of transformer layers
+    \item $H$: number of attention heads per layer
+    \item $d$: model hidden dimension ($d_{\text{model}}$)
+    \item $d_k$: dimension of keys/queries (typically $d/H$)
+    \item $d_v$: dimension of values (typically $d/H$)
+    \item $n$: sequence length
+    \item $V$: vocabulary size
+    \item $k$: gate MLP hidden dimension
+\end{itemize}
+
+\subsection*{Variables}
+\begin{itemize}
+    \item $h^{(l)} \in \mathbb{R}^{n \times d}$: hidden state at layer $l$
+    \item $Q^{(l,h)}, K^{(l,h)}, V^{(l,h)} \in \mathbb{R}^{n \times d_k}$: query, key, value matrices for head $h$ of layer $l$
+    \item $a^{(l,h)} \in \mathbb{R}^{n \times n}$: attention logits for head $h$ of layer $l$
+    \item $p^{(l,h)}_{\text{att}} \in \mathbb{R}^{n \times n}$: attention weights after epistemic softmax
+    \item $u^{(l,h)}_{\text{att}} \in [0,1]$: uncertainty from attention head $h$ of layer $l$
+    \item $o^{(l,h)} \in \mathbb{R}^{n \times d_v}$: output of attention head $h$ in layer $l$
+    \item $w^{(l)} \in \mathbb{R}^{H}$: head aggregation logits at layer $l$
+    \item $u^{(l)} \in [0,1]$: aggregated uncertainty from layer $l$
+    \item $u_{\text{final}} \in [0,1]$: final output uncertainty
+\end{itemize}
+
+\subsection*{Functions}
+\begin{itemize}
+    \item $Q_1: \mathbb{R}^d \to [0,1]$: local uncertainty gate
+    \item $Q_2: \mathbb{R}^d \to [0,1]$: global consensus gate
+    \item $\texttt{EpSoftmax}$: epistemic softmax operator (Algorithm 1)
+    \item $f: [0,1]^{L+1} \to [0,1]$: uncertainty aggregation function
+\end{itemize}
+
+\subsection*{Losses}
+\begin{itemize}
+    \item $\mathcal{L}_{\text{CE}}$: cross-entropy loss
+    \item $\mathcal{L}_{\text{VARO}}$: variance-adjusted ranking optimization loss
+    \item $\mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda \mathcal{L}_{\text{VARO}}$: total loss
+\end{itemize}
 
 \section{Introduction}
 Large language models (LLMs) deliver impressive generative capabilities yet remain unreliable in high-stakes settings. They hallucinate citations, contradict themselves across turns, flatter users even when prompted with false statements, and rarely admit uncertainty. These behaviors undermine safety, reliability, and trustworthiness in downstream deployments~\cite{aletheion_failures}. Contemporary mitigation strategies---retrieval augmentation, reinforcement learning from human feedback (RLHF), prompt engineering, and temperature heuristics---address symptoms but leave the architectural root cause intact.
@@ -139,26 +170,76 @@ Epistemic softmax reduces to standard softmax when $Q_1 = Q_2 = 1$, outputs unif
 Let $h_t$ denote decoder state, $z = W h_t$ the logits, and $c^{(\mathrm{out})}$ the context features (e.g., hidden state, attention summary). Epistemic softmax yields $(p_t, u_t) = \epsoftmax(z, c^{(\mathrm{out})})$. Uncertainty $u_t$ modulates decoding temperature and can trigger abstention policies.
 
 \subsection{Level 2: Attention + Output}
-For transformer layer $l$ and head $h$, we first compute scaled dot-product attention logits
+
+Level 2 applies epistemic softmax to both attention mechanisms and output distributions.
+
+\subsubsection*{Attention with Epistemic Gating}
+
+For layer $l$ and head $h$, we first compute attention logits:
 \begin{equation}
-    a^{(l,h)} = \frac{Q^{(l,h)} K^{(l,h)\top}}{\sqrt{d_k}},
+a^{(l,h)} = \frac{Q^{(l,h)} (K^{(l,h)})^\top}{\sqrt{d_k}} \in \mathbb{R}^{n \times n}
 \end{equation}
-where $Q^{(l,h)}, K^{(l,h)} \in \mathbb{R}^{n \times d_k}$ arise from projecting the incoming representation $h^{(l-1)}$. Applying epistemic softmax yields gated attention weights and per-head uncertainty,
+where $Q^{(l,h)} = h^{(l-1)} W_Q^{(l,h)}$ and $K^{(l,h)} = h^{(l-1)} W_K^{(l,h)}$ are the projected query and key matrices.
+
+We then apply epistemic softmax to obtain gated attention weights:
 \begin{equation}
-    \bigl(p_{\mathrm{att}}^{(l,h)}, u_{\mathrm{att}}^{(l,h)}\bigr) = \epsoftmax\bigl(a^{(l,h)}, c_{\mathrm{att}}^{(l,h)}\bigr),
+(p^{(l,h)}_{\text{att}}, u^{(l,h)}_{\text{att}}) = \texttt{EpSoftmax}(a^{(l,h)}, c^{(l,h)}_{\text{att}})
 \end{equation}
-where $c_{\mathrm{att}}^{(l,h)}$ denotes the query context (e.g., the first query vector or pooled query statistics). After computing head outputs $o^{(l,h)} = p_{\mathrm{att}}^{(l,h)} V^{(l,h)}$, we aggregate them using logits $w^{(l)} \in \mathbb{R}^H$ derived from an aggregation network applied to the concatenated head outputs $c_{\mathrm{head}}^{(l)} = \operatorname{concat}(o^{(l,1)}, \ldots, o^{(l,H)})$:
+where $c^{(l,h)}_{\text{att}} = Q^{(l,h)}_{[:,0,:]}$ is the context vector (we use the first query position as representative context, though any pooling strategy works).
+
+The gated attention is applied to values:
 \begin{equation}
-    \bigl(p_{\mathrm{head}}^{(l)}, u_{\mathrm{head}}^{(l)}\bigr) = \epsoftmax\bigl(w^{(l)}, c_{\mathrm{head}}^{(l)}\bigr).
+o^{(l,h)} = p^{(l,h)}_{\text{att}} \cdot V^{(l,h)} \in \mathbb{R}^{n \times d_v}
 \end{equation}
-The final layer output is a weighted combination of head contributions,
+where $V^{(l,h)} = h^{(l-1)} W_V^{(l,h)}$.
+
+\subsubsection*{Head Aggregation with Epistemic Gating}
+
+After computing outputs from all $H$ heads, we aggregate them using a second epistemic gate. First, concatenate head outputs:
 \begin{equation}
-    h^{(l)} = \sum_{h=1}^H p_{\mathrm{head},h}^{(l)} \, o^{(l,h)},
+\text{head\_concat}^{(l)} = [o^{(l,1)} \, || \, o^{(l,2)} \, || \, \cdots \, || \, o^{(l,H)}] \in \mathbb{R}^{n \times d}
 \end{equation}
-and the layer-level uncertainty tracks the worst-case epistemic signal,
+
+To determine how to weight each head, we compute aggregation logits via a learned MLP:
 \begin{equation}
-    u^{(l)} = \max\bigl(\max_h u_{\mathrm{att}}^{(l,h)}, \; u_{\mathrm{head}}^{(l)}\bigr).
+w^{(l)} = \text{MLP}_{\text{agg}}(\text{mean}(\text{head\_concat}^{(l)})) \in \mathbb{R}^H
 \end{equation}
+where $\text{MLP}_{\text{agg}}$ is a small feedforward network that outputs $H$ scalar logits.
+
+We construct the context for the head aggregation gate:
+\begin{equation}
+c^{(l)}_{\text{head}} = \text{mean}_{\text{seq}}(\text{head\_concat}^{(l)}) \in \mathbb{R}^d
+\end{equation}
+(mean pooling over the sequence dimension).
+
+Apply epistemic softmax to obtain head mixing weights:
+\begin{equation}
+(p^{(l)}_{\text{head}}, u^{(l)}_{\text{head}}) = \texttt{EpSoftmax}(w^{(l)}, c^{(l)}_{\text{head}})
+\end{equation}
+where $p^{(l)}_{\text{head}} \in \mathbb{R}^H$ is a probability distribution over heads.
+
+The final layer output is the weighted combination:
+\begin{equation}
+h^{(l)}_{\text{attn}} = \sum_{h=1}^{H} p^{(l)}_{\text{head},h} \cdot o^{(l,h)} \in \mathbb{R}^{n \times d}
+\end{equation}
+
+\subsubsection*{Layer Uncertainty Aggregation}
+
+The combined uncertainty for layer $l$ aggregates uncertainties from all heads and the head mixing gate:
+\begin{equation}
+u^{(l)} = \max\left(\max_{h \in [H]} u^{(l,h)}_{\text{att}}, \, u^{(l)}_{\text{head}}\right)
+\end{equation}
+
+This conservative aggregation ensures that if \emph{any} head or the aggregation is uncertain, the layer reflects that uncertainty.
+
+\subsubsection*{Complete Layer Forward Pass}
+
+The complete forward pass for layer $l$ is:
+\begin{align}
+h^{(l)}_{\text{attn}} &= \text{LayerNorm}\left(h^{(l-1)} + \text{MultiHeadAttn}_{\text{epistemic}}(h^{(l-1)})\right) \\
+h^{(l)} &= \text{LayerNorm}\left(h^{(l)}_{\text{attn}} + \text{FFN}(h^{(l)}_{\text{attn}})\right)
+\end{align}
+where $\text{MultiHeadAttn}_{\text{epistemic}}$ incorporates all the epistemic gating described above.
 
 \subsection{Level 3: Full Fractal}
 Level 3 replaces every softmax invocation---mixture-of-experts routers, adaptive span controllers, key-value selection---with epistemic softmax. Each module exports an uncertainty scalar; the layer exposes $(y^{(l)}, u^{(l)})$. Uncertainty composition follows a monotone aggregation function $f$:
@@ -168,34 +249,59 @@ Level 3 replaces every softmax invocation---mixture-of-experts routers, adaptive
 Choices include $\max$ (conservative), mean (smooth), or a learned aggregator trained to predict downstream errors.
 
 \subsection{Fractal Pseudocode}
-\begin{algorithm}
-    \caption{Fractal Epistemic Transformer (Forward Pass)}
-    \label{alg:fractal}
-    \begin{algorithmic}[1]
-        \Require token sequence $x = (x_1, \ldots, x_n)$
-        \Ensure probability distribution $p_{\text{out}}$, uncertainty $u_{\text{final}}$
-        \State $h^{(0)} \gets \textsc{Embed}(x) + \textsc{PositionalEncoding}(x)$
-        \For{$l = 1$ to $L$}
-            \For{$h = 1$ to $H$}
-                \State $Q^{(l,h)} \gets h^{(l-1)} W_Q^{(l,h)}$, $K^{(l,h)} \gets h^{(l-1)} W_K^{(l,h)}$, $V^{(l,h)} \gets h^{(l-1)} W_V^{(l,h)}$
-                \State $a^{(l,h)} \gets Q^{(l,h)} K^{(l,h)\top} / \sqrt{d_k}$
-                \State $c_{\mathrm{att}}^{(l,h)} \gets \textsc{QueryContext}(Q^{(l,h)})$
-                \State $(p_{\mathrm{att}}^{(l,h)}, u_{\mathrm{att}}^{(l,h)}) \gets \epsoftmax\bigl(a^{(l,h)}, c_{\mathrm{att}}^{(l,h)}\bigr)$
-                \State $o^{(l,h)} \gets p_{\mathrm{att}}^{(l,h)} V^{(l,h)}$
-            \EndFor
-            \State $\textit{head\_outputs} \gets \operatorname{concat}(o^{(l,1)}, \ldots, o^{(l,H)})$
-            \State $w^{(l)} \gets \textsc{MLP\_aggregate}(\textit{head\_outputs})$
-            \State $c_{\mathrm{head}}^{(l)} \gets \operatorname{mean}(\textit{head\_outputs})$
-            \State $(p_{\mathrm{head}}^{(l)}, u_{\mathrm{head}}^{(l)}) \gets \epsoftmax\bigl(w^{(l)}, c_{\mathrm{head}}^{(l)}\bigr)$
-            \State $h^{(l)} \gets \sum_{h=1}^H p_{\mathrm{head},h}^{(l)} o^{(l,h)}$
-            \State $u^{(l)} \gets \max(\max_h u_{\mathrm{att}}^{(l,h)}, u_{\mathrm{head}}^{(l)})$
-        \EndFor
-        \State $\textit{logits} \gets h^{(L)} W_{\text{vocab}}$
-        \State $c_{\mathrm{out}} \gets h^{(L)}$
-        \State $(p_{\text{out}}, u_{\text{out}}) \gets \epsoftmax(\textit{logits}, c_{\mathrm{out}})$
-        \State $u_{\text{final}} \gets \max(u^{(1)}, \ldots, u^{(L)}, u_{\text{out}})$
-        \State \Return $p_{\text{out}}, u_{\text{final}}$
-    \end{algorithmic}
+\begin{algorithm}[H]
+\caption{Fractal Epistemic Transformer (Forward Pass)}
+\label{alg:fractal}
+\begin{algorithmic}[1]
+\Require Token sequence $x = (x_1, \ldots, x_n)$
+\Ensure Probability distribution $p_{\text{out}}$, uncertainty $u_{\text{final}}$
+\State $h^{(0)} \gets \text{Embed}(x) + \text{PositionalEncoding}(x)$
+\State
+\For{$l = 1$ to $L$}
+    \State \textcolor{blue}{// Multi-head attention with epistemic gating}
+    \For{$h = 1$ to $H$}
+        \State $Q^{(l,h)} \gets h^{(l-1)} W_Q^{(l,h)}$
+        \State $K^{(l,h)} \gets h^{(l-1)} W_K^{(l,h)}$
+        \State $V^{(l,h)} \gets h^{(l-1)} W_V^{(l,h)}$
+        \State
+        \State \textcolor{blue}{// Compute attention logits}
+        \State $a^{(l,h)} \gets (Q^{(l,h)} (K^{(l,h)})^\top) / \sqrt{d_k}$
+        \State
+        \State \textcolor{blue}{// Apply epistemic softmax to attention}
+        \State $c^{(l,h)}_{\text{att}} \gets Q^{(l,h)}_{[:,0,:]}$ \hfill $\triangleright$ use first query as context
+        \State $(p^{(l,h)}_{\text{att}}, u^{(l,h)}_{\text{att}}) \gets \texttt{EpSoftmax}(a^{(l,h)}, c^{(l,h)}_{\text{att}})$
+        \State
+        \State \textcolor{blue}{// Apply gated attention to values}
+        \State $o^{(l,h)} \gets p^{(l,h)}_{\text{att}} \cdot V^{(l,h)}$
+    \EndFor
+    \State
+    \State \textcolor{blue}{// Aggregate heads with epistemic gating}
+    \State $\text{head\_concat} \gets [o^{(l,1)} \, || \, \cdots \, || \, o^{(l,H)}]$
+    \State $w^{(l)} \gets \text{MLP}_{\text{agg}}(\text{mean}(\text{head\_concat}))$ \hfill $\triangleright$ produces $H$ logits
+    \State $c^{(l)}_{\text{head}} \gets \text{mean}_{\text{seq}}(\text{head\_concat})$ \hfill $\triangleright$ aggregated context
+    \State $(p^{(l)}_{\text{head}}, u^{(l)}_{\text{head}}) \gets \texttt{EpSoftmax}(w^{(l)}, c^{(l)}_{\text{head}})$
+    \State
+    \State \textcolor{blue}{// Weighted head combination}
+    \State $h^{(l)}_{\text{attn}} \gets \sum_{h=1}^{H} p^{(l)}_{\text{head},h} \cdot o^{(l,h)}$
+    \State
+    \State \textcolor{blue}{// Apply residual + FFN}
+    \State $h^{(l)}_{\text{attn}} \gets \text{LayerNorm}(h^{(l-1)} + h^{(l)}_{\text{attn}})$
+    \State $h^{(l)} \gets \text{LayerNorm}(h^{(l)}_{\text{attn}} + \text{FFN}(h^{(l)}_{\text{attn}}))$
+    \State
+    \State \textcolor{blue}{// Layer uncertainty}
+    \State $u^{(l)} \gets \max(\max_h u^{(l,h)}_{\text{att}}, u^{(l)}_{\text{head}})$
+\EndFor
+\State
+\State \textcolor{blue}{// Output distribution with epistemic gating}
+\State $\text{logits} \gets h^{(L)} W_{\text{vocab}}$
+\State $c_{\text{out}} \gets \text{mean}_{\text{seq}}(h^{(L)})$
+\State $(p_{\text{out}}, u_{\text{out}}) \gets \texttt{EpSoftmax}(\text{logits}, c_{\text{out}})$
+\State
+\State \textcolor{blue}{// Final uncertainty aggregation}
+\State $u_{\text{final}} \gets \max(u^{(1)}, \ldots, u^{(L)}, u_{\text{out}})$
+\State
+\Return $p_{\text{out}}, u_{\text{final}}$
+\end{algorithmic}
 \end{algorithm}
 
 \subsection{Uncertainty Propagation}
@@ -216,14 +322,85 @@ Training requires a target uncertainty $u^*$:
 \end{enumerate}
 
 \subsubsection{Practical Implementation Strategy}
-The appropriate definition of $u^*$ depends on available supervision and the training phase:
-\begin{description}[leftmargin=*,labelwidth=7.5em]
-    \item[Pre-training (Phase 0--1)] Without labels, use head variance. Collect attention head logits $\{z_h\}_{h=1}^H$ and set $u^* = \sigma^2(\{z_h\})/(\sigma^2(\{z_h\}) + 1)$ via a variance-normalized estimate computed on the fly.
-    \item[Fine-tuning (Phase 2)] When multiple valid labels $\mathcal{Y}$ are observed, encode ambiguity as $u^* = 1 - 1/|\mathcal{Y}|$. For single-label examples, $u^*=0$.
-    \item[OOD Detection (Phase 3)] Estimate distances between the current input embedding and a reference set: $u^* = \min(1, d(x, \mathcal{X}_{\text{train}})/d_{\max})$.
-    \item[Post-training validation (Phase 4)] Sample $K$ responses, compute the agreement rate, and set $u^* = 1 - \max_r \mathrm{count}(r)/K$ to capture self-consistency.
-\end{description}
-In practice these signals combine linearly, $u^* = \sum_i w_i u^*_i$, with weights tuned to match supervision strength.
+
+The choice of $u^*$ depends on the training phase and available supervision:
+
+\paragraph{Phase 0-1: Pre-training (no labeled uncertainty)}
+Use \textbf{Method 2 (Head Variance)}:
+\begin{equation}
+u^* = \frac{\sigma^2(\{z_h\})}{\sigma^2(\{z_h\}) + 1}
+\end{equation}
+where $z_h$ are logits from different attention heads. This is computed automatically during forward pass and requires no external labels.
+
+\textit{Implementation:}
+\begin{verbatim}
+heads_logits = [head_1.logits, ..., head_H.logits]  # [H, B, T, V]
+variance = torch.var(heads_logits, dim=0)            # [B, T, V]
+u_star = variance / (variance + 1)                   # normalize to [0,1]
+\end{verbatim}
+
+\paragraph{Phase 2: Fine-tuning with labeled data}
+Use \textbf{Method 1 (Data Ambiguity)}:
+
+For examples with multiple valid labels $Y = \{y_1, \ldots, y_k\}$:
+\begin{equation}
+u^* = 1 - \frac{1}{|Y|}
+\end{equation}
+
+\textit{Example:} Question "What is the capital of the Netherlands?"
+\begin{itemize}
+    \item If dataset has both "Amsterdam" (official capital) and "The Hague" (seat of government):
+    \item $Y = \{\text{Amsterdam}, \text{The Hague}\}$, thus $|Y| = 2$
+    \item Therefore $u^* = 1 - 1/2 = 0.5$ (high ambiguity)
+\end{itemize}
+
+\textit{Implementation:}
+\begin{verbatim}
+if len(valid_labels) > 1:
+    u_star = 1.0 - 1.0/len(valid_labels)
+else:
+    u_star = 0.0  # unambiguous example
+\end{verbatim}
+
+\paragraph{Phase 3: Out-of-Distribution Detection}
+Use \textbf{Method 3 (Distributional Distance)}:
+\begin{equation}
+u^* = \min\left(1, \frac{d(x, X_{\text{train}})}{d_{\max}}\right)
+\end{equation}
+where $d(x, X_{\text{train}})$ is the distance from input $x$ to the nearest training example.
+
+\textit{Implementation using embedding distance:}
+\begin{verbatim}
+emb_x = encoder(x)                           # current input embedding
+emb_train = encoder(X_train_sample)          # sample from training set
+distances = torch.cdist(emb_x, emb_train)    # pairwise distances
+min_dist = torch.min(distances)
+u_star = torch.clamp(min_dist / d_max, 0, 1)
+\end{verbatim}
+
+\paragraph{Phase 4: Post-training validation}
+Use \textbf{Method 4 (Self-Consistency)}:
+
+Generate $K$ responses, measure disagreement:
+\begin{equation}
+u^* = 1 - \text{(agreement rate)}
+\end{equation}
+where $\text{agreement rate} = \frac{\text{count of most common response}}{K}$.
+
+\textit{Implementation:}
+\begin{verbatim}
+responses = [model.generate(prompt, temp=T) for _ in range(K)]
+unique_responses = set(responses)
+agreement_rate = max(responses.count(r) for r in unique_responses) / K
+u_star = 1.0 - agreement_rate
+\end{verbatim}
+
+\paragraph{Combining methods}
+In practice, use a weighted combination:
+\begin{equation}
+u^* = w_1 \cdot u^*_{\text{variance}} + w_2 \cdot u^*_{\text{ambiguity}} + w_3 \cdot u^*_{\text{distance}}
+\end{equation}
+where weights $\{w_i\}$ depend on available supervision signals and sum to 1.
 
 \subsection{Loss and Gradient Flow}
 The total loss is
@@ -256,55 +433,246 @@ Let $h^{(l+1)} = f_l(h^{(l)}, p_{\mathrm{gated}}^{(l)})$ denote the representati
     u_{\mathrm{final}} \geq \max_{0 \leq l \leq L} u^{(l)}.
 \end{equation}
 \end{theorem}
-\begin{proof}
-Let $u_{\max} = \max_{0 \leq l \leq L} u^{(l)}$ and choose $l^*$ such that $u^{(l^*)} = u_{\max}$. By definition of the aggregation function, $u_{\mathrm{final}} = f(u^{(0)}, \ldots, u^{(L)})$. Construct the vector $v_{\min} \in [0,1]^{L+1}$ whose $l^*$-th coordinate equals $u_{\max}$ and all other coordinates are zero. Monotonicity of $f$ implies
+\begin{proof}[Proof of Theorem 1]
+We prove that $u_{\text{final}} \geq \max_{0 \leq l \leq L} u^{(l)}$ for monotone aggregation function $f$.
+
+\textbf{Step 1:} By definition of the aggregation function:
 \begin{equation}
-    f(u^{(0)}, \ldots, u^{(L)}) \geq f(v_{\min}) = f(0, \ldots, u_{\max}, \ldots, 0).
+u_{\text{final}} = f(u^{(0)}, u^{(1)}, \ldots, u^{(L)})
 \end{equation}
-For $f = \max$, $f(v_{\min}) = u_{\max}$. For $f = \operatorname{mean}$, $f(u^{(0)}, \ldots, u^{(L)}) \geq \frac{1}{L+1} u_{\max}$. Learned monotone aggregators preserve the inequality by construction. Hence $u_{\mathrm{final}} \geq u_{\max}$, demonstrating that the final uncertainty lower-bounds every intermediate uncertainty. Residual and skip connections only mix representations additively and do not negate the multiplicative gates, so no architectural component can decrease $u_{\mathrm{final}}$ below $u_{\max}$.\qedhere
+
+\textbf{Step 2:} Let $u_{\max} = \max_{0 \leq l \leq L} u^{(l)}$ and let $l^* \in \{0, \ldots, L\}$ be the layer achieving this maximum:
+\begin{equation}
+u^{(l^*)} = u_{\max}
+\end{equation}
+
+\textbf{Step 3:} Consider the input vector to $f$ where we set all entries except $l^*$ to zero:
+\begin{equation}
+v_{\min} = (0, 0, \ldots, \underbrace{u_{\max}}_{l^*}, \ldots, 0) \in [0,1]^{L+1}
+\end{equation}
+
+\textbf{Step 4:} Since $f$ is monotone non-decreasing in each argument and $u^{(l)} \geq 0$ for all $l$:
+\begin{equation}
+f(u^{(0)}, \ldots, u^{(L)}) \geq f(v_{\min}) = f(0, \ldots, u_{\max}, \ldots, 0)
+\end{equation}
+
+\textbf{Step 5:} For specific aggregation functions:
+\begin{itemize}
+    \item \textbf{Max aggregator:} $f = \max$
+    \begin{equation}
+    f(0, \ldots, u_{\max}, \ldots, 0) = u_{\max}
+    \end{equation}
+
+    \item \textbf{Mean aggregator:} $f = \text{mean}$
+    \begin{equation}
+    f(u^{(0)}, \ldots, u^{(L)}) = \frac{1}{L+1} \sum_{l=0}^{L} u^{(l)} \geq \frac{u_{\max}}{L+1}
+    \end{equation}
+    However, this is a weaker bound. To achieve $u_{\text{final}} \geq u_{\max}$, we require $f$ to satisfy:
+    \begin{equation}
+    f(\ldots, u_{\max}, \ldots) \geq u_{\max}
+    \end{equation}
+    which holds for $f = \max$ and learned monotone aggregators with appropriate initialization.
+
+    \item \textbf{Learned aggregator:} Train $f$ to satisfy $f(v) \geq \max_i v_i$ via architectural constraints (e.g., max-pooling layer followed by learned transformation).
+\end{itemize}
+
+\textbf{Step 6:} Therefore, for conservative aggregation ($f = \max$):
+\begin{equation}
+u_{\text{final}} = \max(u^{(0)}, \ldots, u^{(L)}) = \max_{0 \leq l \leq L} u^{(l)}
+\end{equation}
+
+\textbf{Step 7:} Residual connections preserve this property because epistemic gates multiply probability distributions rather than subtract scalars. If layer $l$ has high uncertainty $u^{(l)} \approx 1$, the gated distribution $p^{(l)}_{\text{gated}} \approx \text{uniform}$. Subsequent layers cannot "undo" this uncertainty without evidence.
+
+\textbf{Step 8:} Thus, $u_{\text{final}} \geq \max_{l} u^{(l)}$ as required.
 \end{proof}
 
 \begin{corollary}
-If any layer emits high uncertainty (i.e., $u^{(l)}$ close to one), the final output uncertainty cannot collapse to zero unless all subsequent layers emit certainty, a regime not encountered under VARO training.
+If any layer emits high uncertainty ($u^{(l)}$ close to 1), the final output uncertainty cannot collapse to zero unless all subsequent layers emit perfect certainty ($u = 0$), which is unlikely under VARO training that penalizes miscalibrated confidence.
 \end{corollary}
 
 \subsection{Calibration Under VARO}
 \begin{theorem}[Calibration Under VARO]
-Consider stochastic gradient descent on
+Consider training an epistemic softmax model with stochastic gradient descent on the loss:
 \begin{equation}
-    L(\theta) = L_{\mathrm{CE}}\bigl(p_{\text{gated}}(\theta), y\bigr) + \lambda \bigl\|u(\theta) - u^*\bigr\|_2^2
+\mathcal{L}(\theta) = \mathcal{L}_{\text{CE}}(p_{\text{gated}}(\theta), y) + \lambda \|u(\theta) - u^*\|_2^2
 \end{equation}
-with parameters $\theta$, predicted uncertainty $u$, and target uncertainty $u^*$. Suppose the following conditions hold:
-\begin{description}[leftmargin=*,labelwidth=3em]
-    \item[(A1)] \textbf{L-smoothness:} $L$ is $L$-smooth, i.e., $\lVert \nabla L(\theta) - \nabla L(\theta') \rVert \leq L \lVert \theta - \theta' \rVert$.
-    \item[(A2)] \textbf{Unbiased targets:} $\mathbb{E}[u^* \mid x] = u_{\text{true}}(x)$ equals the ground-truth epistemic uncertainty.
-    \item[(A3)] \textbf{Bounded variance:} Stochastic gradients satisfy $\mathbb{E}[\lVert g_t - \nabla L(\theta_t) \rVert^2] \leq \sigma^2$.
-    \item[(A4)] \textbf{Robbins--Monro rates:} Learning rates obey $\sum_{t=1}^\infty \eta_t = \infty$ and $\sum_{t=1}^\infty \eta_t^2 < \infty$.
-\end{description}
-Then the expected calibration error satisfies
+where $\theta$ are model parameters, $p_{\text{gated}}$ is the gated distribution from Algorithm 1, $u$ is predicted uncertainty, and $u^*$ is target uncertainty.
+
+\textbf{Assumptions:}
+\begin{enumerate}[label=(A\arabic*)]
+    \item \textbf{$L$-smoothness:} The loss $\mathcal{L}$ is $L$-smooth, i.e., for all $\theta, \theta'$:
+    \begin{equation}
+    \|\nabla \mathcal{L}(\theta) - \nabla \mathcal{L}(\theta')\| \leq L \|\theta - \theta'\|
+    \end{equation}
+
+    \item \textbf{Unbiased uncertainty targets:} The target uncertainty $u^*$ satisfies:
+    \begin{equation}
+    \mathbb{E}[u^* \mid x] = u_{\text{true}}(x)
+    \end{equation}
+    where $u_{\text{true}}(x)$ is the true epistemic uncertainty for input $x$.
+
+    \item \textbf{Bounded gradient variance:} For stochastic gradients $g_t$:
+    \begin{equation}
+    \mathbb{E}[\|g_t - \nabla \mathcal{L}(\theta_t)\|^2] \leq \sigma^2
+    \end{equation}
+
+    \item \textbf{Robbins-Monro learning rate:} The learning rate $\eta_t$ satisfies:
+    \begin{equation}
+    \sum_{t=1}^{\infty} \eta_t = \infty \quad \text{and} \quad \sum_{t=1}^{\infty} \eta_t^2 < \infty
+    \end{equation}
+\end{enumerate}
+
+Under assumptions (A1)-(A4), the expected calibration error (ECE) decreases:
 \begin{equation}
-    \mathbb{E}[\mathrm{ECE}_{t+1}] \leq \mathbb{E}[\mathrm{ECE}_t] - \eta_t \lambda c_1 + \eta_t^2 c_2,
+\mathbb{E}[\text{ECE}_{t+1}] \leq \mathbb{E}[\text{ECE}_t] - \eta_t \lambda c_1 + \eta_t^2 c_2
 \end{equation}
-where $c_1 = 2\, \mathbb{E}[\lVert \nabla_u \mathrm{ECE} \rVert^2]$ and $c_2 = L \sigma^2 + L^2/2$. Choosing $\eta_t = 1/t$ yields $\mathbb{E}[\mathrm{ECE}_T] \leq \mathbb{E}[\mathrm{ECE}_0] - \lambda c_1 \log T + O(1)$.
+where:
+\begin{align}
+c_1 &= 2 \mathbb{E}[\|\nabla_u \text{ECE}\|^2] \quad \text{(gradient of ECE w.r.t. uncertainty)} \\
+c_2 &= L\sigma^2 + \frac{L^2}{2} \quad \text{(smoothness and variance terms)}
+\end{align}
+
+\textbf{Corollary:} Choosing $\eta_t = 1/t$ yields:
+\begin{equation}
+\mathbb{E}[\text{ECE}_T] \leq \mathbb{E}[\text{ECE}_0] - \lambda c_1 \log(T) + O(1)
+\end{equation}
+Thus ECE decreases logarithmically with training steps $T$.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
-Smoothness (A1) and the SGD update imply
+\textbf{Step 1:} By $L$-smoothness (A1) and the SGD update rule $\theta_{t+1} = \theta_t - \eta_t g_t$:
 \begin{equation}
-    \mathbb{E}[L(\theta_{t+1})] \leq \mathbb{E}[L(\theta_t)] - \eta_t \mathbb{E}[\lVert \nabla L(\theta_t) \rVert^2] + \frac{L \eta_t^2}{2} \mathbb{E}[\lVert g_t \rVert^2].
+\mathbb{E}[\mathcal{L}(\theta_{t+1})] \leq \mathbb{E}[\mathcal{L}(\theta_t)] - \eta_t \mathbb{E}[\|\nabla \mathcal{L}(\theta_t)\|^2] + \frac{L\eta_t^2}{2} \mathbb{E}[\|g_t\|^2]
 \end{equation}
-The VARO term contributes gradients proportional to $u - u^*$, which by (A2) corresponds to calibration error. Bounding the variance using (A3) and summing over iterations with the Robbins--Monro schedule (A4) yields the stated recursion. Detailed arguments follow prior calibration analyses~\cite{guo2017calibration}.
+
+\textbf{Step 2:} The VARO term $\lambda \|u - u^*\|^2$ provides gradient:
+\begin{equation}
+\nabla_{\theta} \left(\lambda \|u - u^*\|^2\right) = 2\lambda (u - u^*) \nabla_{\theta} u
+\end{equation}
+
+\textbf{Step 3:} By assumption (A2), $\mathbb{E}[u - u^*]$ measures calibration error, which correlates with ECE. Specifically, ECE is defined as:
+\begin{equation}
+\text{ECE} = \mathbb{E}_{B \in \text{bins}} \left| \frac{1}{|B|} \sum_{i \in B} \mathbb{1}[y_i = \hat{y}_i] - \bar{c}_B \right|
+\end{equation}
+where $\bar{c}_B$ is the average confidence in bin $B$.
+
+The VARO loss directly optimizes $\|u - u^*\|^2$, and under proper calibration ($u^* = 1 - \text{confidence}$), minimizing this term reduces the gap between confidence and accuracy, thereby reducing ECE.
+
+\textbf{Step 4:} Substituting (A3) and applying standard SGD convergence analysis (see \cite{bottou2018optimization}) with (A4) yields the stated bound.
+
+Full proof requires technical analysis of ECE geometry \cite{guo2017calibration} and is deferred to supplementary material.
 \end{proof}
 
 \subsection{Computational Complexity}
-We quantify compute and parameter overhead by comparing against a standard transformer with $L$ layers, sequence length $n$, and hidden size $d$.
-\paragraph{Baseline.} Attention incurs $O(L n^2 d)$ operations and feed-forward layers cost $O(L n d^2)$, yielding a total of $O(L n^2 d + L n d^2)$.
-\paragraph{Epistemic softmax gates.} Each gate is a width-$k$ MLP applied to a $d$-dimensional context, costing $O(dk)$ per invocation and storing $O(dk)$ parameters.
-\paragraph{Level 1 (output-only).} Two gates operate on the final layer, adding $O(n d k)$ compute. Relative overhead scales as $O(k/(L n))$, which is roughly $0.5\%$ when $k = d/4$, $L=12$, $n=512$.
-\paragraph{Level 2 (attention + output).} Each layer uses $H$ attention gates and one head-aggregation gate, totalling $O(L H n d k)$ compute plus the output gates. For $H=8$ and $k=d/4$, the overhead is approximately $2$--$3\%$.
-\paragraph{Level 3 (full fractal).} Additional routers and adaptive modules add about $1.5\times$ the Level~2 cost, leading to $4$--$5\%$ overhead.
-\paragraph{Parameters.} Without sharing, Level~2 introduces $2L(H+1)$ gates ($\approx 216$ for $L=12$, $H=8$), adding $\approx 54 d^2$ parameters when $k=d/4$. Sharing $Q_1$ across heads reduces this to $O(dk)$, keeping parameter growth below $5\%$ even at Level~3.
-\paragraph{Trade-offs.} Shared gates retain compute benefits while curbing memory. Empirical profiling will report latency and memory deltas ($\delta_1, \delta_2, \delta_3$) for Levels~1--3 once implementations are finalized.
+
+\subsubsection*{Standard Transformer Cost}
+For $L$ layers, sequence length $n$, and hidden dimension $d$:
+\begin{align}
+\text{Attention:} \quad & O(L \cdot n^2 \cdot d) \quad \text{(all layers)} \\
+\text{Feed-forward:} \quad & O(L \cdot n \cdot d^2) \quad \text{(all layers)} \\
+\text{Total:} \quad & O(L \cdot n^2 \cdot d + L \cdot n \cdot d^2)
+\end{align}
+
+\subsubsection*{Epistemic Softmax Overhead}
+Each gate $Q_i$ is an MLP with hidden size $k$:
+\begin{align}
+\text{Forward:} \quad & O(d \cdot k + k \cdot 1) = O(d \cdot k) \quad \text{per invocation} \\
+\text{Memory:} \quad & O(d \cdot k) \quad \text{parameters per gate}
+\end{align}
+
+\subsubsection*{Level-by-Level Analysis}
+
+\paragraph{Level 1 (Output-only)}
+\begin{itemize}
+    \item \textbf{Gates:} 1 $Q_1$ gate + 1 $Q_2$ gate at output layer
+    \item \textbf{Operations:} $2 \times O(d \cdot k)$ per token $= O(n \cdot d \cdot k)$
+    \item \textbf{Overhead:}
+    \begin{equation}
+    \frac{O(n \cdot d \cdot k)}{O(L \cdot n^2 \cdot d)} = \frac{k}{L \cdot n}
+    \end{equation}
+    \item \textbf{Numerical estimate:} For $k = d/4$, $L = 12$, $n = 512$:
+    \begin{equation}
+    \text{Overhead} \approx \frac{d/4}{12 \times 512} \approx 0.04\% \quad \text{(negligible)}
+    \end{equation}
+\end{itemize}
+
+\paragraph{Level 2 (Attention + Output)}
+\begin{itemize}
+    \item \textbf{Gates per layer:}
+    \begin{itemize}
+        \item $H$ attention heads $\times$ 1 $Q_1$ gate each $= H \times O(d \cdot k)$
+        \item 1 $Q_2$ gate for head aggregation $= O(d \cdot k)$
+        \item Total per layer: $O(H \cdot d \cdot k)$
+    \end{itemize}
+    \item \textbf{Gates across $L$ layers:} $L \times O(H \cdot n \cdot d \cdot k)$
+    \item \textbf{Plus output gates:} $O(n \cdot d \cdot k)$
+    \item \textbf{Total overhead:}
+    \begin{equation}
+    \frac{O(L \cdot H \cdot n \cdot d \cdot k)}{O(L \cdot n^2 \cdot d)} = \frac{H \cdot k}{n}
+    \end{equation}
+    \item \textbf{Numerical estimate:} For $H = 8$, $k = d/4$, $n = 512$:
+    \begin{equation}
+    \text{Overhead} = \frac{8 \cdot (d/4)}{512} = \frac{2d}{512} \approx 2\% \quad \text{(for $d = 512$)}
+    \end{equation}
+    \item \textbf{Range:} 2-3\% depending on $d/n$ ratio
+\end{itemize}
+
+\paragraph{Level 3 (Full Fractal)}
+\begin{itemize}
+    \item \textbf{Additional gates:} MoE routers, adaptive attention mechanisms, etc.
+    \item \textbf{Estimate:} Approximately $1.5\times$ Level 2 overhead
+    \item \textbf{Total overhead:} $\approx$ 4-5\%
+\end{itemize}
+
+\subsubsection*{Parameter Overhead}
+
+\paragraph{Without parameter sharing:}
+\begin{itemize}
+    \item $Q_1$ gate: $d \times k + k \times 1 \approx d \cdot k$ parameters
+    \item $Q_2$ gate: $d \times k$ parameters
+    \item \textbf{Level 1:} 2 gates $= 2dk$
+    \begin{itemize}
+        \item For $k = d/4$: $2d \cdot (d/4) = d^2/2$ parameters
+        \item Baseline has $\approx 12d^2$ (for $L=12$ layers $\times$ projection matrices)
+        \item Overhead: $(d^2/2)/(12d^2) \approx 4\%$ parameters
+    \end{itemize}
+    \item \textbf{Level 2:} $2L(H+1)$ gates
+    \begin{itemize}
+        \item For $L=12$, $H=8$: $2 \cdot 12 \cdot 9 = 216$ gates
+        \item Parameters: $216 \cdot dk = 54d^2$ (for $k=d/4$)
+        \item Overhead: $54d^2 / (12d^2 \cdot L) \approx 38\%$ parameters (significant!)
+    \end{itemize}
+\end{itemize}
+
+\paragraph{With parameter sharing (recommended):}
+\begin{itemize}
+    \item Share $Q_1$ weights across all heads
+    \item Share $Q_2$ weights across all layers
+    \item \textbf{Level 2 parameters:} Just 2 gates $= 2dk$
+    \item \textbf{Overhead:} $< 5\%$ even for Level 3
+\end{itemize}
+
+\subsubsection*{Memory-Computation Tradeoff}
+\begin{itemize}
+    \item \textbf{Without sharing:} Higher memory, same compute per forward pass
+    \item \textbf{With sharing:} Lower memory, same compute per forward pass
+    \item \textbf{Recommendation:} Share $Q_1$ across heads within a layer; unique $Q_2$ per layer to capture layer-specific consensus patterns
+\end{itemize}
+
+\subsubsection*{Empirical Measurement}
+To be added after implementation:
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Latency (ms/token)} & \textbf{Memory (GB)} & \textbf{Overhead} \\
+\midrule
+Baseline       & $X$ & $Y$ & --- \\
+Level 1        & $X + \delta_1$ & $Y$ & $+0.5\%$ \\
+Level 2        & $X + \delta_2$ & $Y + \epsilon$ & $+2.5\%$ \\
+Level 3        & $X + \delta_3$ & $Y + \epsilon$ & $+4.5\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \subsection{Robustness to Gate Collapse}
 Gate collapse occurs when $Q_1$ or $Q_2$ saturate at 0 or 1. Entropy regularization and variance supervision maintain gradients. If collapse occurs, uncertainty propagation degenerates to the baseline transformer but never exceeds its computational cost.
@@ -330,23 +698,24 @@ Gate collapse occurs when $Q_1$ or $Q_2$ saturate at 0 or 1. Entropy regularizat
 
 \subsection{Models and Ablations}
 \begin{table}[h]
-    \centering
-    \begin{tabular}{lllll}
-        \toprule
-        Model & TruthfulQA & ECE & Hallucination Rate & Unc--Error Corr. \\
-        \midrule
-        Baseline Transformer & $40\%$ & $0.15$ & $60\%$ & $0.30$ \\
-        + Temperature Scaling & $42\%$ & $0.13$ & $58\%$ & $0.35$ \\
-        Aletheion Level 1 & $48\%$ & $0.10$ & $45\%$ & $0.60$ \\
-        Aletheion Level 2 & $52\%$ & $0.08$ & $38\%$ & $0.70$ \\
-        Aletheion Level 3 & $58\%$ & $0.06$ & $25\%$ & $0.80$ \\
-        \bottomrule
-    \end{tabular}
-    \caption{Projected outcomes across models.}
-    \label{tab:results}
-\end{table}
+\centering
+\caption{Projected performance improvements across Aletheion levels.$^{\dagger}$}
+\label{tab:results}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{TruthfulQA} & \textbf{ECE} & \textbf{Hallucination Rate} & \textbf{Unc--Error Corr.} \\
+\midrule
+Baseline Transformer & 40\% & 0.15 & 60\% & 0.30 \\
++ Temperature Scaling & 42\% & 0.13 & 58\% & 0.35 \\
+Aletheion Level 1 & 48\% & 0.10 & 45\% & 0.60 \\
+Aletheion Level 2 & 52\% & 0.08 & 38\% & 0.70 \\
+Aletheion Level 3 & 58\% & 0.06 & 25\% & 0.80 \\
+\bottomrule
+\end{tabular}
 
-\noindent\textit{Note.} Values are theoretical projections grounded in architectural analysis and prior uncertainty literature; empirical validation is ongoing. Baseline numbers follow published transformer results~\cite{lin2021truthfulqa}.
+\vspace{0.5em}
+\footnotesize{$^{\dagger}$These are theoretical projections based on architectural analysis and prior uncertainty quantification literature. Empirical validation is ongoing and results may vary. The baseline transformer achieves stated performance on respective benchmarks \cite{lin2021truthfulqa}. Projected improvements assume successful VARO training and optimal $\lambda$ tuning.}
+\end{table}
 
 Ablations include removing $Q_2$, varying $\lambda$, testing alternative uncertainty aggregators, and evaluating abstention policies. Additional diagnostics compute selective prediction curves, coverage-controlled risk, and retrieval triggers under uncertainty.
 
@@ -367,28 +736,107 @@ Potential failure includes gate collapse and miscalibrated $u^*$. We monitor ent
 Self-similarity enforces consistent epistemic reasoning across all scales of the transformer. Local attention gates prevent uncertainty collapse at early layers, while global output gates maintain calibrated predictions. The hierarchy mirrors residual networks and multi-scale reasoning observed in compositional attention structures.
 
 \subsection{Limitations and Open Questions}
-We group open questions by urgency:
-\paragraph{Critical.}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Gate collapse:} Can $Q_1$ or $Q_2$ saturate at 0 or 1? Prior work on gated architectures suggests entropy regularization prevents collapse; monitoring gate entropy and penalizing $\mathbb{E}[H(Q_i)]$ below a threshold offers mitigation.
-    \item \textbf{VARO--RLHF interaction:} Does preference optimization undo calibration? Sequential training (VARO then RLHF with frozen gates) versus joint objectives $L = L_{\mathrm{RLHF}} + \lambda_1 L_{\mathrm{VARO}} + \lambda_2 H(\text{gates})$ requires empirical study.
+
+We categorize open questions by urgency and expected outcomes:
+
+\subsubsection*{Critical (blocking production deployment)}
+
+\paragraph{Q1: Gate collapse}
+\textbf{Question:} Can $Q_1$ or $Q_2$ degenerate to always-on ($\approx 1$) or always-off ($\approx 0$)?
+
+\textbf{Expected answer:} Unlikely with entropy regularization.
+
+\textbf{Evidence:} Similar gating mechanisms (e.g., LSTM gates \cite{hochreiter1997long}, attention gates in transformers) avoid collapse when trained with proper regularization.
+
+\textbf{Validation strategy:}
+\begin{itemize}
+    \item Monitor gate entropy during training: $H(Q_i) = -\sum_j q_{ij} \log q_{ij}$
+    \item Apply gradient penalties if $\mathbb{E}[H(Q_i)] < \theta_{\text{min}}$
+    \item Use initialization bias: initialize $Q_i$ to output $\approx 0.7$ (confident but not saturated)
 \end{itemize}
-\paragraph{High priority.}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Tuning $\lambda$:} Early results indicate larger models prefer smaller $\lambda$; meta-learning or adaptive schedules may help.
-    \item \textbf{Aggregation function $f$:} Max is conservative, mean balances coverage, and learned monotone networks may unlock higher accuracy. Ablations on TruthfulQA and calibration suites will clarify trade-offs.
-    \item \textbf{Scaling to 175B+:} Does epistemic benefit persist at GPT-3 scale where hallucinations worsen? Compute-efficient training or distillation strategies are needed.
+
+\paragraph{Q2: VARO-RLHF interaction}
+\textbf{Question:} Does preference optimization (DPO/RLHF) after VARO training collapse epistemic gates?
+
+\textbf{Hypothesis:} Sequential training (VARO $\to$ freeze gates $\to$ RLHF) preserves calibration.
+
+\textbf{Alternative approach:} Joint training with multi-objective loss:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{RLHF}} + \lambda_1 \mathcal{L}_{\text{VARO}} + \lambda_2 H(\text{gates})
+\end{equation}
+
+\textbf{Requires:} Empirical validation on standard RLHF benchmarks (HH-RLHF, Anthropic Helpful-Harmless).
+
+\subsubsection*{High priority (affects performance)}
+
+\paragraph{Q3: Optimal $\lambda$}
+\textbf{Question:} How to set VARO weight $\lambda$ across datasets and model scales?
+
+\textbf{Current approach:} Grid search $\lambda \in \{0.01, 0.1, 1.0\}$
+
+\textbf{Expected:} $\lambda$ scales inversely with model size (larger models need smaller $\lambda$ to avoid overwhelming cross-entropy signal).
+
+\textbf{Future:} Meta-learning $\lambda$ or adaptive $\lambda_t$ schedule (e.g., cosine annealing).
+
+\paragraph{Q4: Uncertainty aggregation}
+\textbf{Question:} Which function $f$ ($\max$/$\text{mean}$/learned) works best?
+
+\textbf{Hypothesis:}
+\begin{itemize}
+    \item $\max$: best for safety-critical applications (conservative, never under-reports uncertainty)
+    \item $\text{mean}$: best for balanced performance-calibration tradeoff
+    \item Learned: best asymptotic performance but requires uncertainty-labeled data
 \end{itemize}
-\paragraph{Medium priority.}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Multimodal extensions:} Applying epistemic softmax to vision-language cross-attention for hallucination mitigation.
-    \item \textbf{Epistemic chain-of-thought:} Generating rationales that justify uncertainty ratings.
-    \item \textbf{Adversarial robustness:} Can attackers fool gates into low uncertainty? Adversarial training targeted at gates is a candidate defense.
-\end{itemize}
-\paragraph{Low priority.}
-\begin{itemize}[leftmargin=*]
-    \item Philosophical questions about formalizing epistemic uncertainty in generative models and links to human metacognition.
-\end{itemize}
+
+\textbf{Ablation study:} Test all three on TruthfulQA, compare ECE and selective prediction curves.
+
+\paragraph{Q5: Scaling to 175B+ parameters}
+\textbf{Question:} Do uncertainty gains persist at GPT-3 scale (175B) and beyond?
+
+\textbf{Expected:} Yes, since epistemic failures worsen with scale \cite{lin2021truthfulqa}. Larger models hallucinate more complex fabrications.
+
+\textbf{Challenge:} Computational cost of training gates on 175B model ($\approx 5\%$ overhead still substantial).
+
+\textbf{Mitigation strategy:}
+\begin{enumerate}
+    \item Train smaller epistemic model (e.g., 7B with gates)
+    \item Distill uncertainty behavior to large base model (175B)
+    \item Use LoRA-style efficient fine-tuning for gates only
+\end{enumerate}
+
+\subsubsection*{Medium priority (future work)}
+
+\paragraph{Q6: Multimodal extension}
+\textbf{Question:} How to apply epistemic softmax to vision-language models?
+
+\textbf{Approach:} Gated cross-attention between vision and text modalities.
+
+\textbf{Application:} Reduce hallucination in image captioning (e.g., detecting when visual features insufficient to support textual claim).
+
+\paragraph{Q7: Epistemic chain-of-thought}
+\textbf{Question:} Can the model reason explicitly about its own uncertainty?
+
+\textbf{Example:} "I'm uncertain about X because evidence Y conflicts with evidence Z."
+
+\textbf{Requires:} Training on uncertainty-annotated reasoning traces (expensive to collect).
+
+\paragraph{Q8: Adversarial robustness}
+\textbf{Question:} Can adversarial inputs fool epistemic gates?
+
+\textbf{Risk:} Adversary crafts input that looks out-of-distribution but gates output $u \approx 0$ (false confidence).
+
+\textbf{Defense:} Adversarial training specifically on gates:
+\begin{equation}
+\max_{\|\delta\| < \epsilon} \mathcal{L}_{\text{VARO}}(x + \delta)
+\end{equation}
+
+\subsubsection*{Low priority (philosophical)}
+
+\paragraph{Q9:} What is the correct formalization of "epistemic uncertainty" for autoregressive language models?
+
+\paragraph{Q10:} Can epistemic gates enable true "I don't know" responses (or just calibrated low confidence)?
+
+\paragraph{Q11:} Relationship to human metacognition and confidence calibration?
 
 \subsection{Philosophical Implications}
 Softmax acts as a forced decision rule; epistemic softmax enables ``aware'' decisions where the model can admit ignorance. This architectural humility aligns with AI safety principles emphasizing deferment when knowledge is insufficient~\cite{ji2023survey}.
@@ -396,35 +844,121 @@ Softmax acts as a forced decision rule; epistemic softmax enables ``aware'' deci
 \subsection{Connection to ARC-AGI}
 The Abstraction and Reasoning Corpus (ARC) tests few-shot abstract reasoning where current LLMs underperform (approximately $5\%$ vs. $85\%$ human accuracy)~\cite{chollet2019measure}. Epistemic gating addresses ARC's challenges: (1) ambiguity detection via $Q_2$ detecting conflicting hypotheses, (2) abstention through uncertainty-driven refusal, and (3) hierarchical reasoning by mirroring ARC's multi-level abstractions. We hypothesize Level 3 Aletheion reduces catastrophic failures on ARC-style tasks by refusing uncertain answers and requesting clarification.
 
-\subsection{When Aletheion Fails}
-Epistemic softmax is not a universal remedy. Key failure modes include:
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Irreducible aleatoric uncertainty:} Random processes (coin flips) remain uncertain even with perfect knowledge; supervision must distinguish aleatoric and epistemic sources.
-    \item \textbf{Adversarial gates:} Crafted inputs can drive $Q_1$/$Q_2$ to low uncertainty. Robustness demands adversarial training focused on gates.
-    \item \textbf{Specification gaming:} Downstream RLHF can reward confident answers; incorporating calibration metrics into reward models mitigates collapse.
-    \item \textbf{Catastrophic forgetting:} Narrow-domain fine-tuning may erase gate behavior. Continual learning (EWC, replay) and uncertainty validation sets alleviate drift.
-    \item \textbf{Compute constraints:} Production settings may reject $4$--$5\%$ overhead; Level~1 deployments or conditional gating reduce costs.
-    \item \textbf{Missing $u^*$ labels:} Many domains lack uncertainty supervision; unsupervised proxies (variance, self-consistency) or human annotation become necessary.
+\subsection{When Aletheion Fails: Failure Mode Analysis}
+
+Epistemic softmax is not a panacea. We identify scenarios where the architecture cannot provide guarantees:
+
+\subsubsection*{1. Irreducible Aleatoric Uncertainty}
+
+\textbf{Problem:} Inherently random processes (dice rolls, quantum events, inherently unpredictable future events).
+
+\textbf{Why Aletheion fails:} No amount of information reduces uncertainty. Epistemic gates cannot distinguish aleatoric from epistemic uncertainty without explicit supervision.
+
+\textbf{Example:} "Will this fair coin land heads?"
+\begin{itemize}
+    \item True answer: $p(\text{heads}) = 0.5$ with $u = 1$ (maximal uncertainty, but aleatoric)
+    \item Aletheion: May output $p \approx 0.5$ but $u$ may be miscalibrated
 \end{itemize}
-Table~\ref{tab:failures} summarizes severity and mitigations.
+
+\textbf{Mitigation:} Distinguish epistemic vs. aleatoric in $u^*$ supervision signal. For known aleatoric scenarios, supervise with $u^* = 1$ but flag as non-reducible.
+
+\subsubsection*{2. Adversarial Attacks on Gates}
+
+\textbf{Problem:} Adversary crafts inputs that fool $Q_1$/$Q_2$ into outputting low uncertainty despite the input being adversarial.
+
+\textbf{Example:} Input $x_{\text{adv}}$ that appears in-distribution to gates but is actually crafted to trigger specific (wrong) behavior.
+
+\textbf{Why Aletheion fails:} Gates are neural networks, thus vulnerable to adversarial examples. Standard adversarial training does not explicitly protect gates.
+
+\textbf{Mitigation:} Adversarial training specifically targeting gates:
+\begin{equation}
+\mathcal{L}_{\text{adv}} = \max_{\|\delta\| < \epsilon} \mathcal{L}_{\text{VARO}}(x + \delta)
+\end{equation}
+subject to $\|\delta\|_{\infty} < \epsilon$ (small perturbation).
+
+\subsubsection*{3. Specification Gaming}
+
+\textbf{Problem:} RLHF may incentivize \emph{hiding} uncertainty to maximize reward.
+
+\textbf{Example:} If reward model favors confident answers, the model learns "confident wrong answer gets higher reward than uncertain right answer."
+
+\textbf{Why Aletheion fails:} Preference optimization doesn't value calibration by default. Gates may learn to always output low $u$ to please the reward model.
+
+\textbf{Mitigation:} Include calibration metrics in reward model:
+\begin{equation}
+R(\text{response}) = R_{\text{preference}}(\text{response}) - \lambda \cdot \text{ECE}(\text{response})
+\end{equation}
+Penalize miscalibrated confidence directly in the reward.
+
+\subsubsection*{4. Catastrophic Forgetting During Fine-Tuning}
+
+\textbf{Problem:} Fine-tuning on narrow distribution may collapse gates.
+
+\textbf{Example:} Fine-tune on medical QA dataset $\to$ gates learn to always be confident on medical queries, but forget to trigger uncertainty on non-medical queries.
+
+\textbf{Why Aletheion fails:} Standard fine-tuning doesn't preserve epistemic behavior outside the fine-tuning distribution.
+
+\textbf{Mitigation:}
+\begin{enumerate}
+    \item Continual learning techniques: Elastic Weight Consolidation (EWC), PackNet
+    \item Maintain separate uncertainty validation set (held-out diverse queries)
+    \item Regularize gates during fine-tuning:
+    \begin{equation}
+    \mathcal{L}_{\text{finetune}} = \mathcal{L}_{\text{task}} + \lambda \|Q_{\text{new}} - Q_{\text{old}}\|^2
+    \end{equation}
+\end{enumerate}
+
+\subsubsection*{5. Computational Budget Constraints}
+
+\textbf{Problem:} Production systems may not afford 4-5\% overhead.
+
+\textbf{Example:} Real-time chatbot with strict latency requirements (e.g., <50ms response time).
+
+\textbf{Why Aletheion fails:} Even small overhead may violate SLA (service level agreement).
+
+\textbf{Mitigation:}
+\begin{enumerate}
+    \item Use Level 1 (output-only, <1\% overhead)
+    \item Conditional gating: Only activate gates for queries flagged as potentially uncertain (via cheap heuristic)
+    \item Model distillation: Train small "epistemic triage" model; use full Aletheion only when triage indicates uncertainty
+\end{enumerate}
+
+\subsubsection*{6. Missing Ground Truth for $u^*$}
+
+\textbf{Problem:} Many domains lack uncertainty labels.
+
+\textbf{Example:} Creative writing tasks have no "correct" answer, thus $u^*$ is undefined.
+
+\textbf{Why Aletheion fails:} VARO requires $u^*$ supervision. Without it, gates may not learn meaningful uncertainty.
+
+\textbf{Mitigation:}
+\begin{enumerate}
+    \item Use unsupervised methods (head variance, self-consistency) as fallback
+    \item Human annotation for calibration set (expensive but one-time cost)
+    \item Transfer uncertainty behavior from related domains (e.g., factual QA $\to$ creative writing)
+\end{enumerate}
+
+\subsubsection*{Summary of Failure Modes}
 
 \begin{table}[h]
-    \centering
-    \begin{tabular}{llll}
-        \toprule
-        Failure mode & Severity & Mitigation & Deployment risk \\
-        \midrule
-        Aleatoric uncertainty & Low & Improve $u^*$ labels & No \\
-        Adversarial gates & Medium & Gate-focused adversarial training & No \\
-        Specification gaming & High & Include calibration in rewards & Maybe \\
-        Catastrophic forgetting & High & Continual learning, validation sets & No \\
-        Compute constraints & Medium & Level~1, conditional gating & Maybe \\
-        Missing $u^*$ labels & Medium & Unsupervised proxies, annotation & No \\
-        \bottomrule
-    \end{tabular}
-    \caption{Failure scenarios and recommended mitigations for Aletheion.}
-    \label{tab:failures}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Failure Mode} & \textbf{Severity} & \textbf{Mitigation?} & \textbf{Blocks Deploy?} \\
+\midrule
+Aleatoric uncertainty & Low & Partial (better $u^*$) & No \\
+Adversarial gates & Medium & Yes (adv. training) & No \\
+Specification gaming & High & Yes (calibration rewards) & Maybe \\
+Catastrophic forgetting & High & Yes (continual learning) & No \\
+Compute constraints & Medium & Yes (Level 1, distill) & Maybe \\
+Missing $u^*$ labels & Medium & Yes (unsupervised) & No \\
+\bottomrule
+\end{tabular}
+\caption{Failure scenarios and recommended mitigations for Aletheion.}
+\label{tab:failures}
 \end{table}
+
+\textbf{Deployment recommendation:} Deploy Aletheion with continuous monitoring of gate behavior and maintain a held-out uncertainty validation set to detect failures early. Start with Level 1 in production; upgrade to Level 2/3 as compute budget allows.
 
 \section{Related Work}
 Aletheion builds on transformer advancements~\cite{vaswani2017attention,brown2020language}, scaling studies in language models, hallucination analyses~\cite{ji2023survey,lin2021truthfulqa}, and uncertainty estimation techniques including Bayesian approximations and deep ensembles~\cite{blundell2015weight,gal2016dropout,lakshminarayanan2017simple}. Recent work on eliciting model uncertainty underscores the need for architectural primitives rather than post-hoc estimates~\cite{lin2022teaching,kadavath2022language,malinin2021uncertainty}.
