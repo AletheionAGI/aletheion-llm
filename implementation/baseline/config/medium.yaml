@@ -1,0 +1,52 @@
+# Medium model for experiments
+model:
+  vocab_size: 50257
+  n_layers: 12
+  n_heads: 12
+  d_model: 768
+  d_ff: 3072
+  max_seq_len: 512
+  dropout: 0.1
+  use_flash_attention: false
+  tie_weights: true
+
+training:
+  batch_size: 32
+  gradient_accumulation_steps: 2
+  learning_rate: 2.5e-4
+  weight_decay: 0.1
+  max_steps: 200000
+  warmup_steps: 4000
+  lr_schedule: cosine
+  grad_clip_norm: 1.0
+  log_interval: 100
+  eval_interval: 1000
+  save_interval: 5000
+
+data:
+  dataset: wikitext
+  dataset_config: wikitext-103-v1
+  train_split: train
+  val_split: validation
+  test_split: test
+  num_workers: 8
+  tokenizer_name: gpt2
+
+optimizer:
+  type: adamw
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+
+system:
+  device: cuda
+  mixed_precision: true
+  compile: false
+  seed: 42
+
+logging:
+  use_wandb: true
+  wandb_project: aletheion-baseline
+  wandb_entity: null
+  save_dir: ./checkpoints
+  log_dir: ./logs
+  run_name: medium-experiment
