@@ -1,8 +1,8 @@
-# TruthfulQA Testing Setup - Complete (Pyramidal Q1Q2)
+# TruthfulQA Testing Setup - Complete
 
 ## What Was Implemented
 
-This setup adds comprehensive TruthfulQA evaluation capabilities to the Aletheion LLM project, allowing out-of-domain testing of baseline and pyramidal Q1Q2 models on truthfulness and factual accuracy tasks.
+This setup adds comprehensive TruthfulQA evaluation capabilities to the Aletheion LLM project, allowing out-of-domain testing of all three model variants (baseline, pyramidal, and pyramidal_q1q2) on truthfulness and factual accuracy tasks.
 
 ## Files Added/Modified
 
@@ -78,6 +78,8 @@ Before running TruthfulQA evaluation, you need trained models. The current repos
 
 #### Option 1: Train Models (Recommended)
 
+Train all three model variants:
+
 ```bash
 # Train baseline model
 python experiments/level1/train_baseline.py \
@@ -85,19 +87,29 @@ python experiments/level1/train_baseline.py \
     --num-epochs 10 \
     --batch-size 32
 
-# Train pyramidal Q1Q2 model
+# Train pyramidal model (standard variant)
+python experiments/level1/train_pyramidal.py \
+    --output outputs/pyramidal \
+    --num-epochs 10 \
+    --batch-size 32
+
+# Train pyramidal Q1Q2 model (Q1/Q2 gating variant)
 python experiments/level1/train_pyramidal_q1q2.py \
     --output outputs/pyramidal_q1q2 \
     --num-epochs 10 \
     --batch-size 32
 ```
 
-**Note:** The Pyramidal Q1Q2 variant uses the Q1/Q2 gating mechanism for epistemic uncertainty estimation. Check if `train_pyramidal_q1q2.py` exists, or use `train_pyramidal.py` with appropriate arguments.
+**Model Variants:**
+- **Baseline**: Standard transformer model without uncertainty quantification
+- **Pyramidal**: Pyramidal architecture with epistemic uncertainty estimation
+- **Pyramidal Q1Q2**: Enhanced pyramidal variant with Q1/Q2 gating mechanism for fine-grained uncertainty
 
 #### Option 2: Download Pre-trained Models
 
 If pre-trained checkpoints are available, download them to:
 - `outputs/baseline/final/`
+- `outputs/pyramidal/final/`
 - `outputs/pyramidal_q1q2/final/`
 
 ### Running Evaluation
@@ -105,50 +117,79 @@ If pre-trained checkpoints are available, download them to:
 Once models are trained:
 
 ```bash
-# Quick test (200 samples, ~10 minutes) - uses pyramidal_q1q2 by default
+# Test ALL THREE models at once (200 samples each, ~30 minutes)
 bash scripts/test_truthfulqa.sh
 
-# Full evaluation (817 samples, ~2-4 hours)
+# Test specific model pairs
+bash scripts/test_truthfulqa.sh baseline pyramidal
+bash scripts/test_truthfulqa.sh baseline pyramidal_q1q2
+
+# Test with custom sample size
+bash scripts/test_truthfulqa.sh all 500
+
+# Test all models with full dataset (817 samples, ~6-12 hours)
+bash scripts/test_truthfulqa.sh all 817
+
+# Manual invocation for specific comparison
 python experiments/level1/test_truthfulqa.py \
     --baseline outputs/baseline/final \
-    --pyramidal outputs/pyramidal_q1q2/final \
-    --output outputs/truthfulqa_q1q2 \
-    --max-samples 817
-
-# Custom paths
-bash scripts/test_truthfulqa.sh \
-    outputs/baseline/final \
-    outputs/pyramidal_q1q2/final \
-    outputs/truthfulqa_q1q2 \
-    500
+    --pyramidal outputs/pyramidal/final \
+    --output outputs/truthfulqa_pyramidal \
+    --max-samples 200
 ```
+
+**Script Modes:**
+- `bash scripts/test_truthfulqa.sh` - Tests all 3 models (default)
+- `bash scripts/test_truthfulqa.sh baseline pyramidal` - Tests baseline vs pyramidal
+- `bash scripts/test_truthfulqa.sh baseline pyramidal_q1q2` - Tests baseline vs pyramidal Q1Q2
+- `bash scripts/test_truthfulqa.sh all [samples]` - Tests all 3 models with custom sample count
 
 ### Viewing Results
 
 ```bash
-# Read the report
+# View results for each model comparison
+cat outputs/truthfulqa_pyramidal/truthfulqa_report.md
 cat outputs/truthfulqa_q1q2/truthfulqa_report.md
 
-# View visualizations
+# View all visualizations
+ls outputs/truthfulqa_pyramidal/*.png
 ls outputs/truthfulqa_q1q2/*.png
 
-# Check raw metrics
+# Check raw metrics for all models
+cat outputs/truthfulqa_pyramidal/baseline_results.json
+cat outputs/truthfulqa_pyramidal/pyramidal_results.json
 cat outputs/truthfulqa_q1q2/baseline_results.json
 cat outputs/truthfulqa_q1q2/pyramidal_results.json
 ```
 
+**Output Directory Structure:**
+```
+outputs/
+├── truthfulqa_pyramidal/          # Baseline vs Pyramidal
+│   ├── truthfulqa_report.md
+│   ├── baseline_results.json
+│   └── pyramidal_results.json
+└── truthfulqa_q1q2/               # Baseline vs Pyramidal Q1Q2
+    ├── truthfulqa_report.md
+    ├── baseline_results.json
+    └── pyramidal_results.json
+```
+
 ## Expected Output
 
-### Console Output
+### Console Output (Testing All Models)
 ```
 ============================================================
-TruthfulQA Evaluation
+TruthfulQA Evaluation - Testing All Models
 ============================================================
+
+Running evaluation 1/2: Baseline vs Pyramidal
+------------------------------------------------------------
 
 Configuration:
   Baseline: outputs/baseline/final
-  Pyramidal: outputs/pyramidal_q1q2/final (Q1Q2 variant)
-  Output: outputs/truthfulqa_q1q2
+  Pyramidal: outputs/pyramidal/final
+  Output: outputs/truthfulqa_pyramidal
   Max Samples: 200
   Device: cuda
 
@@ -158,8 +199,8 @@ Loading TruthfulQA dataset...
 Loading baseline model...
 ✓ Baseline model loaded
 
-Loading pyramidal Q1Q2 model...
-✓ Pyramidal Q1Q2 model loaded
+Loading pyramidal model...
+✓ Pyramidal model loaded
 
 Evaluating Baseline on TruthfulQA: 100%|████| 200/200
 Baseline Results:
@@ -170,36 +211,79 @@ Baseline Results:
 
 Evaluating Pyramidal on TruthfulQA: 100%|████| 200/200
 Pyramidal Results:
+  Truthfulness Rate: 46.0%
+  Mean Correct Score: -2.2678
+  Mean Incorrect Score: -2.9234
+  Score Gap: 0.6556
+  Mean Uncertainty: 0.1156
+
+✓ Evaluation 1/2 complete!
+
+============================================================
+
+Running evaluation 2/2: Baseline vs Pyramidal Q1Q2
+------------------------------------------------------------
+
+Configuration:
+  Baseline: outputs/baseline/final
+  Pyramidal: outputs/pyramidal_q1q2/final (Q1Q2 variant)
+  Output: outputs/truthfulqa_q1q2
+  Max Samples: 200
+  Device: cuda
+
+Loading baseline model...
+✓ Baseline model loaded
+
+Loading pyramidal Q1Q2 model...
+✓ Pyramidal Q1Q2 model loaded
+
+Evaluating Baseline on TruthfulQA: 100%|████| 200/200
+Baseline Results:
+  Truthfulness Rate: 42.5%
+
+Evaluating Pyramidal Q1Q2 on TruthfulQA: 100%|████| 200/200
+Pyramidal Q1Q2 Results:
   Truthfulness Rate: 48.0%
   Mean Correct Score: -2.2134
   Mean Incorrect Score: -2.9876
   Score Gap: 0.7742
   Mean Uncertainty: 0.1234
 
-Generating visualizations...
-✓ Saved truthfulness comparison
-✓ Saved score distributions
-✓ Saved uncertainty analysis
-✓ Saved sample questions
-
-Generating comprehensive report...
-✓ Saved comprehensive report
+✓ Evaluation 2/2 complete!
 
 ============================================================
-Evaluation Complete!
+All Evaluations Complete!
 ============================================================
+
+Summary:
+  Baseline:        42.5% truthfulness
+  Pyramidal:       46.0% truthfulness (+3.5%)
+  Pyramidal Q1Q2:  48.0% truthfulness (+5.5%)
+
+Results saved to:
+  - outputs/truthfulqa_pyramidal/
+  - outputs/truthfulqa_q1q2/
 ```
 
 ### Generated Files
 ```
-outputs/truthfulqa_q1q2/
-├── truthfulqa_report.md          # Comprehensive analysis
-├── truthfulness_comparison.png   # Bar chart
-├── score_distributions.png       # Histograms
-├── uncertainty_analysis.png      # Q1/Q2 margin distribution
-├── sample_questions.png          # Visual examples
-├── baseline_results.json         # Raw baseline metrics
-└── pyramidal_results.json        # Raw pyramidal Q1Q2 metrics
+outputs/
+├── truthfulqa_pyramidal/
+│   ├── truthfulqa_report.md          # Comprehensive analysis
+│   ├── truthfulness_comparison.png   # Bar chart
+│   ├── score_distributions.png       # Histograms
+│   ├── uncertainty_analysis.png      # Uncertainty distribution
+│   ├── sample_questions.png          # Visual examples
+│   ├── baseline_results.json         # Raw baseline metrics
+│   └── pyramidal_results.json        # Raw pyramidal metrics
+└── truthfulqa_q1q2/
+    ├── truthfulqa_report.md          # Comprehensive analysis
+    ├── truthfulness_comparison.png   # Bar chart
+    ├── score_distributions.png       # Histograms
+    ├── uncertainty_analysis.png      # Q1/Q2 margin distribution
+    ├── sample_questions.png          # Visual examples
+    ├── baseline_results.json         # Raw baseline metrics
+    └── pyramidal_results.json        # Raw pyramidal Q1Q2 metrics
 ```
 
 ## Key Metrics Explained
