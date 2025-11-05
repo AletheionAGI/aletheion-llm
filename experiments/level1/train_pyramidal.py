@@ -88,40 +88,78 @@ def train_step(
     batch: Dict,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
-    pyramid_loss: PyramidalVAROLoss
+    pyramid_loss: PyramidalVAROLoss,
+    accumulation_steps: int = 1,
+    is_accumulation_step: bool = False,
+    scaler = None,
+    use_amp: bool = False
 ) -> Dict[str, float]:
-    """Perform one training step and return diagnostics."""
+    """Perform one training step with optional gradient accumulation and mixed precision.
+
+    Args:
+        model: The model to train
+        batch: Input batch
+        optimizer: Optimizer
+        device: Device to use
+        pyramid_loss: Pyramidal VARO loss function
+        accumulation_steps: Number of gradient accumulation steps
+        is_accumulation_step: If True, don't zero grads or step optimizer
+        scaler: GradScaler for mixed precision training
+        use_amp: Whether to use automatic mixed precision
+    """
     model.train()
-    optimizer.zero_grad(set_to_none=True)  # More memory efficient
+
+    # Only zero grads at the start of accumulation
+    if not is_accumulation_step:
+        optimizer.zero_grad(set_to_none=True)
 
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
 
-    # Forward pass with pyramidal state
-    outputs = model(input_ids, labels=labels, return_pyramid_state=True)
-
     metrics: Dict[str, float] = {}
 
-    # Compute pyramidal VARO loss
-    shift_logits = outputs.logits[..., :-1, :].contiguous()
-    shift_labels = labels[..., 1:].contiguous()
+    # Forward pass with optional mixed precision
+    if use_amp and scaler is not None:
+        with torch.cuda.amp.autocast():
+            outputs = model(input_ids, labels=labels, return_pyramid_state=True)
 
-    # Shift pyramid outputs
-    shift_pyramid = {}
-    for key, value in outputs.pyramid.items():
-        shift_pyramid[key] = value[..., :-1, :].contiguous()
+            # Compute pyramidal VARO loss
+            shift_logits = outputs.logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
 
-    loss_dict = pyramid_loss(
-        logits=shift_logits,
-        targets=shift_labels,
-        pyramid_outputs=shift_pyramid
-    )
+            # Shift pyramid outputs
+            shift_pyramid = {}
+            for key, value in outputs.pyramid.items():
+                shift_pyramid[key] = value[..., :-1, :].contiguous()
 
-    loss = loss_dict['loss']
+            loss_dict = pyramid_loss(
+                logits=shift_logits,
+                targets=shift_labels,
+                pyramid_outputs=shift_pyramid
+            )
+            loss = loss_dict['loss'] / accumulation_steps
+    else:
+        outputs = model(input_ids, labels=labels, return_pyramid_state=True)
 
-    # Collect metrics
+        # Compute pyramidal VARO loss
+        shift_logits = outputs.logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+
+        # Shift pyramid outputs
+        shift_pyramid = {}
+        for key, value in outputs.pyramid.items():
+            shift_pyramid[key] = value[..., :-1, :].contiguous()
+
+        loss_dict = pyramid_loss(
+            logits=shift_logits,
+            targets=shift_labels,
+            pyramid_outputs=shift_pyramid
+        )
+        loss = loss_dict['loss'] / accumulation_steps
+
+    # Collect metrics (unscaled)
     metrics.update({
-        "loss": loss.item(),
+        "loss": loss.item() * accumulation_steps,
         "ce_loss": loss_dict['ce_loss'],
         "base_loss": loss_dict['base_loss'],
         "height_loss": loss_dict['height_loss'],
@@ -144,15 +182,27 @@ def train_step(
         metrics["w_exploration"] = outputs.pyramid['w_exploration'][..., :-1, :][valid_mask].mean().item()
         metrics["uncertainty"] = outputs.pyramid['uncertainty'][..., :-1, :][valid_mask].mean().item()
 
-    # Backward pass
-    loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-    optimizer.step()
+    # Backward pass with optional scaling
+    if use_amp and scaler is not None:
+        scaler.scale(loss).backward()
+    else:
+        loss.backward()
+
+    # Only clip and step at the end of accumulation
+    if not is_accumulation_step:
+        if use_amp and scaler is not None:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
     # Memory cleanup to prevent OOM
-    # Detach loss value before returning (already done above with .item())
-    # Delete large tensors that are no longer needed
     del loss, outputs, input_ids, labels, shift_logits, shift_labels, shift_pyramid
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     return metrics
 
@@ -409,7 +459,13 @@ def main():
     train_group.add_argument('--steps', type=int, default=None, help='Number of training steps')
     train_group.add_argument('--num-epochs', type=int, default=None, help='Number of training epochs')
 
-    parser.add_argument('--batch-size', type=int, default=4, help='Batch size (reduced to prevent OOM)')
+    parser.add_argument('--batch-size', type=int, default=4, help='Micro batch size (per gradient accumulation step)')
+    parser.add_argument('--gradient-accumulation-steps', type=int, default=1,
+                       help='Number of gradient accumulation steps (effective batch = batch_size * accum_steps)')
+    parser.add_argument('--gradient-checkpointing', action='store_true',
+                       help='Enable gradient checkpointing to save memory (~40% reduction)')
+    parser.add_argument('--fp16', action='store_true',
+                       help='Enable mixed precision training (fp16) to save memory (~50% reduction)')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--lambda-base', type=float, default=0.005, help='Base stability weight (reduced from 0.01)')
     parser.add_argument('--lambda-height', type=float, default=0.02, help='Height calibration weight')
@@ -422,6 +478,8 @@ def main():
     parser.add_argument('--save-interval', type=int, default=2000, help='Checkpoint save interval')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--dry-run', action='store_true', help='Quick test run')
+    parser.add_argument('--resume-from', type=str, default=None,
+                       help='Resume training from checkpoint directory (e.g., outputs/pyramidal/checkpoint-2000)')
 
     # Output directory - support both --output and --output-dir
     parser.add_argument('--output', '--output-dir', dest='output_dir', type=str,
@@ -445,11 +503,20 @@ def main():
     with open(output_dir / 'config.json', 'w') as f:
         json.dump(config, f, indent=2)
 
+    effective_batch_size = args.batch_size * args.gradient_accumulation_steps
+
     print(f"🔻 Training Pyramidal Epistemology Model")
     if args.num_epochs is not None:
         print(f"   - Epochs: {args.num_epochs}")
     elif args.steps is not None:
         print(f"   - Steps: {args.steps}")
+    print(f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
+    if args.gradient_checkpointing:
+        print(f"   - Gradient checkpointing: enabled")
+    if args.fp16:
+        print(f"   - Mixed precision (fp16): enabled")
+    if args.resume_from:
+        print(f"   - Resuming from: {args.resume_from}")
     print(f"   - λ_base: {args.lambda_base}")
     print(f"   - λ_height: {args.lambda_height}")
     print(f"   - Height method: {args.height_method}")
@@ -491,30 +558,8 @@ def main():
         num_workers=0
     )
 
-    # Create model
-    print("\n🏗️  Creating pyramidal model...")
-    model = create_pyramidal_model(
-        vocab_size=tokenizer.vocab_size,
-        device=device,
-        lambda_base=args.lambda_base,
-        lambda_height=args.lambda_height,
-        height_method=args.height_method,
-        use_multi_head_height=args.multi_head_height,
-        modulate_temperature=not args.no_temp_modulation
-    )
-
-    # Create loss
-    pyramid_loss = PyramidalVAROLoss(
-        lambda_base=args.lambda_base,
-        lambda_height=args.lambda_height,
-        height_method=args.height_method
-    )
-
-    # Optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-
-    # Training loop
-    print("\n🚀 Starting training...")
+    # Create or load model
+    start_step = 0
     history = {
         'train_loss': [],
         'ce_loss': [],
@@ -536,21 +581,105 @@ def main():
         'eval_perplexity': []
     }
 
-    step = 0
+    if args.resume_from:
+        print(f"\n🔄 Resuming from checkpoint: {args.resume_from}")
+        model = AletheionPyramidalTransformer.from_pretrained(args.resume_from).to(device)
+
+        # Enable gradient checkpointing if requested
+        if args.gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
+            print("   ✓ Gradient checkpointing enabled")
+
+        # Load history if available
+        history_path = Path(args.resume_from).parent / 'history.json'
+        if history_path.exists():
+            with open(history_path, 'r') as f:
+                history = json.load(f)
+            print(f"   ✓ Loaded training history ({len(history['train_loss'])} steps)")
+
+        # Extract step number from checkpoint name
+        checkpoint_name = Path(args.resume_from).name
+        if checkpoint_name.startswith('checkpoint-'):
+            start_step = int(checkpoint_name.split('-')[1])
+            print(f"   ✓ Resuming from step {start_step}")
+
+        n_params = sum(p.numel() for p in model.parameters())
+        print(f"   Model parameters: {n_params / 1e6:.1f}M")
+    else:
+        print("\n🏗️  Creating pyramidal model...")
+        model = create_pyramidal_model(
+            vocab_size=tokenizer.vocab_size,
+            device=device,
+            lambda_base=args.lambda_base,
+            lambda_height=args.lambda_height,
+            height_method=args.height_method,
+            use_multi_head_height=args.multi_head_height,
+            modulate_temperature=not args.no_temp_modulation
+        )
+
+        # Enable gradient checkpointing if requested
+        if args.gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
+            print("   ✓ Gradient checkpointing enabled (saves ~40% memory)")
+
+        n_params = sum(p.numel() for p in model.parameters())
+        print(f"   Model parameters: {n_params / 1e6:.1f}M")
+
+    # Create loss
+    pyramid_loss = PyramidalVAROLoss(
+        lambda_base=args.lambda_base,
+        lambda_height=args.lambda_height,
+        height_method=args.height_method
+    )
+
+    # Optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+
+    # Mixed precision scaler
+    from torch.cuda.amp import GradScaler
+    scaler = GradScaler() if args.fp16 and torch.cuda.is_available() else None
+    use_amp = args.fp16 and torch.cuda.is_available()
+    if use_amp:
+        print("   ✓ GradScaler initialized for mixed precision training")
+
+    # Training loop
+    print("\n🚀 Starting training...")
+
+    step = start_step
     train_iter = iter(train_loader)
 
-    pbar = tqdm(total=args.steps, desc="Training")
+    pbar = tqdm(total=args.steps, initial=start_step, desc="Training")
 
     while step < args.steps:
-        # Get batch
-        try:
-            batch = next(train_iter)
-        except StopIteration:
-            train_iter = iter(train_loader)
-            batch = next(train_iter)
+        # Accumulate gradients over multiple micro-batches
+        accumulated_metrics = {}
 
-        # Train step
-        metrics = train_step(model, batch, optimizer, device, pyramid_loss)
+        for accum_step in range(args.gradient_accumulation_steps):
+            # Get batch
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                train_iter = iter(train_loader)
+                batch = next(train_iter)
+
+            # Train step (with gradient accumulation)
+            is_accumulation_step = (accum_step < args.gradient_accumulation_steps - 1)
+            metrics = train_step(
+                model, batch, optimizer, device, pyramid_loss,
+                accumulation_steps=args.gradient_accumulation_steps,
+                is_accumulation_step=is_accumulation_step,
+                scaler=scaler,
+                use_amp=use_amp
+            )
+
+            # Accumulate metrics
+            for key, value in metrics.items():
+                if key not in accumulated_metrics:
+                    accumulated_metrics[key] = 0.0
+                accumulated_metrics[key] += value / args.gradient_accumulation_steps
+
+        # Use accumulated metrics
+        metrics = accumulated_metrics
 
         # Log metrics
         for key in history.keys():
@@ -571,10 +700,14 @@ def main():
 
         step += 1
 
-        # Periodic memory cleanup and monitoring
-        if step % 10 == 0:
+        # Aggressive memory cleanup
+        if step % 5 == 0:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+            gc.collect()
+
+        # Memory monitoring
+        if step % 10 == 0:
             log_memory(step)
 
         # Evaluation
