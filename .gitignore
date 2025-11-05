@@ -212,3 +212,43 @@ baseline_final.pt
 comparison_steps*.pt
 pytorch_model*.bin
 model*.safetensors
+
+# Machine Learning / AI specific
+outputs/
+checkpoints/
+runs/
+wandb/
+mlruns/
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+data/raw/
+data/processed/
+data/external/
+data/*.txt
+data/*.csv
+data/*.json
+*.pid
+*.lock
+
+# TensorBoard logs
+events.out.tfevents.*
+tensorboard/
+
+# Model weights and artifacts
+*.weights
+*.pb
+saved_model/
+
+# Hugging Face cache
+~/.cache/huggingface/
+transformers_cache/
+
+# Datasets cache
+~/.cache/datasets/
+datasets_cache/
