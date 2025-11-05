@@ -458,6 +458,8 @@ class PyramidalVAROLoss(nn.Module):
                 - mean_height: Mean predicted height
                 - target_height_mean: Mean target height
                 - base_stability_mean: Mean base stability
+                - Q1_mean: Mean prediction quality (correctness)
+                - Q2_mean: Mean confidence calibration quality
         """
         # Reshape logits and targets for cross-entropy
         logits_flat = logits.view(-1, logits.size(-1))
@@ -477,6 +479,21 @@ class PyramidalVAROLoss(nn.Module):
 
         # Create mask for valid tokens (ignore padding)
         valid_mask = (targets != self.ignore_index).unsqueeze(-1)  # [batch, seq_len, 1]
+
+        # === COMPUTE Q1 (Prediction Quality) and Q2 (Confidence Calibration) ===
+        # These are used for logging and to understand what height should be learning
+        with torch.no_grad():
+            probs = F.softmax(logits, dim=-1)
+            confidence, predictions = probs.max(dim=-1)
+            correct = predictions.eq(targets).float().unsqueeze(-1)
+
+            # Q1: Prediction quality (accuracy) - 1.0 if correct, 0.0 if wrong
+            Q1 = correct
+
+            # Q2: Confidence calibration quality
+            # High when: (correct AND confident) OR (wrong AND uncertain)
+            # Low when: (correct AND uncertain) OR (wrong AND confident)
+            Q2 = correct * confidence.unsqueeze(-1) + (1 - correct) * (1 - confidence.unsqueeze(-1))
 
         # === 1. BASE STABILITY LOSS ===
         # Penalize when 4 forces are unbalanced
@@ -501,6 +518,8 @@ class PyramidalVAROLoss(nn.Module):
         mean_height = (height * valid_mask).sum() / num_valid
         target_height_mean = (target_height * valid_mask).sum() / num_valid
         base_stability_mean = (base_stability * valid_mask).sum() / num_valid
+        Q1_mean = (Q1 * valid_mask).sum() / num_valid
+        Q2_mean = (Q2 * valid_mask).sum() / num_valid
 
         return {
             'loss': total_loss,
@@ -510,6 +529,8 @@ class PyramidalVAROLoss(nn.Module):
             'mean_height': mean_height.item(),
             'target_height_mean': target_height_mean.item(),
             'base_stability_mean': base_stability_mean.item(),
+            'Q1_mean': Q1_mean.item(),
+            'Q2_mean': Q2_mean.item(),
             'lambda_base': self.lambda_base,
             'lambda_height': self.lambda_height
         }
