@@ -8,6 +8,7 @@ epistemic gates. It tracks:
     - Perplexity and calibration metrics
 
 Usage:
+    python experiments/level1/train_pyramidal.py --num-epochs 10 --batch-size 32 --output outputs/pyramidal
     python experiments/level1/train_pyramidal.py --steps 100 --dry-run
     python experiments/level1/train_pyramidal.py --steps 10000 --lambda-base 0.01 --lambda-height 0.02
 """
@@ -402,7 +403,12 @@ def plot_training_curves(history: Dict[str, list], save_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(description='Train Pyramidal Epistemology model')
-    parser.add_argument('--steps', type=int, default=10000, help='Number of training steps')
+
+    # Training duration - support both steps and epochs
+    train_group = parser.add_mutually_exclusive_group()
+    train_group.add_argument('--steps', type=int, default=None, help='Number of training steps')
+    train_group.add_argument('--num-epochs', type=int, default=None, help='Number of training epochs')
+
     parser.add_argument('--batch-size', type=int, default=4, help='Batch size (reduced to prevent OOM)')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--lambda-base', type=float, default=0.005, help='Base stability weight (reduced from 0.01)')
@@ -416,14 +422,17 @@ def main():
     parser.add_argument('--save-interval', type=int, default=2000, help='Checkpoint save interval')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--dry-run', action='store_true', help='Quick test run')
-    parser.add_argument('--output-dir', type=str, default='outputs/pyramidal', help='Output directory')
+
+    # Output directory - support both --output and --output-dir
+    parser.add_argument('--output', '--output-dir', dest='output_dir', type=str,
+                       default='outputs/pyramidal', help='Output directory')
 
     args = parser.parse_args()
 
-    if args.dry_run:
-        # Adjust intervals proportionally for dry-run, but respect user-specified steps
-        args.eval_interval = min(args.eval_interval, args.steps // 4)
-        args.save_interval = min(args.save_interval, args.steps)
+    # Set default if neither steps nor num_epochs provided
+    if args.steps is None and args.num_epochs is None:
+        args.steps = 10000
+        args.num_epochs = None
 
     # Setup
     set_seed(args.seed)
@@ -437,7 +446,10 @@ def main():
         json.dump(config, f, indent=2)
 
     print(f"🔻 Training Pyramidal Epistemology Model")
-    print(f"   - Steps: {args.steps}")
+    if args.num_epochs is not None:
+        print(f"   - Epochs: {args.num_epochs}")
+    elif args.steps is not None:
+        print(f"   - Steps: {args.steps}")
     print(f"   - λ_base: {args.lambda_base}")
     print(f"   - λ_height: {args.lambda_height}")
     print(f"   - Height method: {args.height_method}")
@@ -450,6 +462,18 @@ def main():
         max_length=512,
         cache_dir='.cache/wikitext'
     )
+
+    # Convert num_epochs to steps if specified
+    if args.num_epochs is not None:
+        steps_per_epoch = len(train_dataset) // args.batch_size
+        args.steps = args.num_epochs * steps_per_epoch
+        print(f"   Converting {args.num_epochs} epochs to {args.steps} steps ({steps_per_epoch} steps/epoch)")
+
+    # Adjust intervals for dry-run if needed
+    if args.dry_run:
+        args.eval_interval = min(args.eval_interval, args.steps // 4)
+        args.save_interval = min(args.save_interval, args.steps)
+        print(f"   Dry-run mode: adjusted intervals (eval={args.eval_interval}, save={args.save_interval})")
 
     train_loader = DataLoader(
         train_dataset,
