@@ -562,7 +562,7 @@ def main():
 
     # Load pyramidal model
     print("\nLoading pyramidal model...")
-    pyramidal_model = AletheionPyramidalTransformer.from_pretrained(args.pyramidal).to(device)
+    pyramidal_model = AletheionPyramidalTransformer.load_pretrained(args.pyramidal, device=device)
     print(f"  Parameters: {sum(p.numel() for p in pyramidal_model.parameters()) / 1e6:.1f}M")
 
     # Evaluate baseline
