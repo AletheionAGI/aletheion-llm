@@ -45,6 +45,14 @@ def collate_fn(batch):
     return {"input_ids": input_ids_padded, "labels": labels_padded}
 
 
+def log_memory(step: int):
+    """Log GPU memory usage."""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved = torch.cuda.memory_reserved() / 1024**3
+        print(f"  [Step {step}] GPU: {allocated:.2f}GB alloc, {reserved:.2f}GB reserved")
+
+
 def create_pyramidal_model(
     vocab_size: int,
     device: torch.device,
@@ -82,7 +90,7 @@ def train_step(
 ) -> Dict[str, float]:
     """Perform one training step and return diagnostics."""
     model.train()
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)  # More memory efficient
 
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
@@ -147,6 +155,7 @@ def train_step(
     return metrics
 
 
+@torch.no_grad()
 def evaluate_model(
     model: AletheionPyramidalTransformer,
     loader: DataLoader,
@@ -171,39 +180,48 @@ def evaluate_model(
     all_probs = []
     all_targets = []
 
-    with torch.no_grad():
-        for batch in tqdm(loader, desc="Evaluating", leave=False):
-            input_ids = batch["input_ids"].to(device)
-            labels = batch["labels"].to(device)
+    for batch in tqdm(loader, desc="Evaluating", leave=False):
+        input_ids = batch["input_ids"].to(device)
+        labels = batch["labels"].to(device)
 
-            outputs = model(input_ids, labels=labels, return_pyramid_state=True)
+        outputs = model(input_ids, labels=labels, return_pyramid_state=True)
 
-            total_loss += outputs.loss.item()
-            total_batches += 1
+        # CRITICAL: Extract scalar immediately
+        total_loss += outputs.loss.item()
+        total_batches += 1
 
-            # Collect pyramidal metrics
-            if outputs.pyramid is not None:
-                valid_mask = (labels != -100)
+        # Collect pyramidal metrics
+        if outputs.pyramid is not None:
+            valid_mask = (labels != -100)
 
-                all_heights.append(outputs.pyramid['height'][valid_mask].cpu())
-                all_uncertainties.append(outputs.pyramid['uncertainty'][valid_mask].cpu())
-                all_base_stabilities.append(outputs.pyramid['base_stability'][valid_mask].cpu())
-                all_w_memory.append(outputs.pyramid['w_memory'][valid_mask].cpu())
-                all_w_pain.append(outputs.pyramid['w_pain'][valid_mask].cpu())
-                all_w_choice.append(outputs.pyramid['w_choice'][valid_mask].cpu())
-                all_w_exploration.append(outputs.pyramid['w_exploration'][valid_mask].cpu())
+            all_heights.append(outputs.pyramid['height'][valid_mask].cpu())
+            all_uncertainties.append(outputs.pyramid['uncertainty'][valid_mask].cpu())
+            all_base_stabilities.append(outputs.pyramid['base_stability'][valid_mask].cpu())
+            all_w_memory.append(outputs.pyramid['w_memory'][valid_mask].cpu())
+            all_w_pain.append(outputs.pyramid['w_pain'][valid_mask].cpu())
+            all_w_choice.append(outputs.pyramid['w_choice'][valid_mask].cpu())
+            all_w_exploration.append(outputs.pyramid['w_exploration'][valid_mask].cpu())
 
-            # Collect for calibration
-            if compute_calibration:
-                shift_logits = outputs.logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
+        # Collect for calibration
+        if compute_calibration:
+            shift_logits = outputs.logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
 
-                probs = F.softmax(shift_logits, dim=-1)
+            probs = F.softmax(shift_logits, dim=-1)
 
-                valid_mask = (shift_labels != -100)
-                if valid_mask.any():
-                    all_probs.append(probs[valid_mask].cpu())
-                    all_targets.append(shift_labels[valid_mask].cpu())
+            valid_mask = (shift_labels != -100)
+            if valid_mask.any():
+                all_probs.append(probs[valid_mask].cpu())
+                all_targets.append(shift_labels[valid_mask].cpu())
+
+        # CRITICAL: Delete tensors to prevent memory leak
+        del outputs, input_ids, labels
+        if compute_calibration:
+            del shift_logits, shift_labels, probs, valid_mask
+
+    # CRITICAL: Clear cache after evaluation
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     avg_loss = total_loss / total_batches
     perplexity = torch.exp(torch.tensor(avg_loss)).item()
@@ -254,6 +272,9 @@ def evaluate_model(
             "ece": cal_metrics['ece'],
             "brier_score": cal_metrics['brier_score'],
         })
+
+    # Return model to training mode
+    model.train()
 
     return metrics
 
@@ -335,7 +356,7 @@ def plot_training_curves(history: Dict[str, list], save_dir: Path):
 def main():
     parser = argparse.ArgumentParser(description='Train Pyramidal Epistemology model')
     parser.add_argument('--steps', type=int, default=10000, help='Number of training steps')
-    parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
+    parser.add_argument('--batch-size', type=int, default=4, help='Batch size (reduced to prevent OOM)')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--lambda-base', type=float, default=0.005, help='Base stability weight (reduced from 0.01)')
     parser.add_argument('--lambda-height', type=float, default=0.02, help='Height calibration weight')
@@ -479,9 +500,11 @@ def main():
 
         step += 1
 
-        # Periodic memory cleanup to prevent accumulation
-        if step % 10 == 0 and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # Periodic memory cleanup and monitoring
+        if step % 10 == 0:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            log_memory(step)
 
         # Evaluation
         if step % args.eval_interval == 0:
@@ -495,6 +518,7 @@ def main():
             print(f"   - Base stability: {eval_metrics.get('base_stability_mean', 0):.3f}")
             if 'ece' in eval_metrics:
                 print(f"   - ECE: {eval_metrics['ece']:.4f}")
+            log_memory(step)
 
         # Save checkpoint
         if step % args.save_interval == 0:
