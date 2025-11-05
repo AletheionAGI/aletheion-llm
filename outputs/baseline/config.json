@@ -1,9 +1,10 @@
 {
   "steps": null,
   "num_epochs": 10,
-  "batch_size": 8,
-  "gradient_accumulation_steps": 4,
+  "batch_size": 4,
+  "gradient_accumulation_steps": 8,
   "gradient_checkpointing": true,
+  "fp16": true,
   "lr": 0.0003,
   "eval_interval": 500,
   "save_interval": 500,
