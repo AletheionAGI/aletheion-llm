@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use Aletheion in your research, please cite it as below."
+title: "Aletheion: Epistemic Uncertainty for Large Language Models"
+abstract: "Implementation of fractally-applied epistemic softmax for calibrated, uncertainty-aware language models. Aletheion addresses hallucination and overconfidence in large language models by replacing softmax operations with epistemic softmax—a gating mechanism that factors uncertainty into every decision."
+type: software
+authors:
+  - family-names: "To be specified"
+    given-names: ""
+    email: contact@alethea.tech
+repository-code: "https://github.com/AletheionAGI/aletheion-llm"
+url: "https://github.com/AletheionAGI/aletheion-llm"
+license: AGPL-3.0-or-later
+license-url: "https://github.com/AletheionAGI/aletheion-llm/blob/main/LICENSE-AGPL.md"
+version: "0.1.0"
+date-released: "2024-11-04"
+keywords:
+  - machine-learning
+  - deep-learning
+  - natural-language-processing
+  - uncertainty-quantification
+  - epistemic-uncertainty
+  - transformer
+  - language-models
+  - calibration
+  - hallucination
+  - fractal-architecture
+references:
+  - type: article
+    title: "The Quality of Truth"
+    year: 2021
+    authors:
+      - family-names: "To be specified"
+        given-names: ""
