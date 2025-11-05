@@ -1,6 +1,6 @@
 {
   "steps": 100,
-  "batch_size": 32,
+  "batch_size": 4,
   "lr": 0.0003,
   "lambda_base": 0.005,
   "lambda_height": 0.02,
