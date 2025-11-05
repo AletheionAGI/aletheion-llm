@@ -68,15 +68,19 @@ def evaluate(model, loader, device):
             
             total_loss += outputs.loss.item()
             
-            # Get predictions
-            logits = outputs.logits[:, -1, :]
+            # Get predictions for all tokens
+            logits = outputs.logits
             probs = F.softmax(logits, dim=-1)
-            targets = labels[:, -1]
-            
-            valid_mask = targets != -100
+
+            # Flatten batch and sequence dimensions to align with targets
+            probs_flat = probs.view(-1, probs.size(-1))
+            targets_flat = labels.view(-1)
+
+            # Filter out padding tokens (-100) from targets
+            valid_mask = targets_flat != -100
             if valid_mask.any():
-                all_probs.append(probs[valid_mask].cpu())
-                all_targets.append(targets[valid_mask].cpu())
+                all_probs.append(probs_flat[valid_mask].cpu())
+                all_targets.append(targets_flat[valid_mask].cpu())
     
     # Compute metrics
     avg_loss = total_loss / len(loader)
