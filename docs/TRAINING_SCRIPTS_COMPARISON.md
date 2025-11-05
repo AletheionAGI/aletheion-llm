@@ -1,8 +1,33 @@
-# Training Scripts Technical Comparison
+# Training Scripts Technical Comparison & Project Architecture
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Date:** 2025-11-05
 **Author:** Aletheion Team
+
+## Table of Contents
+1. [Executive Summary](#executive-summary)
+2. [Project Architecture Overview](#project-architecture-overview)
+3. [Directory Structure](#directory-structure)
+4. [Architecture Comparison](#architecture-comparison)
+5. [Key Components & Modules](#key-components--modules)
+6. [Loss Function Analysis](#loss-function-analysis)
+7. [Epistemic Metrics](#epistemic-metrics)
+8. [Collapse Detection System](#collapse-detection-system)
+9. [Dataset and Training Configuration](#dataset-and-training-configuration)
+10. [Logging and Monitoring](#logging-and-monitoring)
+11. [Data Flow & Dependencies](#data-flow--dependencies)
+12. [Configuration System](#configuration-system)
+13. [Strengths and Weaknesses Analysis](#strengths-and-weaknesses-analysis)
+14. [Performance Comparison Matrix](#performance-comparison-matrix)
+15. [Technical Recommendations](#technical-recommendations)
+16. [Testing & Evaluation Framework](#testing--evaluation-framework)
+17. [Code Quality and Maintainability](#code-quality-and-maintainability)
+18. [Future Improvements](#future-improvements)
+19. [Conclusion](#conclusion)
+20. [Key Files Reference](#key-files-reference)
+21. [Appendix A: Quick Reference Commands](#appendix-a-quick-reference-commands)
+
+---
 
 ## Executive Summary
 
@@ -22,9 +47,102 @@ This document provides a comprehensive technical comparison of three training sc
 
 ---
 
-## 1. Architecture Comparison
+## Project Architecture Overview
 
-### 1.1 Model Configuration
+The **aletheion-llm** project implements a progressive series of transformer-based language models with epistemic uncertainty quantification. The architecture is organized into three main training approaches of increasing sophistication:
+
+1. **Baseline**: Standard GPT-2 architecture without epistemic gates
+2. **Pyramidal**: Geometric epistemic uncertainty with 4 interpretable forces
+3. **Q1Q2**: Decomposed uncertainty (aleatoric vs epistemic) with fractal meta-level
+
+This architecture enables systematic comparison between:
+- **Performance** (baseline)
+- **Interpretability** (pyramidal)
+- **Decomposition** (Q1Q2)
+
+All three approaches can be trained, evaluated, and compared using the same dataset (WikiText-2) and evaluation metrics, allowing for rigorous scientific comparison of epistemic uncertainty quantification methods in language models.
+
+---
+
+## Directory Structure
+
+```
+/home/user/aletheion-llm/
+├── src/                           # Core library code (3,686 lines)
+│   ├── model.py                   # Baseline transformer implementation
+│   ├── attention.py               # CausalSelfAttention implementation
+│   ├── tokenizer.py               # Tokenization utilities
+│   ├── utils.py                   # Helper functions (config, seeding, scheduling)
+│   └── aletheion/                 # Epistemic uncertainty components
+│       ├── gates.py               # Q₁ (LocalUncertaintyGate) & Q₂ (CrossContextGate)
+│       ├── loss.py                # VARO loss functions
+│       ├── model.py               # AletheionTransformer (Level 1)
+│       ├── pyramid.py             # PyramidalEpistemicGates & base architecture
+│       ├── pyramidal_model.py     # AletheionPyramidalTransformer
+│       ├── pyramid_q1q2_fractal.py # Advanced Q1/Q2/Fractal components
+│       └── pyramidal_q1q2_model.py # AletheionPyramidalQ1Q2Transformer
+│
+├── experiments/level1/            # Training & evaluation scripts
+│   ├── train_baseline.py          # Baseline GPT-2 (no epistemic gates)
+│   ├── train_pyramidal.py         # Pyramidal architecture (4 force weights)
+│   ├── train_pyramidal_q1q2.py    # Q1/Q2/Fractal decomposition (advanced)
+│   ├── compare_baseline_aletheion.py
+│   ├── compare_pyramidal.py
+│   ├── compare_models.py
+│   ├── test_truthfulqa.py
+│   ├── test_out_of_domain.py
+│   ├── test_abstention.py
+│   └── visualize_epistemic.py
+│
+├── examples/                      # Usage examples
+│   ├── train.py                   # Baseline training
+│   ├── train_aletheion.py         # Aletheion Level 1 training
+│   ├── eval.py
+│   ├── generate.py
+│   ├── quick_eval.py
+│   └── test_calibration_fix.py
+│
+├── config/                        # YAML configuration files
+│   ├── default.yaml               # Default baseline config
+│   ├── small.yaml                 # Small model config
+│   ├── medium.yaml                # Medium model config
+│   └── aletheion_level1.yaml      # Aletheion Level 1 config
+│
+├── data/                          # Dataset handling
+│   ├── dataset.py                 # TextDataset, load_wikitext_dataset()
+│   └── prepare.py                 # Data preparation utilities
+│
+├── tests/                         # Unit & integration tests
+│   ├── test_model.py
+│   ├── test_attention.py
+│   ├── test_training.py
+│   └── aletheion/
+│       ├── test_gates.py
+│       ├── test_integration.py
+│       └── test_pyramidal_q1q2.py
+│
+├── docs/                          # Documentation (18 markdown files)
+│   ├── ALETHEION_LEVEL1_README.md
+│   ├── PYRAMIDAL_EPISTEMOLOGY_README.md
+│   ├── TRAINING_SCRIPTS_COMPARISON.md
+│   ├── PYRAMIDAL_Q1Q2_FRACTAL.md
+│   └── ... (implementation notes, guides, technical docs)
+│
+├── outputs/                       # Training outputs
+│   ├── baseline/                  # Baseline model checkpoints & history
+│   ├── pyramidal/                 # Pyramidal model checkpoints & history
+│   └── comparison/                # Comparison results
+│
+├── scripts/                       # Shell scripts for training
+├── paper/                         # Research papers & theoretical framework
+└── audit/                         # Quality assurance reports
+```
+
+---
+
+## Architecture Comparison
+
+### Model Configuration
 
 | Parameter | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |-----------|----------|-----------|----------------|
@@ -42,7 +160,7 @@ This document provides a comprehensive technical comparison of three training sc
 - Pyramidal: `experiments/level1/train_pyramidal.py:68-83`
 - Pyramidal Q1Q2: `experiments/level1/train_pyramidal_q1q2.py:367-382`
 
-### 1.2 Architectural Features
+### Architectural Features
 
 #### Baseline (train_baseline.py)
 - **Architecture:** Standard GPT-2 transformer
@@ -73,9 +191,99 @@ This document provides a comprehensive technical comparison of three training sc
 
 ---
 
-## 2. Loss Function Analysis
+## Key Components & Modules
 
-### 2.1 Loss Components
+### A. Baseline Transformer (`src/model.py`)
+
+**Class:** `BaselineTransformer`
+
+**Architecture:** Decoder-only transformer (GPT-2 style)
+
+**Components:**
+- Token & positional embeddings
+- 6 transformer blocks (`TransformerBlock`)
+- `CausalSelfAttention` (masked self-attention)
+- FeedForward networks (MLP with GELU)
+- Output linear projection for logits
+
+**Key Parameters:**
+- `vocab_size=50257`
+- `d_model=512`
+- `n_layers=6`
+- `n_heads=8`
+- `d_ff=2048`
+- `max_seq_len=512`
+- **Total:** ~45M parameters
+
+---
+
+### B. Epistemic Gates (`src/aletheion/gates.py`)
+
+Two core uncertainty gates:
+
+#### 1. **LocalUncertaintyGate (Q₁)**
+- Maps context → [0,1] confidence score
+- Architecture: `Linear(d_model→1) + Sigmoid`
+- Estimates local evidence quality
+
+#### 2. **CrossContextGate (Q₂)**
+- Multi-head attention for cross-context consensus
+- Aggregates information across attention heads
+- Also outputs [0,1] confidence
+
+#### 3. **epistemic_softmax()**
+- Algorithm 1 from the paper
+- Applies temperature modulation based on Q₁ & Q₂
+- Replaces standard softmax for gated distributions
+
+---
+
+### C. Loss Functions (`src/aletheion/loss.py`)
+
+Three progressive loss implementations:
+
+#### 1. **VaroLoss** (VARO = Variance-Adjusted Ranking Optimization)
+```
+L_total = L_CE + λ * ||u - u*||²
+```
+- `u` = predicted uncertainty
+- `u*` = target uncertainty
+- **Used by:** `AletheionTransformer` (Level 1)
+
+#### 2. **PyramidalVAROLoss**
+```
+L_total = L_CE + λ_base * L_base + λ_height * L_height
+```
+- Adds base stability & height calibration terms
+- **Used by:** `AletheionPyramidalTransformer`
+
+#### 3. **PyramidalVAROLossWithQ1Q2**
+```
+L_total = L_CE + λ_base * L_base + λ_Q1 * L_Q1 + λ_Q2 * L_Q2 + λ_fractal * L_fractal + λ_height * L_height
+```
+- Complete decomposition with 6 components
+- **Used by:** `AletheionPyramidalQ1Q2Transformer`
+
+---
+
+### D. Pyramidal Architecture (`src/aletheion/pyramid.py`)
+
+#### **PyramidalEpistemicGates**
+5-vertex geometric structure:
+- **Base vertices:** Memory, Pain, Choice, Exploration (4 forces)
+- **Apex:** Truth = 1.0 (constant attractor)
+- **Height:** proximity to truth
+
+#### **PyramidalTemperatureModulator**
+Scales softmax temperature based on height:
+- High height (confident) → lower temperature → sharper distribution
+- Low height (uncertain) → higher temperature → smoother distribution
+
+---
+
+## Loss Function Analysis
+
+### Loss Components
 
 | Component | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |-----------|----------|-----------|----------------|
@@ -103,7 +311,7 @@ L_total = L_CE + λ_base * L_base + λ_height * L_height
 L_total = L_CE + λ_base * L_base + λ_Q1 * L_Q1 + λ_Q2 * L_Q2 + λ_fractal * L_fractal + λ_height * L_height
 ```
 
-### 2.2 Lambda Values Philosophy
+### Lambda Values Philosophy
 
 The Q1Q2 model uses **10x smaller** lambda values to ensure that:
 1. **L_CE dominates** - Primary objective remains language modeling
@@ -112,9 +320,9 @@ The Q1Q2 model uses **10x smaller** lambda values to ensure that:
 
 ---
 
-## 3. Epistemic Metrics
+## Epistemic Metrics
 
-### 3.1 Tracked Metrics
+### Tracked Metrics
 
 | Metric Category | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |----------------|----------|-----------|----------------|
@@ -128,7 +336,7 @@ The Q1Q2 model uses **10x smaller** lambda values to ensure that:
 | **Fractal Uncertainty** | ❌ | ❌ | ✅ |
 | **Collapse Detection** | ❌ | ⚠️ Limited | ✅ Comprehensive |
 
-### 3.2 Pyramidal Metrics Details
+### Pyramidal Metrics Details
 
 #### train_pyramidal.py (experiments/level1/train_pyramidal.py:169-183)
 ```python
@@ -163,9 +371,9 @@ distribution_metrics = {
 
 ---
 
-## 4. Collapse Detection System
+## Collapse Detection System
 
-### 4.1 Detection Mechanisms
+### Detection Mechanisms
 
 | Model | Collapse Detection | Warnings |
 |-------|-------------------|----------|
@@ -173,7 +381,7 @@ distribution_metrics = {
 | **Pyramidal** | ⚠️ Basic | Height > 0.95 (overconfidence) |
 | **Pyramidal Q1Q2** | ✅ Comprehensive | 6 collapse signals + entropy checks |
 
-### 4.2 Q1Q2 Collapse Signals (experiments/level1/train_pyramidal_q1q2.py:106-162)
+### Q1Q2 Collapse Signals (experiments/level1/train_pyramidal_q1q2.py:106-162)
 
 The Q1Q2 model implements a sophisticated collapse detection system:
 
@@ -201,9 +409,9 @@ def compute_collapse_signals(pyramid_outputs: dict) -> dict:
 
 ---
 
-## 5. Dataset and Training Configuration
+## Dataset and Training Configuration
 
-### 5.1 Dataset Comparison
+### Dataset Comparison
 
 | Aspect | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |--------|----------|-----------|----------------|
@@ -213,7 +421,7 @@ def compute_collapse_signals(pyramid_outputs: dict) -> dict:
 | **Tokenizer** | GPT2Tokenizer | GPT2Tokenizer | Custom (TinyStories) |
 | **Cache Dir** | `.cache/wikitext` | `.cache/wikitext` | `data/tinystories` |
 
-### 5.2 Training Hyperparameters
+### Training Hyperparameters
 
 | Parameter | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |-----------|----------|-----------|----------------|
@@ -228,7 +436,7 @@ def compute_collapse_signals(pyramid_outputs: dict) -> dict:
 | **Save Interval** | 2,000 | 2,000 | 500 |
 | **Num Workers** | 0 | 0 | 4 |
 
-### 5.3 Memory Optimization
+### Memory Optimization
 
 All three scripts support:
 - ✅ Gradient checkpointing (`--gradient-checkpointing`) - ~40% memory reduction
@@ -238,9 +446,9 @@ All three scripts support:
 
 ---
 
-## 6. Logging and Monitoring
+## Logging and Monitoring
 
-### 6.1 Logging Systems
+### Logging Systems
 
 | Feature | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |---------|----------|-----------|----------------|
@@ -251,7 +459,7 @@ All three scripts support:
 | **Distribution Analysis** | ❌ | ❌ | ✅ (Q1/Q2 min/max/range) |
 | **Collapse Warnings** | ❌ | ⚠️ Basic | ✅ Real-time warnings |
 
-### 6.2 Visualization Output
+### Visualization Output
 
 **Baseline (train_baseline.py:278-326):**
 - 4 plots: Loss, Perplexity, ECE, Brier Score
@@ -273,9 +481,156 @@ All three scripts support:
 
 ---
 
-## 7. Strengths and Weaknesses Analysis
+## Data Flow & Dependencies
 
-### 7.1 Baseline GPT-2
+### Training Pipeline Data Flow
+
+```
+WikiText-2 Dataset
+        ↓
+load_wikitext_dataset() [data/dataset.py]
+        ↓
+TextDataset (tokenized, padded)
+        ↓
+DataLoader (batch creation with collate_fn)
+        ↓
+Batch: {input_ids: [batch_size, seq_len], labels: [batch_size, seq_len]}
+        ↓
+┌─────────────────────────────────────────────────────────────┐
+│ train_baseline.py                                           │
+├─────────────────────────────────────────────────────────────┤
+│ Model: GPT2LMHeadModel                                      │
+│ Forward: input_ids → logits [batch, seq_len, vocab_size]   │
+│ Loss: CrossEntropyLoss(logits, labels)                     │
+│ Backward: gradient update                                   │
+└─────────────────────────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────────────────────────┐
+│ train_pyramidal.py                                          │
+├─────────────────────────────────────────────────────────────┤
+│ Model: AletheionPyramidalTransformer                        │
+│ Forward:                                                     │
+│  ├─ Transformer layers → hidden [batch, seq_len, d_model]  │
+│  ├─ Output projection → logits [batch, seq_len, vocab]     │
+│  ├─ PyramidalEpistemicGates:                                │
+│  │  ├─ Compute 4 base forces [batch, seq_len, 4]          │
+│  │  ├─ Compute height [batch, seq_len, 1]                 │
+│  │  └─ Modulate temperature based on height               │
+│  └─ Return: logits + pyramid metrics                        │
+│ Loss: PyramidalVAROLoss                                      │
+│  ├─ L_CE = CE(logits, labels)                              │
+│  ├─ L_base = ||base_stability - target||²                  │
+│  ├─ L_height = ||height - target_height||²                 │
+│  └─ L_total = L_CE + λ_base*L_base + λ_height*L_height    │
+│ Backward: update model + gates                              │
+└─────────────────────────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────────────────────────┐
+│ train_pyramidal_q1q2.py                                     │
+├─────────────────────────────────────────────────────────────┤
+│ Model: AletheionPyramidalQ1Q2Transformer                    │
+│ Forward:                                                     │
+│  ├─ Transformer layers → hidden [batch, seq_len, d_model]  │
+│  ├─ Output projection → logits [batch, seq_len, vocab]     │
+│  ├─ Q1 Gate (aleatoric):                                    │
+│  │  ├─ Estimate evidence quality                           │
+│  │  ├─ Track variance                                      │
+│  │  └─ Check entropy (>0.3 = no collapse)                 │
+│  ├─ Q2 Gate (epistemic):                                    │
+│  │  ├─ Cross-context consensus                             │
+│  │  ├─ Track variance                                      │
+│  │  └─ Check entropy (>0.3 = no collapse)                 │
+│  ├─ Fractal:                                                │
+│  │  ├─ Meta-epistemic layer                                │
+│  │  └─ Combine Q1/Q2 uncertainties                         │
+│  ├─ Compute height from Q1, Q2, base_stability             │
+│  ├─ Modulate temperature                                    │
+│  └─ Return: logits + comprehensive metrics                  │
+│ Loss: PyramidalVAROLossWithQ1Q2                             │
+│  ├─ L_CE = CE(logits, labels)                              │
+│  ├─ L_base = ||base_stability - target||²                  │
+│  ├─ L_Q1 = ||Q1 - target_Q1||²                             │
+│  ├─ L_Q2 = ||Q2 - target_Q2||²                             │
+│  ├─ L_fractal = ||fractal - target_fractal||²              │
+│  ├─ L_height = ||height - target_height||²                 │
+│  └─ L_total = L_CE + λ*all_terms (small lambdas)          │
+│ Backward + collapse detection                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Dependencies
+
+```
+Model Dependencies:
+├─ BaselineTransformer
+│  ├─ CausalSelfAttention (src/attention.py)
+│  └─ FeedForward (src/model.py)
+│
+├─ AletheionTransformer (extends BaselineTransformer)
+│  ├─ LocalUncertaintyGate (Q₁)
+│  ├─ CrossContextGate (Q₂)
+│  └─ epistemic_softmax
+│
+├─ AletheionPyramidalTransformer (extends BaselineTransformer)
+│  ├─ PyramidalEpistemicGates
+│  │  ├─ LocalUncertaintyGate (Q₁)
+│  │  ├─ CrossContextGate (Q₂)
+│  │  └─ Pyramidal force calculations
+│  └─ PyramidalTemperatureModulator
+│
+└─ AletheionPyramidalQ1Q2Transformer (extends BaselineTransformer)
+   ├─ PyramidalEpistemicGatesWithQ1Q2
+   ├─ EpistemicMultiHeadAttention
+   └─ Fractal layer
+
+Loss Dependencies:
+├─ VaroLoss → LocalUncertaintyGate + CrossContextGate
+├─ PyramidalVAROLoss → PyramidalEpistemicGates
+└─ PyramidalVAROLossWithQ1Q2 → PyramidalEpistemicGatesWithQ1Q2
+
+Data Dependencies:
+├─ load_wikitext_dataset() → datasets library
+├─ TextDataset → torch.utils.data.Dataset
+├─ collate_fn → pad_sequence
+└─ DataLoader → batch creation
+```
+
+---
+
+## Configuration System
+
+### Configuration Inheritance
+
+All configs inherit from `/config/default.yaml` and override specific sections:
+
+```yaml
+# default.yaml structure (used as base)
+model:
+  vocab_size: 50257
+  d_model: 512
+  n_layers: 6
+  n_heads: 8
+  d_ff: 2048
+
+training:
+  batch_size: 32
+  learning_rate: 3.0e-4
+  max_steps: 100000
+
+# aletheion_level1.yaml extends default.yaml with:
+model:
+  epistemic:
+    q1_threshold: 0.7
+    q2_threshold: 0.7
+    lambda_varo: 0.1
+    u_star_method: head_variance
+```
+
+---
+
+## Strengths and Weaknesses Analysis
+
+### Baseline GPT-2
 
 #### ✅ Strengths
 1. **Simplicity** - Easy to understand, debug, and deploy
@@ -302,7 +657,7 @@ All three scripts support:
 
 ---
 
-### 7.2 Pyramidal Transformer
+### Pyramidal Transformer
 
 #### ✅ Strengths
 1. **Production-Ready Epistemic Modeling** - Balanced complexity/utility
@@ -333,7 +688,7 @@ All three scripts support:
 
 ---
 
-### 7.3 Pyramidal Q1Q2 Transformer
+### Pyramidal Q1Q2 Transformer
 
 #### ✅ Strengths
 1. **Advanced Uncertainty Decomposition** - Separates Q1 (aleatoric) and Q2 (epistemic)
@@ -368,7 +723,7 @@ All three scripts support:
 
 ---
 
-## 8. Performance Comparison Matrix
+## Performance Comparison Matrix
 
 | Dimension | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |-----------|----------|-----------|----------------|
@@ -387,9 +742,9 @@ All three scripts support:
 
 ---
 
-## 9. Technical Recommendations
+## Technical Recommendations
 
-### 9.1 When to Use Each Model
+### When to Use Each Model
 
 | Scenario | Recommended Model | Rationale |
 |----------|------------------|-----------|
@@ -402,7 +757,7 @@ All three scripts support:
 | **Collapse analysis** | Pyramidal Q1Q2 | Comprehensive detection system |
 | **Large-scale training** | Baseline or Pyramidal | Larger models, more capacity |
 
-### 9.2 Migration Path
+### Migration Path
 
 **Recommended Development Flow:**
 
@@ -420,7 +775,7 @@ All three scripts support:
    ↓ Deploy best architecture for use case
 ```
 
-### 9.3 Hyperparameter Tuning Guidelines
+### Hyperparameter Tuning Guidelines
 
 #### Baseline
 - **lr:** 3e-4 (standard GPT-2)
@@ -444,7 +799,21 @@ All three scripts support:
 
 ---
 
-## 10. Code Quality and Maintainability
+## Testing & Evaluation Framework
+
+| Script | Purpose | Metrics |
+|--------|---------|---------|
+| `compare_baseline_aletheion.py` | Compare baseline vs Aletheion L1 | Loss, perplexity, ECE, Brier |
+| `compare_pyramidal.py` | Compare pyramidal variants | Height, base, forces, Q1/Q2 |
+| `compare_models.py` | Multi-model comparison | All metrics across all models |
+| `test_truthfulqa.py` | TruthfulQA benchmark | Accuracy, truthfulness, informativeness |
+| `test_out_of_domain.py` | OOD robustness | Abstention rates, calibration on unseen data |
+| `test_abstention.py` | Uncertainty-based abstention | Rejection curves, coverage-accuracy tradeoff |
+| `visualize_epistemic.py` | Visualization tools | Heatmaps, distributions, progression plots |
+
+---
+
+## Code Quality and Maintainability
 
 | Aspect | Baseline | Pyramidal | Pyramidal Q1Q2 |
 |--------|----------|-----------|----------------|
@@ -469,9 +838,9 @@ All three scripts demonstrate:
 
 ---
 
-## 11. Future Improvements
+## Future Improvements
 
-### 11.1 All Models
+### All Models
 - [ ] Add learning rate schedulers (cosine, linear decay)
 - [ ] Implement early stopping
 - [ ] Add validation loss-based checkpointing (save best model)
@@ -479,14 +848,14 @@ All three scripts demonstrate:
 - [ ] Integrated hyperparameter search (Optuna)
 - [ ] Automated testing suite
 
-### 11.2 Pyramidal Models
+### Pyramidal Models
 - [ ] Add ECE/Brier to Q1Q2 (currently only in baseline/pyramidal)
 - [ ] Unified logging (make all use TensorBoard OR Matplotlib)
 - [ ] Standardize checkpoint naming across models
 - [ ] Cross-model evaluation script (compare all three on same test set)
 - [ ] Uncertainty visualization tools (Q1 vs Q2 scatter plots)
 
-### 11.3 Q1Q2 Specific
+### Q1Q2 Specific
 - [ ] **WikiText-2 support** ✅ DONE (this PR)
 - [ ] Implement force weights alongside Q1/Q2
 - [ ] Add calibration metrics (ECE/Brier)
@@ -496,7 +865,7 @@ All three scripts demonstrate:
 
 ---
 
-## 12. Conclusion
+## Conclusion
 
 The three training scripts represent different points in the complexity-capability tradeoff:
 
@@ -515,6 +884,30 @@ The three training scripts represent different points in the complexity-capabili
 3. Publish comparative results on standard benchmarks
 4. Ablation study on lambda values
 5. Production deployment guide for pyramidal models
+
+---
+
+## Key Files Reference
+
+| File Path | Purpose | Key Components |
+|-----------|---------|-----------------|
+| `/src/model.py` | Baseline transformer | BaselineTransformer, TransformerBlock, FeedForward |
+| `/src/attention.py` | Attention mechanism | CausalSelfAttention (masked) |
+| `/src/aletheion/gates.py` | Epistemic gates | LocalUncertaintyGate (Q₁), CrossContextGate (Q₂), epistemic_softmax |
+| `/src/aletheion/loss.py` | Loss functions | VaroLoss, PyramidalVAROLoss, PyramidalVAROLossWithQ1Q2 |
+| `/src/aletheion/model.py` | Level 1 model | AletheionTransformer (Q₁+Q₂ at output) |
+| `/src/aletheion/pyramidal_model.py` | Pyramidal model | AletheionPyramidalTransformer (4 forces + height) |
+| `/src/aletheion/pyramid.py` | Pyramidal geometry | PyramidalEpistemicGates, compute_pyramidal_metrics |
+| `/src/aletheion/pyramidal_q1q2_model.py` | Q1/Q2 model | AletheionPyramidalQ1Q2Transformer |
+| `/src/aletheion/pyramid_q1q2_fractal.py` | Advanced gates | PyramidalEpistemicGatesWithQ1Q2, EpistemicMultiHeadAttention |
+| `/data/dataset.py` | Data loading | TextDataset, load_wikitext_dataset (WikiText-2) |
+| `/data/prepare.py` | Data prep | Dataset preprocessing utilities |
+| `/config/default.yaml` | Base config | Shared hyperparameters |
+| `/config/aletheion_level1.yaml` | L1 config | Epistemic hyperparameters |
+| `/experiments/level1/train_baseline.py` | Baseline training | Script for baseline model |
+| `/experiments/level1/train_pyramidal.py` | Pyramidal training | Pyramidal model training |
+| `/experiments/level1/train_pyramidal_q1q2.py` | Q1/Q2 training | Complete Q1/Q2/Fractal training |
+| `/examples/train_aletheion.py` | Example training | Using config-based training |
 
 ---
 
@@ -557,5 +950,6 @@ python experiments/level1/train_pyramidal_q1q2.py --max_steps 5000 \
 ---
 
 **Document Changelog:**
-- v1.0 (2025-11-05): Initial comprehensive comparison
+- v1.0 (2025-11-05): Initial comprehensive comparison (docs/ version)
+- v2.0 (2025-11-05): Consolidated version combining technical comparison + project architecture
 - Future: Will update with experimental results and ablation studies
