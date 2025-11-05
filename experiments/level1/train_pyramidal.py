@@ -421,9 +421,9 @@ def main():
     args = parser.parse_args()
 
     if args.dry_run:
-        args.steps = 100
-        args.eval_interval = 50
-        args.save_interval = 100
+        # Adjust intervals proportionally for dry-run, but respect user-specified steps
+        args.eval_interval = min(args.eval_interval, args.steps // 4)
+        args.save_interval = min(args.save_interval, args.steps)
 
     # Setup
     set_seed(args.seed)
