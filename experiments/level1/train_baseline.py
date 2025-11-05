@@ -29,6 +29,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -103,8 +104,10 @@ def train_step(
     device: torch.device,
     accumulation_steps: int = 1,
     is_accumulation_step: bool = False,
+    scaler: GradScaler = None,
+    use_amp: bool = False,
 ) -> Dict[str, float]:
-    """Perform one training step with optional gradient accumulation.
+    """Perform one training step with optional gradient accumulation and mixed precision.
 
     Args:
         model: The model to train
@@ -113,6 +116,8 @@ def train_step(
         device: Device to use
         accumulation_steps: Number of gradient accumulation steps
         is_accumulation_step: If True, don't zero grads or step optimizer
+        scaler: GradScaler for mixed precision training
+        use_amp: Whether to use automatic mixed precision
     """
     model.train()
 
@@ -123,28 +128,41 @@ def train_step(
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
 
-    # Forward pass - simple cross-entropy
-    outputs = model(input_ids, labels=labels)
-    loss = outputs.loss
-
-    # Scale loss for gradient accumulation
-    loss = loss / accumulation_steps
+    # Forward pass with optional mixed precision
+    if use_amp and scaler is not None:
+        with autocast():
+            outputs = model(input_ids, labels=labels)
+            loss = outputs.loss / accumulation_steps
+    else:
+        outputs = model(input_ids, labels=labels)
+        loss = outputs.loss / accumulation_steps
 
     metrics = {
         "loss": loss.item() * accumulation_steps,  # Report unscaled loss
         "perplexity": math.exp(loss.item() * accumulation_steps) if loss.item() * accumulation_steps < 20 else float('inf'),
     }
 
-    # Backward pass
-    loss.backward()
+    # Backward pass with optional scaling
+    if use_amp and scaler is not None:
+        scaler.scale(loss).backward()
+    else:
+        loss.backward()
 
     # Only clip and step at the end of accumulation
     if not is_accumulation_step:
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
+        if use_amp and scaler is not None:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
     # Memory cleanup
     del loss, outputs, input_ids, labels
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     return metrics
 
@@ -315,11 +333,13 @@ def main():
     train_group.add_argument('--steps', type=int, default=None, help='Number of training steps')
     train_group.add_argument('--num-epochs', type=int, default=None, help='Number of training epochs')
 
-    parser.add_argument('--batch-size', type=int, default=8, help='Micro batch size (per gradient accumulation step)')
+    parser.add_argument('--batch-size', type=int, default=4, help='Micro batch size (per gradient accumulation step)')
     parser.add_argument('--gradient-accumulation-steps', type=int, default=1,
                        help='Number of gradient accumulation steps (effective batch = batch_size * accum_steps)')
     parser.add_argument('--gradient-checkpointing', action='store_true',
                        help='Enable gradient checkpointing to save memory (~40% reduction)')
+    parser.add_argument('--fp16', action='store_true',
+                       help='Enable mixed precision training (fp16) to save memory (~50% reduction)')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--eval-interval', type=int, default=500, help='Evaluation interval')
     parser.add_argument('--save-interval', type=int, default=2000, help='Checkpoint save interval')
@@ -361,6 +381,8 @@ def main():
     print(f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
     if args.gradient_checkpointing:
         print(f"   - Gradient checkpointing: enabled")
+    if args.fp16:
+        print(f"   - Mixed precision (fp16): enabled")
     if args.resume_from:
         print(f"   - Resuming from: {args.resume_from}")
     print(f"   - Output: {output_dir}")
@@ -447,6 +469,12 @@ def main():
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
 
+    # Mixed precision scaler
+    scaler = GradScaler() if args.fp16 and torch.cuda.is_available() else None
+    use_amp = args.fp16 and torch.cuda.is_available()
+    if use_amp:
+        print("   ✓ GradScaler initialized for mixed precision training")
+
     # Training loop
     print("\n🚀 Starting training...")
 
@@ -473,7 +501,9 @@ def main():
             metrics = train_step(
                 model, batch, optimizer, device,
                 accumulation_steps=args.gradient_accumulation_steps,
-                is_accumulation_step=is_accumulation_step
+                is_accumulation_step=is_accumulation_step,
+                scaler=scaler,
+                use_amp=use_amp
             )
 
             accumulated_loss += metrics['loss'] / args.gradient_accumulation_steps
@@ -492,10 +522,11 @@ def main():
 
         step += 1
 
-        # Periodic memory cleanup
-        if step % 10 == 0:
+        # Aggressive memory cleanup
+        if step % 5 == 0:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+            gc.collect()
 
         # Evaluation
         if step % args.eval_interval == 0:
