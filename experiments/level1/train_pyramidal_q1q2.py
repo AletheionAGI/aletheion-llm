@@ -11,9 +11,9 @@ Monitors all epistemic metrics to detect collapse (Q1 → 0.88+)
 
 Usage:
     python experiments/level1/train_pyramidal_q1q2.py \
-        --lambda_Q1 0.015 \
-        --lambda_Q2 0.020 \
-        --lambda_fractal 0.005 \
+        --lambda_Q1 0.0015 \
+        --lambda_Q2 0.002 \
+        --lambda_fractal 0.0005 \
         --max_steps 5000
 
 Expected healthy behavior:
@@ -56,12 +56,12 @@ def parse_args():
     parser.add_argument('--max_seq_len', type=int, default=256, help='Max sequence length')
     parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate')
 
-    # Pyramidal Q1/Q2 parameters
-    parser.add_argument('--lambda_base', type=float, default=0.01, help='Base stability weight')
-    parser.add_argument('--lambda_Q1', type=float, default=0.015, help='Q1 calibration weight')
-    parser.add_argument('--lambda_Q2', type=float, default=0.020, help='Q2 calibration weight')
-    parser.add_argument('--lambda_fractal', type=float, default=0.005, help='Fractal regularization weight')
-    parser.add_argument('--lambda_height', type=float, default=0.02, help='Height calibration weight')
+    # Pyramidal Q1/Q2 parameters (reduced by 10x to let L_CE dominate)
+    parser.add_argument('--lambda_base', type=float, default=0.001, help='Base stability weight')
+    parser.add_argument('--lambda_Q1', type=float, default=0.0015, help='Q1 calibration weight')
+    parser.add_argument('--lambda_Q2', type=float, default=0.002, help='Q2 calibration weight')
+    parser.add_argument('--lambda_fractal', type=float, default=0.0005, help='Fractal regularization weight')
+    parser.add_argument('--lambda_height', type=float, default=0.002, help='Height calibration weight')
     parser.add_argument('--use_multi_head_height', action='store_true', help='Use multi-head height')
     parser.add_argument('--max_temperature_scale', type=float, default=2.0, help='Max temperature scale')
 
@@ -159,6 +159,12 @@ def train_step(model, batch, optimizer, scaler, device, grad_clip):
         outputs = model(input_ids, labels=labels, return_dict=True)
         loss = outputs.loss
 
+        # Compute loss components for detailed logging
+        if outputs.pyramid is not None:
+            loss_dict = model.pyramid_loss_fn(outputs.logits, labels, outputs.pyramid)
+        else:
+            loss_dict = None
+
     # Backward pass
     optimizer.zero_grad()
     if torch.cuda.is_available():
@@ -172,7 +178,7 @@ def train_step(model, batch, optimizer, scaler, device, grad_clip):
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
 
-    return loss.item(), outputs.pyramid
+    return loss.item(), outputs.pyramid, loss_dict
 
 
 @torch.no_grad()
@@ -335,7 +341,7 @@ def main():
                 break
 
             # Training step
-            loss, pyramid_outputs = train_step(
+            loss, pyramid_outputs, loss_dict = train_step(
                 model, batch, optimizer, scaler, device, args.grad_clip
             )
             scheduler.step()
@@ -360,10 +366,37 @@ def main():
                         else:
                             writer.add_scalar(f'train/collapse/{key}', value, global_step)
 
-                    # Print status
+                    # Print status every 50 steps with detailed Q1/Q2 distributions
                     if global_step % 50 == 0:
                         elapsed = time.time() - start_time
-                        print(f"Step {global_step}/{args.max_steps} | "
+
+                        # Extract Q1/Q2 tensors for distribution analysis
+                        Q1 = pyramid_outputs['Q1_mean']
+                        Q2 = pyramid_outputs['Q2_mean']
+
+                        # Compute distributions
+                        Q1_min = Q1.min().item()
+                        Q1_max = Q1.max().item()
+                        Q1_mean = Q1.mean().item()
+                        Q2_min = Q2.min().item()
+                        Q2_max = Q2.max().item()
+                        Q2_mean = Q2.mean().item()
+
+                        # Get target values from loss_dict if available
+                        if loss_dict is not None:
+                            Q1_target_mean = loss_dict.get('target_Q1_mean', 0.0)
+                            Q2_target_mean = loss_dict.get('target_Q2_mean', 0.0)
+                        else:
+                            Q1_target_mean = 0.0
+                            Q2_target_mean = 0.0
+
+                        # Verification checks
+                        Q1_collapsed = Q1_min == Q1_max or (Q1_max - Q1_min < 0.01)
+                        Q2_collapsed = Q2_min == Q2_max or (Q2_max - Q2_min < 0.01)
+                        Q1_Q2_distinct = abs(Q1_mean - Q2_mean) > 0.05
+
+                        # Standard status line
+                        print(f"\nStep {global_step}/{args.max_steps} | "
                               f"Loss: {loss:.4f} | "
                               f"Q1: {stats['Q1_mean']:.3f} | "
                               f"Q2: {stats['Q2_mean']:.3f} | "
@@ -371,12 +404,38 @@ def main():
                               f"Fractal: {stats['fractal_mean']:.3f} | "
                               f"Time: {elapsed:.1f}s")
 
+                        # Detailed Q1/Q2 distribution diagnostics
+                        print(f"  Q1 Distribution: min={Q1_min:.4f}, max={Q1_max:.4f}, mean={Q1_mean:.4f}, target={Q1_target_mean:.4f}")
+                        print(f"  Q2 Distribution: min={Q2_min:.4f}, max={Q2_max:.4f}, mean={Q2_mean:.4f}, target={Q2_target_mean:.4f}")
+
+                        # Verification status
+                        print(f"  Q1 Collapsed: {Q1_collapsed} | Q2 Collapsed: {Q2_collapsed} | Q1/Q2 Distinct: {Q1_Q2_distinct}")
+
+                        # Log distribution metrics to tensorboard
+                        writer.add_scalar('train/Q1/min', Q1_min, global_step)
+                        writer.add_scalar('train/Q1/max', Q1_max, global_step)
+                        writer.add_scalar('train/Q1/range', Q1_max - Q1_min, global_step)
+                        writer.add_scalar('train/Q2/min', Q2_min, global_step)
+                        writer.add_scalar('train/Q2/max', Q2_max, global_step)
+                        writer.add_scalar('train/Q2/range', Q2_max - Q2_min, global_step)
+                        if loss_dict is not None:
+                            writer.add_scalar('train/Q1/target_mean', Q1_target_mean, global_step)
+                            writer.add_scalar('train/Q2/target_mean', Q2_target_mean, global_step)
+
                         # Warning if collapse detected
                         if collapse_signals['any_collapse']:
-                            print("⚠️  WARNING: Collapse signals detected!")
+                            print("  ⚠️  WARNING: Collapse signals detected!")
                             for key, value in collapse_signals.items():
                                 if isinstance(value, bool) and value:
-                                    print(f"   - {key}")
+                                    print(f"     - {key}")
+
+                        # Additional warnings for distribution issues
+                        if Q1_collapsed:
+                            print("  ⚠️  WARNING: Q1 has collapsed to a constant!")
+                        if Q2_collapsed:
+                            print("  ⚠️  WARNING: Q2 has collapsed to a constant!")
+                        if not Q1_Q2_distinct:
+                            print("  ⚠️  WARNING: Q1 and Q2 are not distinct!")
 
             # Evaluation
             if global_step % args.eval_interval == 0 and global_step > 0:
