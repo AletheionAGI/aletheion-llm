@@ -1,0 +1,28 @@
+# Git LFS configuration for HuggingFace Space
+# Large model files should be tracked with LFS
+
+# Model weights
+*.bin filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.pth filter=lfs diff=lfs merge=lfs -text
+*.safetensors filter=lfs diff=lfs merge=lfs -text
+
+# Model checkpoints
+*.ckpt filter=lfs diff=lfs merge=lfs -text
+checkpoint-* filter=lfs diff=lfs merge=lfs -text
+
+# Large data files
+*.arrow filter=lfs diff=lfs merge=lfs -text
+*.parquet filter=lfs diff=lfs merge=lfs -text
+
+# Archives
+*.tar.gz filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
+
+# PDF documents
+*.pdf filter=lfs diff=lfs merge=lfs -text
+
+# Large images
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
