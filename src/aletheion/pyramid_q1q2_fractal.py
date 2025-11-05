@@ -24,6 +24,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+from .loss import compute_calibration_metrics
+
 
 class PyramidalEpistemicGatesWithQ1Q2(nn.Module):
     """Complete Pyramidal Architecture with Q1, Q2, Fractal.
@@ -539,6 +541,41 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         # Compute metrics for logging
         num_valid = valid_mask.sum() + 1e-8
 
+        # === COMPUTE CALIBRATION METRICS (ECE, Brier Score) ===
+        with torch.no_grad():
+            # Get probabilities for calibration metrics
+            probs = F.softmax(logits, dim=-1)
+
+            # Flatten for calibration computation
+            probs_flat = probs.view(-1, probs.size(-1))  # [B*T, V]
+            targets_flat = targets.view(-1)  # [B*T]
+            valid_mask_flat = valid_mask.view(-1)  # [B*T, 1]
+
+            # Filter out padding tokens
+            valid_indices = (targets_flat != self.ignore_index)
+            if valid_indices.sum() > 0:
+                probs_valid = probs_flat[valid_indices]
+                targets_valid = targets_flat[valid_indices]
+
+                # Use total_uncertainty as the uncertainty measure
+                total_uncertainty_flat = pyramid_outputs['total_uncertainty'].view(-1, 1)
+                uncertainty_valid = total_uncertainty_flat[valid_indices]
+
+                # Compute ECE and Brier score
+                calibration_metrics = compute_calibration_metrics(
+                    probs_valid,
+                    targets_valid,
+                    uncertainty_valid,
+                    n_bins=10
+                )
+                ece = calibration_metrics['ece']
+                brier = calibration_metrics['brier_score']
+                uncertainty_error_corr = calibration_metrics['uncertainty_error_corr']
+            else:
+                ece = 0.0
+                brier = 0.0
+                uncertainty_error_corr = 0.0
+
         return {
             'loss': total_loss,
             'ce_loss': ce_loss.item(),
@@ -556,6 +593,18 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
             'target_Q1_mean': (target_Q1 * valid_mask).sum().item() / num_valid.item(),
             'target_Q2_mean': (target_Q2 * valid_mask).sum().item() / num_valid.item(),
             'target_height_mean': (target_height * valid_mask).sum().item() / num_valid.item(),
+
+            # Calibration metrics (ECE, Brier)
+            'ece': ece,
+            'brier_score': brier,
+            'uncertainty_error_corr': uncertainty_error_corr,
+
+            # Force weights (base cognitive forces)
+            'mean_memory': (pyramid_outputs['w_memory'] * valid_mask).sum().item() / num_valid.item(),
+            'mean_pain': (pyramid_outputs['w_pain'] * valid_mask).sum().item() / num_valid.item(),
+            'mean_choice': (pyramid_outputs['w_choice'] * valid_mask).sum().item() / num_valid.item(),
+            'mean_exploration': (pyramid_outputs['w_exploration'] * valid_mask).sum().item() / num_valid.item(),
+            'base_stability': (pyramid_outputs['base_stability'] * valid_mask).sum().item() / num_valid.item(),
 
             # Lambdas
             'lambda_base': self.lambda_base,
