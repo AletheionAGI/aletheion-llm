@@ -1,0 +1,145 @@
+// Aletheion Project Manifest
+// Ion format: https://amazon-ion.github.io/ion-docs/
+
+{
+  project: {
+    name: "Aletheion",
+    full_name: "Aletheion: Epistemic Uncertainty for Large Language Models",
+    version: "0.1.0",
+    status: "training",
+    description: '''
+      Implementation of fractally-applied epistemic softmax for calibrated,
+      uncertainty-aware language models. Addresses hallucination and overconfidence
+      in large language models through epistemic gating mechanisms.
+    ''',
+  },
+
+  repository: {
+    url: "https://github.com/AletheionAGI/aletheion-llm",
+    type: "git",
+    branch: "main",
+  },
+
+  contact: {
+    email: "contact@alethea.tech",
+    discord: ".lacivo",
+    issues: "https://github.com/AletheionAGI/aletheion-llm/issues",
+  },
+
+  license: {
+    type: "dual",
+    open_source: {
+      name: "AGPL-3.0-or-later",
+      file: "LICENSE-AGPL.md",
+      description: "For community use with copyleft obligations",
+    },
+    commercial: {
+      name: "Aletheion Commercial License",
+      file: "LICENSE-COMMERCIAL.md",
+      description: "For proprietary deployments without source release requirements",
+      contact: "contact@alethea.tech",
+    },
+  },
+
+  architecture: {
+    levels: [
+      {
+        level: 1,
+        name: "Output-Only Gating",
+        status: "in_progress",
+        completion: 0.50,
+        description: "Epistemic gates at output layer (Q₁, Q₂, VARO)",
+      },
+      {
+        level: 2,
+        name: "Attention-Level Gating",
+        status: "planned",
+        completion: 0.00,
+        description: "Epistemic gates within attention mechanisms",
+      },
+      {
+        level: 3,
+        name: "Full Fractal Architecture",
+        status: "planned",
+        completion: 0.00,
+        description: "Epistemic gating at all architectural levels",
+      },
+    ],
+  },
+
+  dependencies: {
+    python: "3.10",
+    framework: "PyTorch",
+    requirements_file: "requirements.txt",
+  },
+
+  components: {
+    core: {
+      path: "src/",
+      description: "Baseline transformer implementation",
+    },
+    aletheion: {
+      path: "src/aletheion/",
+      description: "Epistemic components (Q₁, Q₂, VARO)",
+    },
+    experiments: {
+      path: "experiments/",
+      description: "Training scripts and experimental configurations",
+    },
+    paper: {
+      path: "paper/",
+      description: "Theoretical papers and documentation",
+    },
+    tests: {
+      path: "tests/",
+      description: "Unit and integration tests",
+    },
+  },
+
+  research: {
+    foundation: [
+      {
+        title: "The Quality of Truth",
+        year: 2021,
+        type: "philosophical_framework",
+      },
+      {
+        title: "Aletheion preprint",
+        status: "coming_soon",
+        type: "technical_paper",
+      },
+    ],
+    targets: [
+      "NeurIPS",
+      "ICML",
+    ],
+  },
+
+  metrics: {
+    expected_improvements: {
+      ece: {
+        min: -0.20,
+        max: -0.40,
+        description: "Expected Calibration Error improvement",
+      },
+      perplexity: {
+        min: -0.05,
+        max: -0.10,
+        description: "Perplexity improvement",
+      },
+      parameter_overhead: 0.02,
+    },
+  },
+
+  keywords: [
+    "epistemic-uncertainty",
+    "uncertainty-quantification",
+    "language-models",
+    "transformer",
+    "calibration",
+    "hallucination",
+    "fractal-architecture",
+    "deep-learning",
+    "natural-language-processing",
+  ],
+}
