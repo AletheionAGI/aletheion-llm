@@ -94,3 +94,95 @@ def load_wikitext_dataset(
     test_dataset = TextDataset(tokenizer, dataset["test"]["text"], max_length)
 
     return train_dataset, val_dataset, test_dataset, tokenizer
+
+
+class TruthfulQADataset(Dataset):
+    """Dataset for TruthfulQA question-answering evaluation."""
+
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        questions: List[str],
+        best_answers: List[List[str]],
+        correct_answers: List[List[str]],
+        incorrect_answers: List[List[str]],
+        max_length: int = 512,
+    ) -> None:
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.pad_token_id = tokenizer.pad_token_id or tokenizer.eos_token_id
+
+        self.questions = questions
+        self.best_answers = best_answers
+        self.correct_answers = correct_answers
+        self.incorrect_answers = incorrect_answers
+
+    def __len__(self) -> int:
+        return len(self.questions)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        question = self.questions[idx]
+
+        # Tokenize the question
+        token_ids = self.tokenizer.encode(
+            question,
+            max_length=self.max_length,
+            truncation=True,
+        )
+
+        input_ids = torch.tensor(token_ids, dtype=torch.long)
+
+        return {
+            "input_ids": input_ids,
+            "question": question,
+            "best_answers": self.best_answers[idx],
+            "correct_answers": self.correct_answers[idx],
+            "incorrect_answers": self.incorrect_answers[idx],
+            "pad_token_id": torch.tensor(self.pad_token_id, dtype=torch.long),
+        }
+
+
+def load_truthfulqa_dataset(
+    tokenizer_name: str = "gpt2",
+    max_length: int = 512,
+    cache_dir: Optional[str] = None,
+    split: str = "validation",
+):
+    """Load TruthfulQA dataset for evaluation.
+
+    Args:
+        tokenizer_name: Name of the tokenizer to use
+        max_length: Maximum sequence length
+        cache_dir: Cache directory for datasets
+        split: Which split to load ('validation' is the main split)
+
+    Returns:
+        Tuple of (dataset, tokenizer)
+    """
+    from src.tokenizer import build_tokenizer
+
+    tokenizer = build_tokenizer(tokenizer_name, cache_dir=cache_dir)
+
+    # Load TruthfulQA from HuggingFace
+    dataset = load_dataset("truthful_qa", "generation", cache_dir=cache_dir)
+
+    split_data = dataset[split]
+
+    questions = split_data["question"]
+    best_answers = split_data["best_answer"]
+    correct_answers = split_data["correct_answers"]
+    incorrect_answers = split_data["incorrect_answers"]
+
+    # Convert best_answer (single string) to list format for consistency
+    best_answers = [[ans] for ans in best_answers]
+
+    truthfulqa_dataset = TruthfulQADataset(
+        tokenizer=tokenizer,
+        questions=questions,
+        best_answers=best_answers,
+        correct_answers=correct_answers,
+        incorrect_answers=incorrect_answers,
+        max_length=max_length,
+    )
+
+    return truthfulqa_dataset, tokenizer
