@@ -304,8 +304,11 @@ def compute_calibration_metrics(
             ece += prop_in_bin * torch.abs(accuracy_in_bin - avg_confidence_in_bin)
 
     # Compute Brier score
+    # Formula: Brier = (1/N) * Σ_i Σ_c (p_ic - y_ic)²
+    # where p_ic is predicted prob for class c, y_ic is one-hot target
     one_hot = F.one_hot(targets, num_classes=probs.size(-1)).float()
-    brier_score = torch.mean((probs - one_hot) ** 2)
+    # Sum over classes (dim=-1), then mean over batch (dim=0)
+    brier_score = torch.mean(torch.sum((probs - one_hot) ** 2, dim=-1))
 
     # Compute correlation between uncertainty and error
     errors = (1.0 - correct).unsqueeze(-1)  # (batch, 1)
