@@ -61,6 +61,7 @@ def log_memory(step: int):
 def create_baseline_model(
     vocab_size: int,
     device: torch.device,
+    use_gradient_checkpointing: bool = False,
 ) -> GPT2LMHeadModel:
     """Create baseline GPT-2 model matching pyramidal architecture size.
 
@@ -83,6 +84,11 @@ def create_baseline_model(
 
     model = GPT2LMHeadModel(config).to(device)
 
+    # Enable gradient checkpointing if requested
+    if use_gradient_checkpointing:
+        model.gradient_checkpointing_enable()
+        print("   ✓ Gradient checkpointing enabled (saves ~40% memory)")
+
     # Count parameters
     n_params = sum(p.numel() for p in model.parameters())
     print(f"   Model parameters: {n_params / 1e6:.1f}M")
@@ -95,10 +101,24 @@ def train_step(
     batch: Dict,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    accumulation_steps: int = 1,
+    is_accumulation_step: bool = False,
 ) -> Dict[str, float]:
-    """Perform one training step and return diagnostics."""
+    """Perform one training step with optional gradient accumulation.
+
+    Args:
+        model: The model to train
+        batch: Input batch
+        optimizer: Optimizer
+        device: Device to use
+        accumulation_steps: Number of gradient accumulation steps
+        is_accumulation_step: If True, don't zero grads or step optimizer
+    """
     model.train()
-    optimizer.zero_grad(set_to_none=True)
+
+    # Only zero grads at the start of accumulation
+    if not is_accumulation_step:
+        optimizer.zero_grad(set_to_none=True)
 
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
@@ -107,15 +127,21 @@ def train_step(
     outputs = model(input_ids, labels=labels)
     loss = outputs.loss
 
+    # Scale loss for gradient accumulation
+    loss = loss / accumulation_steps
+
     metrics = {
-        "loss": loss.item(),
-        "perplexity": math.exp(loss.item()) if loss.item() < 20 else float('inf'),
+        "loss": loss.item() * accumulation_steps,  # Report unscaled loss
+        "perplexity": math.exp(loss.item() * accumulation_steps) if loss.item() * accumulation_steps < 20 else float('inf'),
     }
 
     # Backward pass
     loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-    optimizer.step()
+
+    # Only clip and step at the end of accumulation
+    if not is_accumulation_step:
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
 
     # Memory cleanup
     del loss, outputs, input_ids, labels
@@ -289,12 +315,18 @@ def main():
     train_group.add_argument('--steps', type=int, default=None, help='Number of training steps')
     train_group.add_argument('--num-epochs', type=int, default=None, help='Number of training epochs')
 
-    parser.add_argument('--batch-size', type=int, default=4, help='Batch size')
+    parser.add_argument('--batch-size', type=int, default=8, help='Micro batch size (per gradient accumulation step)')
+    parser.add_argument('--gradient-accumulation-steps', type=int, default=1,
+                       help='Number of gradient accumulation steps (effective batch = batch_size * accum_steps)')
+    parser.add_argument('--gradient-checkpointing', action='store_true',
+                       help='Enable gradient checkpointing to save memory (~40% reduction)')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--eval-interval', type=int, default=500, help='Evaluation interval')
     parser.add_argument('--save-interval', type=int, default=2000, help='Checkpoint save interval')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--dry-run', action='store_true', help='Quick test run')
+    parser.add_argument('--resume-from', type=str, default=None,
+                       help='Resume training from checkpoint directory (e.g., outputs/baseline/checkpoint-2000)')
 
     # Output directory - support both --output and --output-dir
     parser.add_argument('--output', '--output-dir', dest='output_dir', type=str,
@@ -318,12 +350,19 @@ def main():
     with open(output_dir / 'config.json', 'w') as f:
         json.dump(config, f, indent=2)
 
+    effective_batch_size = args.batch_size * args.gradient_accumulation_steps
+
     print(f"📊 Training Baseline GPT-2 Model")
     if args.num_epochs is not None:
         print(f"   - Epochs: {args.num_epochs}")
     elif args.steps is not None:
         print(f"   - Steps: {args.steps}")
     print(f"   - Model: GPT-2 (no epistemic gates)")
+    print(f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
+    if args.gradient_checkpointing:
+        print(f"   - Gradient checkpointing: enabled")
+    if args.resume_from:
+        print(f"   - Resuming from: {args.resume_from}")
     print(f"   - Output: {output_dir}")
     print(f"   - Device: {device}")
 
@@ -362,18 +401,8 @@ def main():
         num_workers=0
     )
 
-    # Create model
-    print("\n🏗️  Creating baseline GPT-2 model...")
-    model = create_baseline_model(
-        vocab_size=tokenizer.vocab_size,
-        device=device,
-    )
-
-    # Optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-
-    # Training loop
-    print("\n🚀 Starting training...")
+    # Create or load model
+    start_step = 0
     history = {
         'train_loss': [],
         'train_perplexity': [],
@@ -383,30 +412,81 @@ def main():
         'eval_brier': [],
     }
 
-    step = 0
+    if args.resume_from:
+        print(f"\n🔄 Resuming from checkpoint: {args.resume_from}")
+        model = GPT2LMHeadModel.from_pretrained(args.resume_from).to(device)
+
+        # Enable gradient checkpointing if requested
+        if args.gradient_checkpointing:
+            model.gradient_checkpointing_enable()
+            print("   ✓ Gradient checkpointing enabled")
+
+        # Load history if available
+        history_path = Path(args.resume_from).parent / 'history.json'
+        if history_path.exists():
+            with open(history_path, 'r') as f:
+                history = json.load(f)
+            print(f"   ✓ Loaded training history ({len(history['train_loss'])} steps)")
+
+        # Extract step number from checkpoint name
+        checkpoint_name = Path(args.resume_from).name
+        if checkpoint_name.startswith('checkpoint-'):
+            start_step = int(checkpoint_name.split('-')[1])
+            print(f"   ✓ Resuming from step {start_step}")
+
+        n_params = sum(p.numel() for p in model.parameters())
+        print(f"   Model parameters: {n_params / 1e6:.1f}M")
+    else:
+        print("\n🏗️  Creating baseline GPT-2 model...")
+        model = create_baseline_model(
+            vocab_size=tokenizer.vocab_size,
+            device=device,
+            use_gradient_checkpointing=args.gradient_checkpointing,
+        )
+
+    # Optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+
+    # Training loop
+    print("\n🚀 Starting training...")
+
+    step = start_step
     train_iter = iter(train_loader)
 
-    pbar = tqdm(total=args.steps, desc="Training")
+    pbar = tqdm(total=args.steps, initial=start_step, desc="Training")
 
     while step < args.steps:
-        # Get batch
-        try:
-            batch = next(train_iter)
-        except StopIteration:
-            train_iter = iter(train_loader)
-            batch = next(train_iter)
+        # Accumulate gradients over multiple micro-batches
+        accumulated_loss = 0.0
+        accumulated_perplexity = 0.0
 
-        # Train step
-        metrics = train_step(model, batch, optimizer, device)
+        for accum_step in range(args.gradient_accumulation_steps):
+            # Get batch
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                train_iter = iter(train_loader)
+                batch = next(train_iter)
 
-        # Log metrics
-        history['train_loss'].append(metrics['loss'])
-        history['train_perplexity'].append(metrics['perplexity'])
+            # Train step (with gradient accumulation)
+            is_accumulation_step = (accum_step < args.gradient_accumulation_steps - 1)
+            metrics = train_step(
+                model, batch, optimizer, device,
+                accumulation_steps=args.gradient_accumulation_steps,
+                is_accumulation_step=is_accumulation_step
+            )
+
+            accumulated_loss += metrics['loss'] / args.gradient_accumulation_steps
+            accumulated_perplexity += metrics['perplexity'] / args.gradient_accumulation_steps
+
+        # Log metrics (after full accumulation)
+        history['train_loss'].append(accumulated_loss)
+        history['train_perplexity'].append(accumulated_perplexity)
 
         # Update progress bar
         pbar.set_postfix({
-            'loss': f"{metrics['loss']:.4f}",
-            'ppl': f"{metrics['perplexity']:.2f}",
+            'loss': f"{accumulated_loss:.4f}",
+            'ppl': f"{accumulated_perplexity:.2f}",
         })
         pbar.update(1)
 
