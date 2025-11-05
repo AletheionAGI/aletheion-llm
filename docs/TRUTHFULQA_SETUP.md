@@ -1,8 +1,8 @@
-# TruthfulQA Testing Setup - Complete
+# TruthfulQA Testing Setup - Complete (Pyramidal Q1Q2)
 
 ## What Was Implemented
 
-This setup adds comprehensive TruthfulQA evaluation capabilities to the Aletheion LLM project, allowing out-of-domain testing of baseline and pyramidal models on truthfulness and factual accuracy tasks.
+This setup adds comprehensive TruthfulQA evaluation capabilities to the Aletheion LLM project, allowing out-of-domain testing of baseline and pyramidal Q1Q2 models on truthfulness and factual accuracy tasks.
 
 ## Files Added/Modified
 
@@ -85,49 +85,56 @@ python experiments/level1/train_baseline.py \
     --num-epochs 10 \
     --batch-size 32
 
-# Train pyramidal model
-python experiments/level1/train_pyramidal.py \
-    --output outputs/pyramidal \
+# Train pyramidal Q1Q2 model
+python experiments/level1/train_pyramidal_q1q2.py \
+    --output outputs/pyramidal_q1q2 \
     --num-epochs 10 \
     --batch-size 32
 ```
 
-**Note:** Check if `train_baseline.py` and `train_pyramidal.py` exist. If not, you may need to use different training scripts.
+**Note:** The Pyramidal Q1Q2 variant uses the Q1/Q2 gating mechanism for epistemic uncertainty estimation. Check if `train_pyramidal_q1q2.py` exists, or use `train_pyramidal.py` with appropriate arguments.
 
 #### Option 2: Download Pre-trained Models
 
 If pre-trained checkpoints are available, download them to:
 - `outputs/baseline/final/`
-- `outputs/pyramidal/final/`
+- `outputs/pyramidal_q1q2/final/`
 
 ### Running Evaluation
 
 Once models are trained:
 
 ```bash
-# Quick test (200 samples, ~10 minutes)
+# Quick test (200 samples, ~10 minutes) - uses pyramidal_q1q2 by default
 bash scripts/test_truthfulqa.sh
 
 # Full evaluation (817 samples, ~2-4 hours)
 python experiments/level1/test_truthfulqa.py \
     --baseline outputs/baseline/final \
-    --pyramidal outputs/pyramidal/final \
-    --output outputs/truthfulqa \
+    --pyramidal outputs/pyramidal_q1q2/final \
+    --output outputs/truthfulqa_q1q2 \
     --max-samples 817
+
+# Custom paths
+bash scripts/test_truthfulqa.sh \
+    outputs/baseline/final \
+    outputs/pyramidal_q1q2/final \
+    outputs/truthfulqa_q1q2 \
+    500
 ```
 
 ### Viewing Results
 
 ```bash
 # Read the report
-cat outputs/truthfulqa/truthfulqa_report.md
+cat outputs/truthfulqa_q1q2/truthfulqa_report.md
 
 # View visualizations
-ls outputs/truthfulqa/*.png
+ls outputs/truthfulqa_q1q2/*.png
 
 # Check raw metrics
-cat outputs/truthfulqa/baseline_results.json
-cat outputs/truthfulqa/pyramidal_results.json
+cat outputs/truthfulqa_q1q2/baseline_results.json
+cat outputs/truthfulqa_q1q2/pyramidal_results.json
 ```
 
 ## Expected Output
@@ -140,8 +147,8 @@ TruthfulQA Evaluation
 
 Configuration:
   Baseline: outputs/baseline/final
-  Pyramidal: outputs/pyramidal/final
-  Output: outputs/truthfulqa
+  Pyramidal: outputs/pyramidal_q1q2/final (Q1Q2 variant)
+  Output: outputs/truthfulqa_q1q2
   Max Samples: 200
   Device: cuda
 
@@ -151,8 +158,8 @@ Loading TruthfulQA dataset...
 Loading baseline model...
 ✓ Baseline model loaded
 
-Loading pyramidal model...
-✓ Pyramidal model loaded
+Loading pyramidal Q1Q2 model...
+✓ Pyramidal Q1Q2 model loaded
 
 Evaluating Baseline on TruthfulQA: 100%|████| 200/200
 Baseline Results:
@@ -185,14 +192,14 @@ Evaluation Complete!
 
 ### Generated Files
 ```
-outputs/truthfulqa/
+outputs/truthfulqa_q1q2/
 ├── truthfulqa_report.md          # Comprehensive analysis
 ├── truthfulness_comparison.png   # Bar chart
 ├── score_distributions.png       # Histograms
-├── uncertainty_analysis.png      # Margin distribution
+├── uncertainty_analysis.png      # Q1/Q2 margin distribution
 ├── sample_questions.png          # Visual examples
 ├── baseline_results.json         # Raw baseline metrics
-└── pyramidal_results.json        # Raw pyramidal metrics
+└── pyramidal_results.json        # Raw pyramidal Q1Q2 metrics
 ```
 
 ## Key Metrics Explained
@@ -213,12 +220,13 @@ Difference between mean correct and incorrect answer scores.
 - **Larger**: Stronger signal
 - **Negative**: Systematic bias toward incorrect answers
 
-### Mean Uncertainty (Pyramidal Only)
-Average epistemic uncertainty from Q1/Q2 gates.
+### Mean Uncertainty (Pyramidal Q1Q2 Only)
+Average epistemic uncertainty from Q1/Q2 gates in the pyramidal architecture.
 
 **Expected Behavior:**
 - Higher uncertainty for questions with unclear/ambiguous answers
 - Lower uncertainty for factual, straightforward questions
+- Q1/Q2 gates provide fine-grained uncertainty estimates at token level
 
 ## Integration with Existing Tests
 
@@ -241,13 +249,13 @@ python experiments/level1/compare_models.py \
 
 # 2. OOD calibration
 python experiments/level1/test_out_of_domain.py \
-    --model outputs/pyramidal/final \
+    --model outputs/pyramidal_q1q2/final \
     --test-dataset wikitext2 \
     --output outputs/ood_test
 
 # 3. Abstention
 python experiments/level1/test_abstention.py \
-    --model outputs/pyramidal/final \
+    --model outputs/pyramidal_q1q2/final \
     --output outputs/abstention
 
 # 4. TruthfulQA

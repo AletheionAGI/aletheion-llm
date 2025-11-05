@@ -5,17 +5,17 @@ set -e
 
 # Configuration
 BASELINE_CHECKPOINT="${1:-outputs/baseline/final}"
-PYRAMIDAL_CHECKPOINT="${2:-outputs/pyramidal/final}"
-OUTPUT_DIR="${3:-outputs/truthfulqa}"
+PYRAMIDAL_CHECKPOINT="${2:-outputs/pyramidal_q1q2/final}"
+OUTPUT_DIR="${3:-outputs/truthfulqa_q1q2}"
 MAX_SAMPLES="${4:-200}"
 
 echo "=============================================="
-echo "TruthfulQA Evaluation Script"
+echo "TruthfulQA Evaluation Script (Pyramidal Q1Q2)"
 echo "=============================================="
 echo ""
 echo "Configuration:"
 echo "  Baseline:    $BASELINE_CHECKPOINT"
-echo "  Pyramidal:   $PYRAMIDAL_CHECKPOINT"
+echo "  Pyramidal:   $PYRAMIDAL_CHECKPOINT (Q1Q2 variant)"
 echo "  Output:      $OUTPUT_DIR"
 echo "  Max Samples: $MAX_SAMPLES"
 echo ""
@@ -27,7 +27,7 @@ if [ ! -d "$BASELINE_CHECKPOINT" ]; then
 fi
 
 if [ ! -d "$PYRAMIDAL_CHECKPOINT" ]; then
-    echo "ERROR: Pyramidal checkpoint not found at $PYRAMIDAL_CHECKPOINT"
+    echo "ERROR: Pyramidal Q1Q2 checkpoint not found at $PYRAMIDAL_CHECKPOINT"
     exit 1
 fi
 
