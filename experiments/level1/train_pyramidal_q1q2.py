@@ -267,6 +267,14 @@ def evaluate(model, dataloader, device, max_batches=10):
     pyramid_sums = {}
     pyramid_counts = 0
 
+    # Accumulators for calibration metrics
+    ece_sum = 0.0
+    brier_sum = 0.0
+    calibration_counts = 0
+
+    # Accumulators for force weights
+    force_sums = {'memory': 0.0, 'pain': 0.0, 'choice': 0.0, 'exploration': 0.0, 'base_stability': 0.0}
+
     for i, batch in enumerate(dataloader):
         if i >= max_batches:
             break
@@ -290,6 +298,25 @@ def evaluate(model, dataloader, device, max_batches=10):
                 pyramid_sums[key] += value.mean().item()
             pyramid_counts += 1
 
+            # Compute calibration metrics for this batch
+            try:
+                loss_dict = model.pyramid_loss_fn(outputs.logits, labels, outputs.pyramid)
+                if 'ece' in loss_dict and 'brier_score' in loss_dict:
+                    ece_sum += loss_dict['ece']
+                    brier_sum += loss_dict['brier_score']
+                    calibration_counts += 1
+
+                # Accumulate force weights
+                if 'mean_memory' in loss_dict:
+                    force_sums['memory'] += loss_dict['mean_memory']
+                    force_sums['pain'] += loss_dict['mean_pain']
+                    force_sums['choice'] += loss_dict['mean_choice']
+                    force_sums['exploration'] += loss_dict['mean_exploration']
+                    force_sums['base_stability'] += loss_dict['base_stability']
+            except Exception as e:
+                # Skip if calibration computation fails
+                pass
+
         # Memory cleanup
         del outputs, input_ids, labels, loss
 
@@ -310,6 +337,15 @@ def evaluate(model, dataloader, device, max_batches=10):
     if pyramid_counts > 0:
         for key, total in pyramid_sums.items():
             pyramid_metrics[key] = total / pyramid_counts
+
+    # Add calibration metrics
+    if calibration_counts > 0:
+        pyramid_metrics['ece'] = ece_sum / calibration_counts
+        pyramid_metrics['brier_score'] = brier_sum / calibration_counts
+
+        # Add force weights
+        for key in force_sums:
+            pyramid_metrics[f'force_{key}'] = force_sums[key] / calibration_counts
 
     return avg_loss, pyramid_metrics
 
@@ -545,6 +581,28 @@ def main():
                 for key, value in stats.items():
                     writer.add_scalar(f'train/pyramid/{key}', value, global_step)
 
+                # Log loss components and calibration metrics if available
+                if loss_dict is not None:
+                    # Loss components
+                    writer.add_scalar('train/loss/ce', loss_dict.get('ce_loss', 0), global_step)
+                    writer.add_scalar('train/loss/base', loss_dict.get('base_loss', 0), global_step)
+                    writer.add_scalar('train/loss/Q1', loss_dict.get('Q1_loss', 0), global_step)
+                    writer.add_scalar('train/loss/Q2', loss_dict.get('Q2_loss', 0), global_step)
+                    writer.add_scalar('train/loss/fractal', loss_dict.get('fractal_loss', 0), global_step)
+                    writer.add_scalar('train/loss/height', loss_dict.get('height_loss', 0), global_step)
+
+                    # Calibration metrics (ECE, Brier)
+                    writer.add_scalar('train/calibration/ece', loss_dict.get('ece', 0), global_step)
+                    writer.add_scalar('train/calibration/brier_score', loss_dict.get('brier_score', 0), global_step)
+                    writer.add_scalar('train/calibration/uncertainty_error_corr', loss_dict.get('uncertainty_error_corr', 0), global_step)
+
+                    # Force weights (base cognitive forces)
+                    writer.add_scalar('train/forces/memory', loss_dict.get('mean_memory', 0), global_step)
+                    writer.add_scalar('train/forces/pain', loss_dict.get('mean_pain', 0), global_step)
+                    writer.add_scalar('train/forces/choice', loss_dict.get('mean_choice', 0), global_step)
+                    writer.add_scalar('train/forces/exploration', loss_dict.get('mean_exploration', 0), global_step)
+                    writer.add_scalar('train/forces/base_stability', loss_dict.get('base_stability', 0), global_step)
+
                 # Check for collapse
                 collapse_signals = compute_collapse_signals(pyramid_outputs)
                 for key, value in collapse_signals.items():
@@ -595,6 +653,21 @@ def main():
                     print(f"  Q1 Distribution: min={Q1_min:.4f}, max={Q1_max:.4f}, mean={Q1_mean:.4f}, target={Q1_target_mean:.4f}")
                     print(f"  Q2 Distribution: min={Q2_min:.4f}, max={Q2_max:.4f}, mean={Q2_mean:.4f}, target={Q2_target_mean:.4f}")
 
+                    # Calibration metrics (ECE, Brier)
+                    if loss_dict is not None:
+                        ece = loss_dict.get('ece', 0)
+                        brier = loss_dict.get('brier_score', 0)
+                        print(f"  Calibration: ECE={ece:.4f}, Brier={brier:.4f}")
+
+                    # Force weights (base cognitive forces)
+                    if loss_dict is not None:
+                        mem = loss_dict.get('mean_memory', 0)
+                        pain = loss_dict.get('mean_pain', 0)
+                        choice = loss_dict.get('mean_choice', 0)
+                        explore = loss_dict.get('mean_exploration', 0)
+                        base_stab = loss_dict.get('base_stability', 0)
+                        print(f"  Forces: Memory={mem:.3f}, Pain={pain:.3f}, Choice={choice:.3f}, Exploration={explore:.3f} (Stability={base_stab:.3f})")
+
                     # Verification status
                     print(f"  Q1 Collapsed: {Q1_collapsed} | Q2 Collapsed: {Q2_collapsed} | Q1/Q2 Distinct: {Q1_Q2_distinct}")
 
@@ -638,12 +711,33 @@ def main():
 
             writer.add_scalar('val/loss', val_loss, global_step)
             for key, value in val_pyramid_metrics.items():
-                writer.add_scalar(f'val/pyramid/{key}', value, global_step)
+                if key.startswith('force_'):
+                    # Log force weights separately
+                    writer.add_scalar(f'val/forces/{key[6:]}', value, global_step)
+                elif key in ['ece', 'brier_score']:
+                    # Log calibration metrics separately
+                    writer.add_scalar(f'val/calibration/{key}', value, global_step)
+                else:
+                    writer.add_scalar(f'val/pyramid/{key}', value, global_step)
 
             print(f"Validation Loss: {val_loss:.4f}")
             print(f"Val Q1: {val_pyramid_metrics.get('Q1_mean', 0):.3f} | "
                   f"Val Q2: {val_pyramid_metrics.get('Q2_mean', 0):.3f} | "
-                  f"Val Height: {val_pyramid_metrics.get('height_mean', 0):.3f}\n")
+                  f"Val Height: {val_pyramid_metrics.get('height_mean', 0):.3f}")
+
+            # Print calibration metrics
+            if 'ece' in val_pyramid_metrics:
+                print(f"Val Calibration: ECE={val_pyramid_metrics['ece']:.4f} | "
+                      f"Brier={val_pyramid_metrics['brier_score']:.4f}")
+
+            # Print force weights
+            if 'force_memory' in val_pyramid_metrics:
+                print(f"Val Forces: Memory={val_pyramid_metrics['force_memory']:.3f} | "
+                      f"Pain={val_pyramid_metrics['force_pain']:.3f} | "
+                      f"Choice={val_pyramid_metrics['force_choice']:.3f} | "
+                      f"Exploration={val_pyramid_metrics['force_exploration']:.3f} | "
+                      f"Stability={val_pyramid_metrics['force_base_stability']:.3f}\n")
+
             log_memory(global_step)
 
         # Save checkpoint
