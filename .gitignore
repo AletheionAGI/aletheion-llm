@@ -211,3 +211,4 @@ aletheion_final.pt
 baseline_final.pt
 comparison_steps*.pt
 pytorch_model*.bin
+model*.safetensors

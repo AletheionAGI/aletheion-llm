@@ -1,0 +1,10 @@
+{
+  "steps": 2000,
+  "batch_size": 4,
+  "lr": 0.0003,
+  "eval_interval": 500,
+  "save_interval": 2000,
+  "seed": 42,
+  "dry_run": false,
+  "output_dir": "outputs/baseline"
+}
