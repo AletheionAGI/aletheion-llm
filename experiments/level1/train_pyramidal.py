@@ -378,6 +378,8 @@ def plot_training_curves(history: Dict[str, list], save_dir: Path):
     axes[2, 0].plot(history['ce_loss'], label='CE Loss', alpha=0.7)
     axes[2, 0].plot(history['base_loss'], label=f'Base Loss (λ={history["lambda_base"][-1]:.3f})', alpha=0.7)
     axes[2, 0].plot(history['height_loss'], label=f'Height Loss (λ={history["lambda_height"][-1]:.3f})', alpha=0.7)
+    if 'diversity_loss' in history and history['lambda_diversity'][-1] != 0.0:
+        axes[2, 0].plot(history['diversity_loss'], label=f'Diversity Loss (λ={history["lambda_diversity"][-1]:.3f})', alpha=0.7)
     axes[2, 0].set_xlabel('Step')
     axes[2, 0].set_ylabel('Loss')
     axes[2, 0].set_title('Loss Components')
@@ -405,8 +407,10 @@ def main():
     parser.add_argument('--steps', type=int, default=10000, help='Number of training steps')
     parser.add_argument('--batch-size', type=int, default=4, help='Batch size (reduced to prevent OOM)')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
-    parser.add_argument('--lambda-base', type=float, default=0.005, help='Base stability weight (reduced from 0.01)')
+    parser.add_argument('--lambda-base', type=float, default=0.001, help='Base stability weight (reduced from 0.005 to 0.001 to increase diversity)')
     parser.add_argument('--lambda-height', type=float, default=0.02, help='Height calibration weight')
+    parser.add_argument('--lambda-diversity', type=float, default=0.0, help='Diversity bonus weight (e.g., 0.01 to reward variance)')
+    parser.add_argument('--log-interval', type=int, default=10, help='Steps between logging train metrics')
     parser.add_argument('--height-method', type=str, default='error_based',
                        choices=['error_based', 'entropy_based', 'loss_based'],
                        help='Method for computing target height')
@@ -440,6 +444,7 @@ def main():
     print(f"   - Steps: {args.steps}")
     print(f"   - λ_base: {args.lambda_base}")
     print(f"   - λ_height: {args.lambda_height}")
+    print(f"   - λ_diversity: {args.lambda_diversity}")
     print(f"   - Height method: {args.height_method}")
     print(f"   - Output: {output_dir}")
     print(f"   - Device: {device}")
@@ -483,6 +488,7 @@ def main():
     pyramid_loss = PyramidalVAROLoss(
         lambda_base=args.lambda_base,
         lambda_height=args.lambda_height,
+        lambda_diversity=args.lambda_diversity,
         height_method=args.height_method
     )
 
@@ -496,6 +502,7 @@ def main():
         'ce_loss': [],
         'base_loss': [],
         'height_loss': [],
+        'diversity_loss': [],
         'mean_height': [],
         'target_height': [],
         'base_stability': [],
@@ -508,6 +515,7 @@ def main():
         'uncertainty': [],
         'lambda_base': [],
         'lambda_height': [],
+        'lambda_diversity': [],
         'eval_loss': [],
         'eval_perplexity': []
     }
@@ -546,6 +554,15 @@ def main():
         pbar.update(1)
 
         step += 1
+
+        # Log train metrics at regular intervals
+        if step % args.log_interval == 0:
+            loss_components = f"CE: {metrics['ce_loss']:.4f}, Base: {metrics['base_loss']:.4f}, Height: {metrics['height_loss']:.4f}"
+            if args.lambda_diversity != 0.0:
+                loss_components += f", Diversity: {metrics['diversity_loss']:.4f}"
+            print(f"\n[Step {step}] Train loss: {metrics['loss']:.4f} ({loss_components})")
+            print(f"           Height: {metrics['mean_height']:.3f} (target: {metrics['target_height']:.3f}), Base stability: {metrics['base_stability']:.3f}")
+            print(f"           Forces - Memory: {metrics['w_memory']:.3f}, Pain: {metrics['w_pain']:.3f}, Choice: {metrics['w_choice']:.3f}, Exploration: {metrics['w_exploration']:.3f}")
 
         # Periodic memory cleanup and monitoring
         if step % 10 == 0:

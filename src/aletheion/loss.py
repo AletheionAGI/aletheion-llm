@@ -334,16 +334,18 @@ class PyramidalVAROLoss(nn.Module):
     2. Height miscalibration (wrong epistemic quality)
 
     The total loss is:
-        L = L_CE + λ_base * L_base + λ_height * L_height
+        L = L_CE + λ_base * L_base + λ_height * L_height + λ_diversity * L_diversity
 
     Where:
         - L_CE: Standard cross-entropy loss
         - L_base: Base stability loss (variance of the 4 forces)
         - L_height: Height calibration loss (MSE between predicted and target height)
+        - L_diversity: Diversity bonus (negative loss to reward variance, prevents collapse)
 
     Args:
         lambda_base: Weight for base stability regularization
         lambda_height: Weight for height calibration
+        lambda_diversity: Weight for diversity bonus (negative value rewards high variance)
         height_method: Method for computing target height:
             - 'error_based': High height when correct, low when wrong
             - 'entropy_based': High height when low entropy, low when high entropy
@@ -355,18 +357,21 @@ class PyramidalVAROLoss(nn.Module):
         self,
         lambda_base: float = 0.01,
         lambda_height: float = 0.02,
+        lambda_diversity: float = 0.0,
         height_method: str = 'error_based',
         ignore_index: int = -100
     ) -> None:
         super().__init__()
         self.lambda_base = lambda_base
         self.lambda_height = lambda_height
+        self.lambda_diversity = lambda_diversity
         self.height_method = height_method
         self.ignore_index = ignore_index
 
         # Track initial values for logging
         self.initial_lambda_base = lambda_base
         self.initial_lambda_height = lambda_height
+        self.initial_lambda_diversity = lambda_diversity
 
     def compute_target_height(
         self,
@@ -501,6 +506,14 @@ class PyramidalVAROLoss(nn.Module):
         base_variance = base_weights.var(dim=-1, keepdim=True)  # [batch, seq_len, 1]
         base_loss = (base_variance * valid_mask).sum() / (valid_mask.sum() + 1e-8)
 
+        # === 1b. DIVERSITY BONUS (OPTIONAL) ===
+        # Reward variance to prevent force collapse
+        # Note: This is negative loss (diversity_loss = -λ_diversity * variance)
+        # When λ_diversity > 0, higher variance → lower total loss
+        diversity_loss = 0.0
+        if self.lambda_diversity != 0.0:
+            diversity_loss = -(base_variance * valid_mask).sum() / (valid_mask.sum() + 1e-8)
+
         # === 2. HEIGHT CALIBRATION LOSS ===
         # Penalize when height doesn't match target
         target_height = self.compute_target_height(
@@ -511,7 +524,12 @@ class PyramidalVAROLoss(nn.Module):
         height_loss = (height_error * valid_mask).sum() / (valid_mask.sum() + 1e-8)
 
         # === TOTAL LOSS ===
-        total_loss = ce_loss + self.lambda_base * base_loss + self.lambda_height * height_loss
+        total_loss = (
+            ce_loss
+            + self.lambda_base * base_loss
+            + self.lambda_height * height_loss
+            + self.lambda_diversity * diversity_loss
+        )
 
         # Compute statistics for logging
         num_valid = valid_mask.sum() + 1e-8
@@ -526,11 +544,13 @@ class PyramidalVAROLoss(nn.Module):
             'ce_loss': ce_loss.item(),
             'base_loss': base_loss.item(),
             'height_loss': height_loss.item(),
+            'diversity_loss': diversity_loss.item() if isinstance(diversity_loss, torch.Tensor) else diversity_loss,
             'mean_height': mean_height.item(),
             'target_height_mean': target_height_mean.item(),
             'base_stability_mean': base_stability_mean.item(),
             'Q1_mean': Q1_mean.item(),
             'Q2_mean': Q2_mean.item(),
             'lambda_base': self.lambda_base,
-            'lambda_height': self.lambda_height
+            'lambda_height': self.lambda_height,
+            'lambda_diversity': self.lambda_diversity
         }
