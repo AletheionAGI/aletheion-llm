@@ -370,7 +370,7 @@ def main():
 
     # Load data
     print("\n📚 Loading WikiText-2...")
-    train_dataset, val_dataset, tokenizer = load_wikitext_dataset(
+    train_dataset, val_dataset, test_dataset, tokenizer = load_wikitext_dataset(
         max_length=512,
         cache_dir='.cache/wikitext'
     )
