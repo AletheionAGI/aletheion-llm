@@ -574,9 +574,16 @@ def main():
 
     pbar.close()
 
-    # Final evaluation (use more batches for final eval)
+    # CRITICAL: Aggressive memory cleanup before final evaluation
+    print("\n🧹 Cleaning up memory before final evaluation...")
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+    log_memory(step)
+
+    # Final evaluation (reduced from 200 to 100 batches to prevent OOM)
     print("\n📊 Final evaluation...")
-    final_metrics = evaluate_model(model, val_loader, device, max_eval_batches=200)
+    final_metrics = evaluate_model(model, val_loader, device, max_eval_batches=100)
 
     print("\n✅ Training complete!")
     print(f"   - Final perplexity: {final_metrics['eval_perplexity']:.2f} ({final_metrics['eval_batches']} batches)")
