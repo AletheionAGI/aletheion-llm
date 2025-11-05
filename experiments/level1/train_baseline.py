@@ -10,6 +10,7 @@ Key differences from pyramidal training:
     - Still tracks calibration metrics (ECE) for comparison
 
 Usage:
+    python experiments/level1/train_baseline.py --num-epochs 10 --batch-size 32 --output outputs/baseline
     python experiments/level1/train_baseline.py --steps 100 --dry-run
     python experiments/level1/train_baseline.py --steps 2000 --output-dir outputs/baseline
 """
@@ -282,20 +283,29 @@ def plot_training_curves(history: Dict[str, list], save_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(description='Train baseline GPT-2 model (no epistemic gates)')
-    parser.add_argument('--steps', type=int, default=2000, help='Number of training steps')
+
+    # Training duration - support both steps and epochs
+    train_group = parser.add_mutually_exclusive_group()
+    train_group.add_argument('--steps', type=int, default=None, help='Number of training steps')
+    train_group.add_argument('--num-epochs', type=int, default=None, help='Number of training epochs')
+
     parser.add_argument('--batch-size', type=int, default=4, help='Batch size')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--eval-interval', type=int, default=500, help='Evaluation interval')
     parser.add_argument('--save-interval', type=int, default=2000, help='Checkpoint save interval')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--dry-run', action='store_true', help='Quick test run')
-    parser.add_argument('--output-dir', type=str, default='outputs/baseline', help='Output directory')
+
+    # Output directory - support both --output and --output-dir
+    parser.add_argument('--output', '--output-dir', dest='output_dir', type=str,
+                       default='outputs/baseline', help='Output directory')
 
     args = parser.parse_args()
 
-    if args.dry_run:
-        args.eval_interval = min(args.eval_interval, args.steps // 4)
-        args.save_interval = min(args.save_interval, args.steps)
+    # Set default if neither steps nor num_epochs provided
+    if args.steps is None and args.num_epochs is None:
+        args.steps = 2000
+        args.num_epochs = None
 
     # Setup
     set_seed(args.seed)
@@ -309,7 +319,10 @@ def main():
         json.dump(config, f, indent=2)
 
     print(f"📊 Training Baseline GPT-2 Model")
-    print(f"   - Steps: {args.steps}")
+    if args.num_epochs is not None:
+        print(f"   - Epochs: {args.num_epochs}")
+    elif args.steps is not None:
+        print(f"   - Steps: {args.steps}")
     print(f"   - Model: GPT-2 (no epistemic gates)")
     print(f"   - Output: {output_dir}")
     print(f"   - Device: {device}")
@@ -320,6 +333,18 @@ def main():
         max_length=512,
         cache_dir='.cache/wikitext'
     )
+
+    # Convert num_epochs to steps if specified
+    if args.num_epochs is not None:
+        steps_per_epoch = len(train_dataset) // args.batch_size
+        args.steps = args.num_epochs * steps_per_epoch
+        print(f"   Converting {args.num_epochs} epochs to {args.steps} steps ({steps_per_epoch} steps/epoch)")
+
+    # Adjust intervals for dry-run if needed
+    if args.dry_run:
+        args.eval_interval = min(args.eval_interval, args.steps // 4)
+        args.save_interval = min(args.save_interval, args.steps)
+        print(f"   Dry-run mode: adjusted intervals (eval={args.eval_interval}, save={args.save_interval})")
 
     train_loader = DataLoader(
         train_dataset,
