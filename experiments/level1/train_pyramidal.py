@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
 import os
 import json
+import gc
 from pathlib import Path
 from typing import Dict
 
@@ -160,68 +161,116 @@ def evaluate_model(
     model: AletheionPyramidalTransformer,
     loader: DataLoader,
     device: torch.device,
-    compute_calibration: bool = True
+    compute_calibration: bool = True,
+    max_eval_batches: int = 100  # CRITICAL: Limit evaluation to prevent OOM
 ) -> Dict[str, float]:
-    """Evaluate model and compute metrics."""
+    """Evaluate model and compute metrics using online statistics.
+
+    IMPORTANT: This function now uses incremental computation to avoid
+    accumulating large tensors in memory, which was causing OOM crashes.
+    """
     model.eval()
+
+    # Online statistics (Welford's algorithm for mean/variance)
     total_loss = 0.0
     total_batches = 0
 
-    # Pyramidal metrics
-    all_heights = []
-    all_uncertainties = []
-    all_base_stabilities = []
-    all_w_memory = []
-    all_w_pain = []
-    all_w_choice = []
-    all_w_exploration = []
+    # Pyramidal online metrics
+    height_count = 0
+    height_mean = 0.0
+    height_m2 = 0.0  # For variance computation
+    height_min = float('inf')
+    height_max = float('-inf')
 
-    # Calibration metrics
-    all_probs = []
-    all_targets = []
+    uncertainty_sum = 0.0
+    base_stability_sum = 0.0
+    w_memory_sum = 0.0
+    w_pain_sum = 0.0
+    w_choice_sum = 0.0
+    w_exploration_sum = 0.0
 
-    for batch in tqdm(loader, desc="Evaluating", leave=False):
+    # Calibration - sample only a subset
+    calibration_probs = []
+    calibration_targets = []
+    max_calibration_samples = 5000  # Reduced from 10000
+
+    for batch_idx, batch in enumerate(tqdm(loader, desc="Evaluating", leave=False)):
+        # CRITICAL: Limit evaluation batches to prevent OOM
+        if batch_idx >= max_eval_batches:
+            break
+
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
 
         outputs = model(input_ids, labels=labels, return_pyramid_state=True)
 
-        # CRITICAL: Extract scalar immediately
+        # Accumulate loss (scalar only)
         total_loss += outputs.loss.item()
         total_batches += 1
 
-        # Collect pyramidal metrics
+        # Collect pyramidal metrics INCREMENTALLY (no tensor accumulation)
         if outputs.pyramid is not None:
             valid_mask = (labels != -100)
 
-            all_heights.append(outputs.pyramid['height'][valid_mask].cpu())
-            all_uncertainties.append(outputs.pyramid['uncertainty'][valid_mask].cpu())
-            all_base_stabilities.append(outputs.pyramid['base_stability'][valid_mask].cpu())
-            all_w_memory.append(outputs.pyramid['w_memory'][valid_mask].cpu())
-            all_w_pain.append(outputs.pyramid['w_pain'][valid_mask].cpu())
-            all_w_choice.append(outputs.pyramid['w_choice'][valid_mask].cpu())
-            all_w_exploration.append(outputs.pyramid['w_exploration'][valid_mask].cpu())
+            # Online mean/variance for height (Welford's algorithm)
+            height_valid = outputs.pyramid['height'][valid_mask].float()
+            for h in height_valid:
+                height_count += 1
+                delta = h.item() - height_mean
+                height_mean += delta / height_count
+                delta2 = h.item() - height_mean
+                height_m2 += delta * delta2
 
-        # Collect for calibration
-        if compute_calibration:
+                # Track min/max
+                height_min = min(height_min, h.item())
+                height_max = max(height_max, h.item())
+
+            # Accumulate sums for other metrics (much cheaper than storing tensors)
+            n_valid = valid_mask.sum().item()
+            uncertainty_sum += outputs.pyramid['uncertainty'][valid_mask].sum().item()
+            base_stability_sum += outputs.pyramid['base_stability'][valid_mask].sum().item()
+            w_memory_sum += outputs.pyramid['w_memory'][valid_mask].sum().item()
+            w_pain_sum += outputs.pyramid['w_pain'][valid_mask].sum().item()
+            w_choice_sum += outputs.pyramid['w_choice'][valid_mask].sum().item()
+            w_exploration_sum += outputs.pyramid['w_exploration'][valid_mask].sum().item()
+
+        # Sample for calibration (only if under limit)
+        if compute_calibration and len(calibration_targets) < max_calibration_samples:
             shift_logits = outputs.logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
 
+            # Get top prediction probabilities only (not full vocab distribution)
             probs = F.softmax(shift_logits, dim=-1)
 
             valid_mask = (shift_labels != -100)
             if valid_mask.any():
-                all_probs.append(probs[valid_mask].cpu())
-                all_targets.append(shift_labels[valid_mask].cpu())
+                # Sample randomly to stay under limit
+                n_valid = valid_mask.sum().item()
+                n_to_sample = min(n_valid, max_calibration_samples - len(calibration_targets))
 
-        # CRITICAL: Delete tensors to prevent memory leak
-        del outputs, input_ids, labels
-        if compute_calibration:
+                if n_to_sample > 0:
+                    valid_indices = torch.where(valid_mask.view(-1))[0]
+                    sampled_indices = valid_indices[torch.randperm(len(valid_indices))[:n_to_sample]]
+
+                    probs_flat = probs.view(-1, probs.size(-1))
+                    labels_flat = shift_labels.view(-1)
+
+                    calibration_probs.append(probs_flat[sampled_indices].cpu())
+                    calibration_targets.append(labels_flat[sampled_indices].cpu())
+
             del shift_logits, shift_labels, probs, valid_mask
 
-    # CRITICAL: Clear cache after evaluation
+        # CRITICAL: Aggressive memory cleanup
+        del outputs, input_ids, labels
+
+        # Periodic GPU cache clear
+        if batch_idx % 10 == 0 and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    # CRITICAL: Final cache clear and garbage collection
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+    gc.collect()
 
     avg_loss = total_loss / total_batches
     perplexity = torch.exp(torch.tensor(avg_loss)).item()
@@ -229,42 +278,37 @@ def evaluate_model(
     metrics = {
         "eval_loss": avg_loss,
         "eval_perplexity": perplexity,
+        "eval_batches": total_batches,  # Track how many batches were evaluated
     }
 
-    # Pyramidal metrics
-    if all_heights:
-        all_heights_cat = torch.cat(all_heights)
-        all_uncertainties_cat = torch.cat(all_uncertainties)
-        all_base_stabilities_cat = torch.cat(all_base_stabilities)
+    # Pyramidal metrics from online statistics
+    if height_count > 0:
+        height_std = (height_m2 / height_count) ** 0.5 if height_count > 1 else 0.0
 
         metrics.update({
-            "height_mean": all_heights_cat.mean().item(),
-            "height_std": all_heights_cat.std().item(),
-            "height_min": all_heights_cat.min().item(),
-            "height_max": all_heights_cat.max().item(),
-            "uncertainty_mean": all_uncertainties_cat.mean().item(),
-            "base_stability_mean": all_base_stabilities_cat.mean().item(),
-            "w_memory_mean": torch.cat(all_w_memory).mean().item(),
-            "w_pain_mean": torch.cat(all_w_pain).mean().item(),
-            "w_choice_mean": torch.cat(all_w_choice).mean().item(),
-            "w_exploration_mean": torch.cat(all_w_exploration).mean().item(),
+            "height_mean": height_mean,
+            "height_std": height_std,
+            "height_min": height_min,
+            "height_max": height_max,
+            "uncertainty_mean": uncertainty_sum / height_count,
+            "base_stability_mean": base_stability_sum / height_count,
+            "w_memory_mean": w_memory_sum / height_count,
+            "w_pain_mean": w_pain_sum / height_count,
+            "w_choice_mean": w_choice_sum / height_count,
+            "w_exploration_mean": w_exploration_sum / height_count,
         })
 
-    # Calibration metrics
-    if compute_calibration and all_probs and all_targets:
-        all_probs_cat = torch.cat(all_probs)
-        all_targets_cat = torch.cat(all_targets)
+    # Calibration metrics (only on sampled data)
+    if compute_calibration and calibration_probs and calibration_targets:
+        all_probs_cat = torch.cat(calibration_probs)
+        all_targets_cat = torch.cat(calibration_targets)
 
-        # Sample for calibration (too expensive to compute on all tokens)
-        sample_size = min(10000, len(all_targets_cat))
-        indices = torch.randperm(len(all_targets_cat))[:sample_size]
-
-        # We don't have uncertainty at eval, so use dummy
-        dummy_uncertainty = torch.zeros(sample_size, 1)
+        # Use all sampled data (already limited)
+        dummy_uncertainty = torch.zeros(len(all_targets_cat), 1)
 
         cal_metrics = compute_calibration_metrics(
-            all_probs_cat[indices],
-            all_targets_cat[indices],
+            all_probs_cat,
+            all_targets_cat,
             dummy_uncertainty,
             n_bins=10
         )
@@ -272,6 +316,9 @@ def evaluate_model(
             "ece": cal_metrics['ece'],
             "brier_score": cal_metrics['brier_score'],
         })
+
+        # Clean up calibration data
+        del all_probs_cat, all_targets_cat, dummy_uncertainty, calibration_probs, calibration_targets
 
     # Return model to training mode
     model.train()
@@ -508,11 +555,11 @@ def main():
 
         # Evaluation
         if step % args.eval_interval == 0:
-            eval_metrics = evaluate_model(model, val_loader, device)
+            eval_metrics = evaluate_model(model, val_loader, device, max_eval_batches=100)
             history['eval_loss'].append(eval_metrics['eval_loss'])
             history['eval_perplexity'].append(eval_metrics['eval_perplexity'])
 
-            print(f"\n📊 Step {step} Evaluation:")
+            print(f"\n📊 Step {step} Evaluation ({eval_metrics['eval_batches']} batches):")
             print(f"   - Perplexity: {eval_metrics['eval_perplexity']:.2f}")
             print(f"   - Height: {eval_metrics.get('height_mean', 0):.3f} ± {eval_metrics.get('height_std', 0):.3f}")
             print(f"   - Base stability: {eval_metrics.get('base_stability_mean', 0):.3f}")
@@ -527,12 +574,12 @@ def main():
 
     pbar.close()
 
-    # Final evaluation
+    # Final evaluation (use more batches for final eval)
     print("\n📊 Final evaluation...")
-    final_metrics = evaluate_model(model, val_loader, device)
+    final_metrics = evaluate_model(model, val_loader, device, max_eval_batches=200)
 
     print("\n✅ Training complete!")
-    print(f"   - Final perplexity: {final_metrics['eval_perplexity']:.2f}")
+    print(f"   - Final perplexity: {final_metrics['eval_perplexity']:.2f} ({final_metrics['eval_batches']} batches)")
     print(f"   - Final height: {final_metrics.get('height_mean', 0):.3f} ± {final_metrics.get('height_std', 0):.3f}")
     print(f"   - Final base stability: {final_metrics.get('base_stability_mean', 0):.3f}")
     if 'ece' in final_metrics:
