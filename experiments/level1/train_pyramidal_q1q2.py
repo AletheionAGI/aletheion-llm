@@ -10,10 +10,17 @@ This script trains the complete pyramidal epistemic model with:
 Monitors all epistemic metrics to detect collapse (Q1 → 0.88+)
 
 Usage:
+    # With WikiText-2 (default)
     python experiments/level1/train_pyramidal_q1q2.py \
         --lambda_Q1 0.0015 \
         --lambda_Q2 0.002 \
         --lambda_fractal 0.0005 \
+        --max_steps 5000
+
+    # With TinyStories (legacy)
+    python experiments/level1/train_pyramidal_q1q2.py \
+        --dataset tinystories \
+        --data_dir data/tinystories \
         --max_steps 5000
 
 Expected healthy behavior:
@@ -33,6 +40,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -41,8 +49,19 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.aletheion.pyramidal_q1q2_model import AletheionPyramidalQ1Q2Transformer
-from data.dataset import TinyStoriesDataset
+from data.dataset import TinyStoriesDataset, load_wikitext_dataset
 from src.utils import get_device, set_seed
+
+
+def collate_fn(batch):
+    """Pad variable length sequences for WikiText-2."""
+    input_ids = [item["input_ids"] for item in batch]
+    labels = [item["labels"] for item in batch]
+
+    input_ids_padded = pad_sequence(input_ids, batch_first=True, padding_value=0)
+    labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)
+
+    return {"input_ids": input_ids_padded, "labels": labels_padded}
 
 
 def log_memory(step: int):
@@ -90,8 +109,11 @@ def parse_args():
     parser.add_argument('--grad_clip', type=float, default=1.0, help='Gradient clipping')
 
     # Data
-    parser.add_argument('--data_dir', type=str, default='data/tinystories', help='Data directory')
-    parser.add_argument('--num_workers', type=int, default=4, help='Number of data workers')
+    parser.add_argument('--dataset', type=str, default='wikitext', choices=['wikitext', 'tinystories'],
+                       help='Dataset to use (default: wikitext)')
+    parser.add_argument('--data_dir', type=str, default='.cache/wikitext',
+                       help='Data directory (default: .cache/wikitext for WikiText-2, data/tinystories for TinyStories)')
+    parser.add_argument('--num_workers', type=int, default=0, help='Number of data workers (default: 0 for WikiText-2)')
 
     # Experiment
     parser.add_argument('--experiment_name', type=str, default='pyramidal_q1q2_v1',
@@ -317,6 +339,7 @@ def main():
     print("=" * 80)
     print(f"Experiment: {args.experiment_name}")
     print(f"Device: {device}")
+    print(f"Dataset: {args.dataset.upper()}")
     print(f"\nTraining Configuration:")
     print(f"  Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
     if args.gradient_checkpointing:
@@ -333,12 +356,22 @@ def main():
     print(f"  λ_height:  {args.lambda_height}")
     print("=" * 80)
 
-    # Load tokenizer
-    import pickle
-    with open('data/tinystories/tokenizer.pkl', 'rb') as f:
-        tokenizer = pickle.load(f)
-
-    vocab_size = len(tokenizer)
+    # Load tokenizer and vocab_size based on dataset
+    if args.dataset == 'wikitext':
+        print("\n📚 Loading WikiText-2...")
+        train_dataset, val_dataset, test_dataset, tokenizer = load_wikitext_dataset(
+            max_length=args.max_seq_len,
+            cache_dir=args.data_dir
+        )
+        vocab_size = tokenizer.vocab_size
+        print(f"   Loaded WikiText-2 with vocab size: {vocab_size}")
+    else:  # tinystories
+        print("\n📚 Loading TinyStories tokenizer...")
+        import pickle
+        with open(f'{args.data_dir}/tokenizer.pkl', 'rb') as f:
+            tokenizer = pickle.load(f)
+        vocab_size = len(tokenizer)
+        print(f"   Loaded TinyStories tokenizer with vocab size: {vocab_size}")
 
     # Create or load model
     start_step = 0
@@ -392,32 +425,52 @@ def main():
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"   Model parameters: {total_params:,} (trainable: {trainable_params:,})")
 
-    # Load datasets
-    train_dataset = TinyStoriesDataset(
-        data_dir=args.data_dir,
-        split='train',
-        max_length=args.max_seq_len
-    )
-    val_dataset = TinyStoriesDataset(
-        data_dir=args.data_dir,
-        split='validation',
-        max_length=args.max_seq_len
-    )
+    # Load datasets (only if TinyStories, WikiText-2 already loaded above)
+    if args.dataset == 'tinystories':
+        train_dataset = TinyStoriesDataset(
+            data_dir=args.data_dir,
+            split='train',
+            max_length=args.max_seq_len
+        )
+        val_dataset = TinyStoriesDataset(
+            data_dir=args.data_dir,
+            split='validation',
+            max_length=args.max_seq_len
+        )
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-        pin_memory=True
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=True
-    )
+    # Create dataloaders with appropriate collate_fn
+    if args.dataset == 'wikitext':
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            collate_fn=collate_fn,
+            num_workers=args.num_workers,
+            pin_memory=False  # WikiText-2 doesn't need pin_memory
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+            num_workers=args.num_workers,
+            pin_memory=False
+        )
+    else:  # tinystories
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=args.num_workers,
+            pin_memory=True
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            pin_memory=True
+        )
 
     # Optimizer
     optimizer = torch.optim.AdamW(
