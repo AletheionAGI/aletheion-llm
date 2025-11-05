@@ -91,12 +91,12 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         dropout: float = 0.1,
         tie_weights: bool = True,
         use_flash_attention: bool = False,
-        # Pyramidal Q1/Q2 parameters
-        lambda_base: float = 0.01,
-        lambda_Q1: float = 0.015,
-        lambda_Q2: float = 0.020,
-        lambda_fractal: float = 0.005,
-        lambda_height: float = 0.02,
+        # Pyramidal Q1/Q2 parameters (reduced by 10x to let L_CE dominate)
+        lambda_base: float = 0.001,
+        lambda_Q1: float = 0.0015,
+        lambda_Q2: float = 0.002,
+        lambda_fractal: float = 0.0005,
+        lambda_height: float = 0.002,
         use_multi_head_height: bool = False,
         modulate_temperature: bool = True,
         max_temperature_scale: float = 2.0

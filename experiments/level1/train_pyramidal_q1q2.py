@@ -56,12 +56,12 @@ def parse_args():
     parser.add_argument('--max_seq_len', type=int, default=256, help='Max sequence length')
     parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate')
 
-    # Pyramidal Q1/Q2 parameters
-    parser.add_argument('--lambda_base', type=float, default=0.01, help='Base stability weight')
-    parser.add_argument('--lambda_Q1', type=float, default=0.015, help='Q1 calibration weight')
-    parser.add_argument('--lambda_Q2', type=float, default=0.020, help='Q2 calibration weight')
-    parser.add_argument('--lambda_fractal', type=float, default=0.005, help='Fractal regularization weight')
-    parser.add_argument('--lambda_height', type=float, default=0.02, help='Height calibration weight')
+    # Pyramidal Q1/Q2 parameters (reduced by 10x to let L_CE dominate)
+    parser.add_argument('--lambda_base', type=float, default=0.001, help='Base stability weight')
+    parser.add_argument('--lambda_Q1', type=float, default=0.0015, help='Q1 calibration weight')
+    parser.add_argument('--lambda_Q2', type=float, default=0.002, help='Q2 calibration weight')
+    parser.add_argument('--lambda_fractal', type=float, default=0.0005, help='Fractal regularization weight')
+    parser.add_argument('--lambda_height', type=float, default=0.002, help='Height calibration weight')
     parser.add_argument('--use_multi_head_height', action='store_true', help='Use multi-head height')
     parser.add_argument('--max_temperature_scale', type=float, default=2.0, help='Max temperature scale')
 
@@ -172,7 +172,22 @@ def train_step(model, batch, optimizer, scaler, device, grad_clip):
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
 
-    return loss.item(), outputs.pyramid
+    # Compute Q1/Q2 targets for diagnostic logging
+    diagnostics = {}
+    if outputs.pyramid is not None:
+        from src.aletheion.pyramid_q1q2_fractal import PyramidalVAROLossWithQ1Q2
+        loss_fn = PyramidalVAROLossWithQ1Q2()
+
+        # Get logits
+        with torch.no_grad():
+            logits = outputs.logits
+            Q1_target = loss_fn.compute_target_Q1(logits, labels)
+            Q2_target = loss_fn.compute_target_Q2(logits, labels)
+
+            diagnostics['Q1_target_mean'] = Q1_target.mean().item()
+            diagnostics['Q2_target_mean'] = Q2_target.mean().item()
+
+    return loss.item(), outputs.pyramid, diagnostics
 
 
 @torch.no_grad()
@@ -335,7 +350,7 @@ def main():
                 break
 
             # Training step
-            loss, pyramid_outputs = train_step(
+            loss, pyramid_outputs, diagnostics = train_step(
                 model, batch, optimizer, scaler, device, args.grad_clip
             )
             scheduler.step()
@@ -352,6 +367,10 @@ def main():
                     for key, value in stats.items():
                         writer.add_scalar(f'train/pyramid/{key}', value, global_step)
 
+                    # Log Q1/Q2 target metrics
+                    for key, value in diagnostics.items():
+                        writer.add_scalar(f'train/targets/{key}', value, global_step)
+
                     # Check for collapse
                     collapse_signals = compute_collapse_signals(pyramid_outputs)
                     for key, value in collapse_signals.items():
@@ -360,20 +379,45 @@ def main():
                         else:
                             writer.add_scalar(f'train/collapse/{key}', value, global_step)
 
-                    # Print status
+                    # Print status with detailed Q1/Q2 distribution info
                     if global_step % 50 == 0:
                         elapsed = time.time() - start_time
-                        print(f"Step {global_step}/{args.max_steps} | "
-                              f"Loss: {loss:.4f} | "
-                              f"Q1: {stats['Q1_mean']:.3f} | "
-                              f"Q2: {stats['Q2_mean']:.3f} | "
-                              f"Height: {stats['height_mean']:.3f} | "
-                              f"Fractal: {stats['fractal_mean']:.3f} | "
-                              f"Time: {elapsed:.1f}s")
+
+                        # Extract Q1/Q2 tensors for distribution analysis
+                        Q1 = pyramid_outputs['Q1_mean']
+                        Q2 = pyramid_outputs['Q2_mean']
+
+                        print(f"\n{'='*80}")
+                        print(f"Step {global_step}/{args.max_steps} | Loss: {loss:.4f} | Time: {elapsed:.1f}s")
+                        print(f"{'='*80}")
+
+                        # Q1 Distribution
+                        print(f"Q1 distribution: min={Q1.min().item():.4f}, "
+                              f"max={Q1.max().item():.4f}, mean={Q1.mean().item():.4f}")
+
+                        # Q2 Distribution
+                        print(f"Q2 distribution: min={Q2.min().item():.4f}, "
+                              f"max={Q2.max().item():.4f}, mean={Q2.mean().item():.4f}")
+
+                        # Target distributions
+                        if diagnostics:
+                            print(f"Q1_target distribution: mean={diagnostics.get('Q1_target_mean', 0):.4f}")
+                            print(f"Q2_target distribution: mean={diagnostics.get('Q2_target_mean', 0):.4f}")
+
+                        # Other metrics
+                        print(f"Height: {stats['height_mean']:.3f} | "
+                              f"Fractal: {stats['fractal_mean']:.3f}")
+
+                        # Verification checks
+                        print(f"\n🔍 VERIFICATION:")
+                        print(f"   - Q1 ≠ Q2: {abs(Q1.mean().item() - Q2.mean().item()) > 0.01} "
+                              f"(diff={abs(Q1.mean().item() - Q2.mean().item()):.4f})")
+                        print(f"   - Q1 not collapsed: {Q1.std().item() > 0.01} (std={Q1.std().item():.4f})")
+                        print(f"   - Q2 not collapsed: {Q2.std().item() > 0.01} (std={Q2.std().item():.4f})")
 
                         # Warning if collapse detected
                         if collapse_signals['any_collapse']:
-                            print("⚠️  WARNING: Collapse signals detected!")
+                            print(f"\n⚠️  WARNING: Collapse signals detected!")
                             for key, value in collapse_signals.items():
                                 if isinstance(value, bool) and value:
                                     print(f"   - {key}")
