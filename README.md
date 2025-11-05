@@ -6,7 +6,7 @@ uncertainty-aware language models.
 ⚠️ **Status:** Level 1 training in progress (50% complete)
 
 ![Python](https://img.shields.io/badge/python-3.10-blue)
-![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
+![License](https://img.shields.io/badge/license-AGPL--3.0%20or%20Commercial-blue)
 ![Status](https://img.shields.io/badge/status-training-yellow)
 
 ## Background
@@ -97,7 +97,12 @@ aletheion-llm/
 
 ## License
 
-AGPL-3.0 - See LICENSE file
+Aletheion is dual-licensed:
+
+- **Open Source:** [GNU Affero General Public License v3.0](LICENSE-AGPL.md) for community use with copyleft obligations.
+- **Commercial:** [Aletheion Commercial License](LICENSE-COMMERCIAL.md) for proprietary deployments without the requirement to release source code.
+
+Contact [contact@alethea.tech](mailto:contact@alethea.tech) to obtain commercial terms or discuss custom agreements.
 
 ---
 
