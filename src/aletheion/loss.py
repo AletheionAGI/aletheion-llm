@@ -324,3 +324,192 @@ def compute_calibration_metrics(
         'brier_score': brier_score.item(),
         'uncertainty_error_corr': uncertainty_error_corr
     }
+
+
+class PyramidalVAROLoss(nn.Module):
+    """Variance-Optimized Loss for Pyramidal Epistemology.
+
+    Penalizes:
+    1. Base instability (oscillating forces without balance)
+    2. Height miscalibration (wrong epistemic quality)
+
+    The total loss is:
+        L = L_CE + λ_base * L_base + λ_height * L_height
+
+    Where:
+        - L_CE: Standard cross-entropy loss
+        - L_base: Base stability loss (variance of the 4 forces)
+        - L_height: Height calibration loss (MSE between predicted and target height)
+
+    Args:
+        lambda_base: Weight for base stability regularization
+        lambda_height: Weight for height calibration
+        height_method: Method for computing target height:
+            - 'error_based': High height when correct, low when wrong
+            - 'entropy_based': High height when low entropy, low when high entropy
+            - 'loss_based': High height when low loss, low when high loss
+        ignore_index: Index to ignore in cross-entropy (typically padding token)
+    """
+
+    def __init__(
+        self,
+        lambda_base: float = 0.01,
+        lambda_height: float = 0.02,
+        height_method: str = 'error_based',
+        ignore_index: int = -100
+    ) -> None:
+        super().__init__()
+        self.lambda_base = lambda_base
+        self.lambda_height = lambda_height
+        self.height_method = height_method
+        self.ignore_index = ignore_index
+
+        # Track initial values for logging
+        self.initial_lambda_base = lambda_base
+        self.initial_lambda_height = lambda_height
+
+    def compute_target_height(
+        self,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        method: str = 'error_based'
+    ) -> torch.Tensor:
+        """Compute ideal height based on prediction quality.
+
+        High height (near apex) when:
+        - Predictions are correct
+        - Confidence matches accuracy
+
+        Low height (near base) when:
+        - Predictions are wrong
+        - High uncertainty needed
+
+        Args:
+            logits: Model logits of shape (batch, seq_len, vocab_size) or (batch, vocab_size)
+            targets: Target labels of shape (batch, seq_len) or (batch,)
+            method: Method for computing target height
+
+        Returns:
+            target_height: Target height values of shape matching targets
+        """
+        probs = F.softmax(logits, dim=-1)
+
+        if method == 'error_based':
+            # Get predicted class and confidence
+            confidence, predictions = probs.max(dim=-1)
+
+            # Check correctness
+            correct = predictions.eq(targets).float()
+
+            # Target height: high when correct AND confident
+            # Low when wrong OR uncertain
+            target_height = correct * confidence + (1 - correct) * (1 - confidence)
+
+        elif method == 'entropy_based':
+            # Low entropy (certain) → high height
+            # High entropy (uncertain) → low height
+            entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1)
+            max_entropy = torch.log(torch.tensor(probs.size(-1), dtype=torch.float32))
+            normalized_entropy = entropy / max_entropy
+            target_height = 1.0 - normalized_entropy
+
+        elif method == 'loss_based':
+            # Low loss → high height
+            # Compute per-token cross-entropy
+            ce_loss = F.cross_entropy(
+                logits.view(-1, logits.size(-1)),
+                targets.view(-1),
+                reduction='none',
+                ignore_index=self.ignore_index
+            )
+            # Reshape back
+            ce_loss = ce_loss.view(targets.shape)
+            # Normalize to [0,1] and invert
+            target_height = torch.exp(-ce_loss)
+
+        else:
+            raise ValueError(f"Unknown height method: {method}")
+
+        return target_height
+
+    def forward(
+        self,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        pyramid_outputs: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
+        """Compute pyramidal VARO loss.
+
+        Args:
+            logits: Model logits of shape (batch, seq_len, vocab_size)
+            targets: Target labels of shape (batch, seq_len)
+            pyramid_outputs: Dictionary from PyramidalEpistemicGates containing:
+                - base_weights: [batch, seq_len, 4]
+                - height: [batch, seq_len, 1]
+                - base_stability: [batch, seq_len, 1]
+                - etc.
+
+        Returns:
+            Dictionary containing:
+                - loss: Total loss
+                - ce_loss: Cross-entropy component
+                - base_loss: Base stability component
+                - height_loss: Height calibration component
+                - mean_height: Mean predicted height
+                - target_height_mean: Mean target height
+                - base_stability_mean: Mean base stability
+        """
+        # Reshape logits and targets for cross-entropy
+        logits_flat = logits.view(-1, logits.size(-1))
+        targets_flat = targets.view(-1)
+
+        # Standard cross-entropy loss
+        ce_loss = F.cross_entropy(
+            logits_flat,
+            targets_flat,
+            ignore_index=self.ignore_index
+        )
+
+        # Extract pyramid state
+        base_weights = pyramid_outputs['base_weights']
+        height = pyramid_outputs['height']
+        base_stability = pyramid_outputs['base_stability']
+
+        # Create mask for valid tokens (ignore padding)
+        valid_mask = (targets != self.ignore_index).unsqueeze(-1)  # [batch, seq_len, 1]
+
+        # === 1. BASE STABILITY LOSS ===
+        # Penalize when 4 forces are unbalanced
+        # We want some variance (not all forces equal), but not total dominance
+        base_variance = base_weights.var(dim=-1, keepdim=True)  # [batch, seq_len, 1]
+        base_loss = (base_variance * valid_mask).sum() / (valid_mask.sum() + 1e-8)
+
+        # === 2. HEIGHT CALIBRATION LOSS ===
+        # Penalize when height doesn't match target
+        target_height = self.compute_target_height(
+            logits, targets, method=self.height_method
+        ).unsqueeze(-1)  # [batch, seq_len, 1]
+
+        height_error = (height - target_height) ** 2
+        height_loss = (height_error * valid_mask).sum() / (valid_mask.sum() + 1e-8)
+
+        # === TOTAL LOSS ===
+        total_loss = ce_loss + self.lambda_base * base_loss + self.lambda_height * height_loss
+
+        # Compute statistics for logging
+        num_valid = valid_mask.sum() + 1e-8
+        mean_height = (height * valid_mask).sum() / num_valid
+        target_height_mean = (target_height * valid_mask).sum() / num_valid
+        base_stability_mean = (base_stability * valid_mask).sum() / num_valid
+
+        return {
+            'loss': total_loss,
+            'ce_loss': ce_loss.item(),
+            'base_loss': base_loss.item(),
+            'height_loss': height_loss.item(),
+            'mean_height': mean_height.item(),
+            'target_height_mean': target_height_mean.item(),
+            'base_stability_mean': base_stability_mean.item(),
+            'lambda_base': self.lambda_base,
+            'lambda_height': self.lambda_height
+        }
