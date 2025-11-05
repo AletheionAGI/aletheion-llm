@@ -344,11 +344,11 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
 
     def __init__(
         self,
-        lambda_base: float = 0.01,
-        lambda_Q1: float = 0.015,
-        lambda_Q2: float = 0.020,
-        lambda_fractal: float = 0.005,
-        lambda_height: float = 0.02,
+        lambda_base: float = 0.001,
+        lambda_Q1: float = 0.0015,
+        lambda_Q2: float = 0.002,
+        lambda_fractal: float = 0.0005,
+        lambda_height: float = 0.002,
         ignore_index: int = -100
     ) -> None:
         super().__init__()
