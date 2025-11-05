@@ -1,4 +1,4 @@
-"""Quick evaluation script for trained checkpoints."""
+"""Quick evaluation script for trained checkpoints - FIXED VERSION."""
 import sys
 from pathlib import Path
 sys.path.insert(0, '/home/sapo/aletheion-llm')
@@ -6,12 +6,26 @@ sys.path.insert(0, '/home/sapo/aletheion-llm')
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 import numpy as np
 
 from src import BaselineTransformer, get_device
 from src.aletheion.model import AletheionTransformer
 from data.dataset import load_wikitext_dataset
+
+def collate_fn(batch):
+    """Collate function for variable length sequences."""
+    input_ids = [item['input_ids'] for item in batch]
+    labels = [item['labels'] for item in batch]
+    
+    input_ids_padded = pad_sequence(input_ids, batch_first=True, padding_value=0)
+    labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)
+    
+    return {
+        'input_ids': input_ids_padded,
+        'labels': labels_padded
+    }
 
 def compute_ece(probs, targets, n_bins=10):
     """Compute Expected Calibration Error."""
@@ -92,7 +106,8 @@ def main():
         max_length=256
     )
     
-    val_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
+    # FIX: Add collate_fn for variable length sequences
+    val_loader = DataLoader(val_ds, batch_size=32, shuffle=False, collate_fn=collate_fn)
     vocab_size = tokenizer.vocab_size
     
     print(f"📊 Vocab size: {vocab_size}")
@@ -110,10 +125,10 @@ def main():
         dropout=0.1
     ).to(device)
     
-    # Try to load checkpoint
+    # FIX: Load from nested dict structure
     try:
         baseline_ckpt = torch.load('checkpoints/baseline_final.pt', map_location=device)
-        baseline.load_state_dict(baseline_ckpt)
+        baseline.load_state_dict(baseline_ckpt['model_state_dict'])
         print("✅ Loaded baseline checkpoint")
     except Exception as e:
         print(f"⚠️  No baseline checkpoint found: {e}")
@@ -132,9 +147,10 @@ def main():
         q2_threshold=0.7
     ).to(device)
     
+    # FIX: Load from nested dict structure
     try:
         aletheion_ckpt = torch.load('checkpoints/aletheion_final.pt', map_location=device)
-        aletheion.load_state_dict(aletheion_ckpt)
+        aletheion.load_state_dict(aletheion_ckpt['model_state_dict'])
         print("✅ Loaded Aletheion checkpoint")
     except Exception as e:
         print(f"⚠️  No Aletheion checkpoint found: {e}")

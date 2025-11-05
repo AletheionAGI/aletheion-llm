@@ -207,3 +207,6 @@ marimo/_lsp/
 __marimo__/
 baseline_step*.pt
 aletheion_step*.pt
+aletheion_final.pt
+baseline_final.pt
+comparison_steps*.pt
