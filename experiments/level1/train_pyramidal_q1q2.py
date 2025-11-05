@@ -45,6 +45,14 @@ from data.dataset import TinyStoriesDataset
 from src.utils import get_device, set_seed
 
 
+def log_memory(step: int):
+    """Log GPU memory usage."""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved = torch.cuda.memory_reserved() / 1024**3
+        print(f"  [Step {step}] GPU: {allocated:.2f}GB alloc, {reserved:.2f}GB reserved")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train Pyramidal Q1/Q2/Fractal model')
 
@@ -66,7 +74,13 @@ def parse_args():
     parser.add_argument('--max_temperature_scale', type=float, default=2.0, help='Max temperature scale')
 
     # Training parameters
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
+    parser.add_argument('--batch_size', type=int, default=32, help='Micro batch size (per gradient accumulation step)')
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
+                       help='Number of gradient accumulation steps (effective batch = batch_size * accum_steps)')
+    parser.add_argument('--gradient_checkpointing', action='store_true',
+                       help='Enable gradient checkpointing to save memory (~40% reduction)')
+    parser.add_argument('--fp16', action='store_true',
+                       help='Enable mixed precision training (fp16) to save memory (~50% reduction)')
     parser.add_argument('--learning_rate', type=float, default=3e-4, help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=0.01, help='Weight decay')
     parser.add_argument('--max_steps', type=int, default=5000, help='Max training steps')
@@ -83,7 +97,8 @@ def parse_args():
     parser.add_argument('--experiment_name', type=str, default='pyramidal_q1q2_v1',
                        help='Experiment name')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--resume_from', type=str, default=None, help='Resume from checkpoint')
+    parser.add_argument('--resume_from', type=str, default=None,
+                       help='Resume training from checkpoint directory (e.g., experiments/level1/runs/exp/checkpoint_step_1000)')
 
     return parser.parse_args()
 
@@ -147,17 +162,43 @@ def compute_collapse_signals(pyramid_outputs: dict) -> dict:
     return signals
 
 
-def train_step(model, batch, optimizer, scaler, device, grad_clip):
-    """Single training step."""
+def train_step(model, batch, optimizer, scaler, device, grad_clip, accumulation_steps=1, is_accumulation_step=False, use_amp=False):
+    """Single training step with optional gradient accumulation and mixed precision.
+
+    Args:
+        model: The model to train
+        batch: Input batch
+        optimizer: Optimizer
+        scaler: GradScaler for mixed precision training
+        device: Device to use
+        grad_clip: Gradient clipping value
+        accumulation_steps: Number of gradient accumulation steps
+        is_accumulation_step: If True, don't zero grads or step optimizer
+        use_amp: Whether to use automatic mixed precision
+    """
     model.train()
+
+    # Only zero grads at the start of accumulation
+    if not is_accumulation_step:
+        optimizer.zero_grad(set_to_none=True)
 
     input_ids = batch['input_ids'].to(device)
     labels = batch['labels'].to(device)
 
-    # Forward pass with mixed precision
-    with torch.cuda.amp.autocast(enabled=torch.cuda.is_available()):
+    # Forward pass with optional mixed precision
+    if use_amp and scaler is not None:
+        with torch.cuda.amp.autocast():
+            outputs = model(input_ids, labels=labels, return_dict=True)
+            loss = outputs.loss / accumulation_steps
+
+            # Compute loss components for detailed logging
+            if outputs.pyramid is not None:
+                loss_dict = model.pyramid_loss_fn(outputs.logits, labels, outputs.pyramid)
+            else:
+                loss_dict = None
+    else:
         outputs = model(input_ids, labels=labels, return_dict=True)
-        loss = outputs.loss
+        loss = outputs.loss / accumulation_steps
 
         # Compute loss components for detailed logging
         if outputs.pyramid is not None:
@@ -165,30 +206,44 @@ def train_step(model, batch, optimizer, scaler, device, grad_clip):
         else:
             loss_dict = None
 
-    # Backward pass
-    optimizer.zero_grad()
-    if torch.cuda.is_available():
+    # Backward pass with optional scaling
+    if use_amp and scaler is not None:
         scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        scaler.step(optimizer)
-        scaler.update()
     else:
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        optimizer.step()
 
-    return loss.item(), outputs.pyramid, loss_dict
+    # Only clip and step at the end of accumulation
+    if not is_accumulation_step:
+        if use_amp and scaler is not None:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+            optimizer.step()
+
+    # Memory cleanup
+    unscaled_loss = loss.item() * accumulation_steps
+    pyramid_out = outputs.pyramid
+    del loss, outputs, input_ids, labels
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return unscaled_loss, pyramid_out, loss_dict
 
 
 @torch.no_grad()
 def evaluate(model, dataloader, device, max_batches=10):
-    """Evaluate model."""
+    """Evaluate model with memory-efficient computation."""
     model.eval()
 
     total_loss = 0.0
     total_tokens = 0
-    all_pyramid_outputs = []
+
+    # Online statistics for pyramidal metrics
+    pyramid_sums = {}
+    pyramid_counts = 0
 
     for i, batch in enumerate(dataloader):
         if i >= max_batches:
@@ -200,21 +255,39 @@ def evaluate(model, dataloader, device, max_batches=10):
         outputs = model(input_ids, labels=labels, return_dict=True)
         loss = outputs.loss
 
-        # Accumulate
+        # Accumulate loss
         batch_tokens = (labels != -100).sum().item()
         total_loss += loss.item() * batch_tokens
         total_tokens += batch_tokens
-        all_pyramid_outputs.append(outputs.pyramid)
+
+        # Accumulate pyramidal metrics incrementally
+        if outputs.pyramid is not None:
+            for key, value in outputs.pyramid.items():
+                if key not in pyramid_sums:
+                    pyramid_sums[key] = 0.0
+                pyramid_sums[key] += value.mean().item()
+            pyramid_counts += 1
+
+        # Memory cleanup
+        del outputs, input_ids, labels, loss
+
+        # Periodic cache clear
+        if i % 5 == 0 and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    # Final cleanup
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    import gc
+    gc.collect()
 
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0.0
 
-    # Aggregate pyramidal metrics
+    # Average pyramidal metrics
     pyramid_metrics = {}
-    if all_pyramid_outputs and all_pyramid_outputs[0] is not None:
-        # Average over batches
-        for key in all_pyramid_outputs[0].keys():
-            values = [p[key].mean().item() for p in all_pyramid_outputs]
-            pyramid_metrics[key] = sum(values) / len(values)
+    if pyramid_counts > 0:
+        for key, total in pyramid_sums.items():
+            pyramid_metrics[key] = total / pyramid_counts
 
     return avg_loss, pyramid_metrics
 
@@ -237,11 +310,21 @@ def main():
     # Tensorboard
     writer = SummaryWriter(log_dir=str(exp_dir / 'tensorboard'))
 
+    effective_batch_size = args.batch_size * args.gradient_accumulation_steps
+
     print("=" * 80)
     print("🔻 PYRAMIDAL Q1/Q2/FRACTAL TRAINING")
     print("=" * 80)
     print(f"Experiment: {args.experiment_name}")
     print(f"Device: {device}")
+    print(f"\nTraining Configuration:")
+    print(f"  Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
+    if args.gradient_checkpointing:
+        print(f"  Gradient checkpointing: enabled")
+    if args.fp16:
+        print(f"  Mixed precision (fp16): enabled")
+    if args.resume_from:
+        print(f"  Resuming from: {args.resume_from}")
     print(f"\nPyramidal Parameters:")
     print(f"  λ_base:    {args.lambda_base}")
     print(f"  λ_Q1:      {args.lambda_Q1}")
@@ -257,29 +340,57 @@ def main():
 
     vocab_size = len(tokenizer)
 
-    # Create model
-    model = AletheionPyramidalQ1Q2Transformer(
-        vocab_size=vocab_size,
-        d_model=args.d_model,
-        n_layers=args.n_layers,
-        n_heads=args.n_heads,
-        d_ff=args.d_ff,
-        max_seq_len=args.max_seq_len,
-        dropout=args.dropout,
-        lambda_base=args.lambda_base,
-        lambda_Q1=args.lambda_Q1,
-        lambda_Q2=args.lambda_Q2,
-        lambda_fractal=args.lambda_fractal,
-        lambda_height=args.lambda_height,
-        use_multi_head_height=args.use_multi_head_height,
-        max_temperature_scale=args.max_temperature_scale
-    )
-    model = model.to(device)
+    # Create or load model
+    start_step = 0
+    if args.resume_from:
+        print(f"\n🔄 Resuming from checkpoint: {args.resume_from}")
+        model = AletheionPyramidalQ1Q2Transformer.from_pretrained(args.resume_from)
+        model = model.to(device)
 
-    # Count parameters
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"\nModel parameters: {total_params:,} (trainable: {trainable_params:,})")
+        # Enable gradient checkpointing if requested
+        if args.gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
+            print("   ✓ Gradient checkpointing enabled")
+
+        # Extract step number from checkpoint name
+        checkpoint_name = Path(args.resume_from).name
+        if checkpoint_name.startswith('checkpoint_step_'):
+            start_step = int(checkpoint_name.split('_')[-1])
+            print(f"   ✓ Resuming from step {start_step}")
+
+        # Count parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"   Model parameters: {total_params:,} (trainable: {trainable_params:,})")
+    else:
+        print("\n🏗️  Creating pyramidal Q1/Q2 model...")
+        model = AletheionPyramidalQ1Q2Transformer(
+            vocab_size=vocab_size,
+            d_model=args.d_model,
+            n_layers=args.n_layers,
+            n_heads=args.n_heads,
+            d_ff=args.d_ff,
+            max_seq_len=args.max_seq_len,
+            dropout=args.dropout,
+            lambda_base=args.lambda_base,
+            lambda_Q1=args.lambda_Q1,
+            lambda_Q2=args.lambda_Q2,
+            lambda_fractal=args.lambda_fractal,
+            lambda_height=args.lambda_height,
+            use_multi_head_height=args.use_multi_head_height,
+            max_temperature_scale=args.max_temperature_scale
+        )
+        model = model.to(device)
+
+        # Enable gradient checkpointing if requested
+        if args.gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
+            print("   ✓ Gradient checkpointing enabled (saves ~40% memory)")
+
+        # Count parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"   Model parameters: {total_params:,} (trainable: {trainable_params:,})")
 
     # Load datasets
     train_dataset = TinyStoriesDataset(
@@ -325,152 +436,191 @@ def main():
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     # Mixed precision scaler
-    scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
+    scaler = torch.cuda.amp.GradScaler(enabled=args.fp16 and torch.cuda.is_available())
+    use_amp = args.fp16 and torch.cuda.is_available()
+    if use_amp:
+        print("   ✓ GradScaler initialized for mixed precision training")
 
     # Training loop
-    global_step = 0
+    global_step = start_step
     start_time = time.time()
 
     print(f"\n{'='*80}")
     print("Starting training...")
     print(f"{'='*80}\n")
 
+    train_iter = iter(train_loader)
+
     while global_step < args.max_steps:
-        for batch in train_loader:
-            if global_step >= args.max_steps:
-                break
+        # Accumulate gradients over multiple micro-batches
+        accumulated_loss = 0.0
 
-            # Training step
+        for accum_step in range(args.gradient_accumulation_steps):
+            # Get batch
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                train_iter = iter(train_loader)
+                batch = next(train_iter)
+
+            # Train step (with gradient accumulation)
+            is_accumulation_step = (accum_step < args.gradient_accumulation_steps - 1)
             loss, pyramid_outputs, loss_dict = train_step(
-                model, batch, optimizer, scaler, device, args.grad_clip
+                model, batch, optimizer, scaler, device, args.grad_clip,
+                accumulation_steps=args.gradient_accumulation_steps,
+                is_accumulation_step=is_accumulation_step,
+                use_amp=use_amp
             )
-            scheduler.step()
 
-            # Log training metrics
-            if global_step % 10 == 0:
-                lr = scheduler.get_last_lr()[0]
-                writer.add_scalar('train/loss', loss, global_step)
-                writer.add_scalar('train/lr', lr, global_step)
+            accumulated_loss += loss / args.gradient_accumulation_steps
 
-                # Log pyramidal metrics
-                if pyramid_outputs is not None:
-                    stats = model.get_pyramidal_stats(pyramid_outputs)
-                    for key, value in stats.items():
-                        writer.add_scalar(f'train/pyramid/{key}', value, global_step)
+        # Scheduler step after full accumulation
+        scheduler.step()
 
-                    # Check for collapse
-                    collapse_signals = compute_collapse_signals(pyramid_outputs)
-                    for key, value in collapse_signals.items():
-                        if isinstance(value, bool):
-                            writer.add_scalar(f'train/collapse/{key}', int(value), global_step)
-                        else:
-                            writer.add_scalar(f'train/collapse/{key}', value, global_step)
+        # Use accumulated loss for logging
+        loss = accumulated_loss
 
-                    # Print status every 50 steps with detailed Q1/Q2 distributions
-                    if global_step % 50 == 0:
-                        elapsed = time.time() - start_time
+        # Log training metrics
+        if global_step % 10 == 0:
+            lr = scheduler.get_last_lr()[0]
+            writer.add_scalar('train/loss', loss, global_step)
+            writer.add_scalar('train/lr', lr, global_step)
 
-                        # Extract Q1/Q2 tensors for distribution analysis
-                        Q1 = pyramid_outputs['Q1_mean']
-                        Q2 = pyramid_outputs['Q2_mean']
+            # Log pyramidal metrics
+            if pyramid_outputs is not None:
+                stats = model.get_pyramidal_stats(pyramid_outputs)
+                for key, value in stats.items():
+                    writer.add_scalar(f'train/pyramid/{key}', value, global_step)
 
-                        # Compute distributions
-                        Q1_min = Q1.min().item()
-                        Q1_max = Q1.max().item()
-                        Q1_mean = Q1.mean().item()
-                        Q2_min = Q2.min().item()
-                        Q2_max = Q2.max().item()
-                        Q2_mean = Q2.mean().item()
+                # Check for collapse
+                collapse_signals = compute_collapse_signals(pyramid_outputs)
+                for key, value in collapse_signals.items():
+                    if isinstance(value, bool):
+                        writer.add_scalar(f'train/collapse/{key}', int(value), global_step)
+                    else:
+                        writer.add_scalar(f'train/collapse/{key}', value, global_step)
 
-                        # Get target values from loss_dict if available
-                        if loss_dict is not None:
-                            Q1_target_mean = loss_dict.get('target_Q1_mean', 0.0)
-                            Q2_target_mean = loss_dict.get('target_Q2_mean', 0.0)
-                        else:
-                            Q1_target_mean = 0.0
-                            Q2_target_mean = 0.0
+                # Print status every 50 steps with detailed Q1/Q2 distributions
+                if global_step % 50 == 0:
+                    elapsed = time.time() - start_time
 
-                        # Verification checks
-                        Q1_collapsed = Q1_min == Q1_max or (Q1_max - Q1_min < 0.01)
-                        Q2_collapsed = Q2_min == Q2_max or (Q2_max - Q2_min < 0.01)
-                        Q1_Q2_distinct = abs(Q1_mean - Q2_mean) > 0.05
+                    # Extract Q1/Q2 tensors for distribution analysis
+                    Q1 = pyramid_outputs['Q1_mean']
+                    Q2 = pyramid_outputs['Q2_mean']
 
-                        # Standard status line
-                        print(f"\nStep {global_step}/{args.max_steps} | "
-                              f"Loss: {loss:.4f} | "
-                              f"Q1: {stats['Q1_mean']:.3f} | "
-                              f"Q2: {stats['Q2_mean']:.3f} | "
-                              f"Height: {stats['height_mean']:.3f} | "
-                              f"Fractal: {stats['fractal_mean']:.3f} | "
-                              f"Time: {elapsed:.1f}s")
+                    # Compute distributions
+                    Q1_min = Q1.min().item()
+                    Q1_max = Q1.max().item()
+                    Q1_mean = Q1.mean().item()
+                    Q2_min = Q2.min().item()
+                    Q2_max = Q2.max().item()
+                    Q2_mean = Q2.mean().item()
 
-                        # Detailed Q1/Q2 distribution diagnostics
-                        print(f"  Q1 Distribution: min={Q1_min:.4f}, max={Q1_max:.4f}, mean={Q1_mean:.4f}, target={Q1_target_mean:.4f}")
-                        print(f"  Q2 Distribution: min={Q2_min:.4f}, max={Q2_max:.4f}, mean={Q2_mean:.4f}, target={Q2_target_mean:.4f}")
+                    # Get target values from loss_dict if available
+                    if loss_dict is not None:
+                        Q1_target_mean = loss_dict.get('target_Q1_mean', 0.0)
+                        Q2_target_mean = loss_dict.get('target_Q2_mean', 0.0)
+                    else:
+                        Q1_target_mean = 0.0
+                        Q2_target_mean = 0.0
 
-                        # Verification status
-                        print(f"  Q1 Collapsed: {Q1_collapsed} | Q2 Collapsed: {Q2_collapsed} | Q1/Q2 Distinct: {Q1_Q2_distinct}")
+                    # Verification checks
+                    Q1_collapsed = Q1_min == Q1_max or (Q1_max - Q1_min < 0.01)
+                    Q2_collapsed = Q2_min == Q2_max or (Q2_max - Q2_min < 0.01)
+                    Q1_Q2_distinct = abs(Q1_mean - Q2_mean) > 0.05
 
-                        # Log distribution metrics to tensorboard
-                        writer.add_scalar('train/Q1/min', Q1_min, global_step)
-                        writer.add_scalar('train/Q1/max', Q1_max, global_step)
-                        writer.add_scalar('train/Q1/range', Q1_max - Q1_min, global_step)
-                        writer.add_scalar('train/Q2/min', Q2_min, global_step)
-                        writer.add_scalar('train/Q2/max', Q2_max, global_step)
-                        writer.add_scalar('train/Q2/range', Q2_max - Q2_min, global_step)
-                        if loss_dict is not None:
-                            writer.add_scalar('train/Q1/target_mean', Q1_target_mean, global_step)
-                            writer.add_scalar('train/Q2/target_mean', Q2_target_mean, global_step)
+                    # Standard status line
+                    print(f"\nStep {global_step}/{args.max_steps} | "
+                          f"Loss: {loss:.4f} | "
+                          f"Q1: {stats['Q1_mean']:.3f} | "
+                          f"Q2: {stats['Q2_mean']:.3f} | "
+                          f"Height: {stats['height_mean']:.3f} | "
+                          f"Fractal: {stats['fractal_mean']:.3f} | "
+                          f"Time: {elapsed:.1f}s")
 
-                        # Warning if collapse detected
-                        if collapse_signals['any_collapse']:
-                            print("  ⚠️  WARNING: Collapse signals detected!")
-                            for key, value in collapse_signals.items():
-                                if isinstance(value, bool) and value:
-                                    print(f"     - {key}")
+                    # Detailed Q1/Q2 distribution diagnostics
+                    print(f"  Q1 Distribution: min={Q1_min:.4f}, max={Q1_max:.4f}, mean={Q1_mean:.4f}, target={Q1_target_mean:.4f}")
+                    print(f"  Q2 Distribution: min={Q2_min:.4f}, max={Q2_max:.4f}, mean={Q2_mean:.4f}, target={Q2_target_mean:.4f}")
 
-                        # Additional warnings for distribution issues
-                        if Q1_collapsed:
-                            print("  ⚠️  WARNING: Q1 has collapsed to a constant!")
-                        if Q2_collapsed:
-                            print("  ⚠️  WARNING: Q2 has collapsed to a constant!")
-                        if not Q1_Q2_distinct:
-                            print("  ⚠️  WARNING: Q1 and Q2 are not distinct!")
+                    # Verification status
+                    print(f"  Q1 Collapsed: {Q1_collapsed} | Q2 Collapsed: {Q2_collapsed} | Q1/Q2 Distinct: {Q1_Q2_distinct}")
 
-            # Evaluation
-            if global_step % args.eval_interval == 0 and global_step > 0:
-                print(f"\nEvaluating at step {global_step}...")
-                val_loss, val_pyramid_metrics = evaluate(model, val_loader, device)
+                    # Log distribution metrics to tensorboard
+                    writer.add_scalar('train/Q1/min', Q1_min, global_step)
+                    writer.add_scalar('train/Q1/max', Q1_max, global_step)
+                    writer.add_scalar('train/Q1/range', Q1_max - Q1_min, global_step)
+                    writer.add_scalar('train/Q2/min', Q2_min, global_step)
+                    writer.add_scalar('train/Q2/max', Q2_max, global_step)
+                    writer.add_scalar('train/Q2/range', Q2_max - Q2_min, global_step)
+                    if loss_dict is not None:
+                        writer.add_scalar('train/Q1/target_mean', Q1_target_mean, global_step)
+                        writer.add_scalar('train/Q2/target_mean', Q2_target_mean, global_step)
 
-                writer.add_scalar('val/loss', val_loss, global_step)
-                for key, value in val_pyramid_metrics.items():
-                    writer.add_scalar(f'val/pyramid/{key}', value, global_step)
+                    # Warning if collapse detected
+                    if collapse_signals['any_collapse']:
+                        print("  ⚠️  WARNING: Collapse signals detected!")
+                        for key, value in collapse_signals.items():
+                            if isinstance(value, bool) and value:
+                                print(f"     - {key}")
 
-                print(f"Validation Loss: {val_loss:.4f}")
-                print(f"Val Q1: {val_pyramid_metrics.get('Q1_mean', 0):.3f} | "
-                      f"Val Q2: {val_pyramid_metrics.get('Q2_mean', 0):.3f} | "
-                      f"Val Height: {val_pyramid_metrics.get('height_mean', 0):.3f}\n")
+                    # Additional warnings for distribution issues
+                    if Q1_collapsed:
+                        print("  ⚠️  WARNING: Q1 has collapsed to a constant!")
+                    if Q2_collapsed:
+                        print("  ⚠️  WARNING: Q2 has collapsed to a constant!")
+                    if not Q1_Q2_distinct:
+                        print("  ⚠️  WARNING: Q1 and Q2 are not distinct!")
 
-            # Save checkpoint
-            if global_step % args.save_interval == 0 and global_step > 0:
-                checkpoint_path = exp_dir / f'checkpoint_step_{global_step}'
-                model.save_pretrained(str(checkpoint_path))
-                print(f"💾 Checkpoint saved: {checkpoint_path}")
+        # Aggressive memory cleanup
+        if global_step % 5 == 0:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            import gc
+            gc.collect()
 
-            global_step += 1
+        # Evaluation
+        if global_step % args.eval_interval == 0 and global_step > 0:
+            print(f"\nEvaluating at step {global_step}...")
+            val_loss, val_pyramid_metrics = evaluate(model, val_loader, device)
 
-    # Final save
-    final_path = exp_dir / 'final_model'
-    model.save_pretrained(str(final_path))
-    print(f"\n✅ Training complete! Final model saved to {final_path}")
+            writer.add_scalar('val/loss', val_loss, global_step)
+            for key, value in val_pyramid_metrics.items():
+                writer.add_scalar(f'val/pyramid/{key}', value, global_step)
+
+            print(f"Validation Loss: {val_loss:.4f}")
+            print(f"Val Q1: {val_pyramid_metrics.get('Q1_mean', 0):.3f} | "
+                  f"Val Q2: {val_pyramid_metrics.get('Q2_mean', 0):.3f} | "
+                  f"Val Height: {val_pyramid_metrics.get('height_mean', 0):.3f}\n")
+            log_memory(global_step)
+
+        # Save checkpoint
+        if global_step % args.save_interval == 0 and global_step > 0:
+            checkpoint_path = exp_dir / f'checkpoint_step_{global_step}'
+            model.save_pretrained(str(checkpoint_path))
+            print(f"💾 Checkpoint saved: {checkpoint_path}")
+
+        global_step += 1
+
+    # Memory cleanup before final evaluation
+    print("\n🧹 Cleaning up memory before final evaluation...")
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    import gc
+    gc.collect()
+    log_memory(global_step)
 
     # Final evaluation
-    print("\nFinal evaluation...")
+    print("\n📊 Final evaluation...")
     val_loss, val_pyramid_metrics = evaluate(model, val_loader, device, max_batches=50)
     print(f"Final Validation Loss: {val_loss:.4f}")
     print("\nFinal Pyramidal Metrics:")
     for key, value in val_pyramid_metrics.items():
         print(f"  {key}: {value:.4f}")
+
+    # Final save
+    final_path = exp_dir / 'final_model'
+    model.save_pretrained(str(final_path))
+    print(f"\n✅ Training complete! Final model saved to {final_path}")
 
     writer.close()
 
