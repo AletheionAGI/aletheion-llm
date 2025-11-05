@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aletheion"
+version = "0.1.0"
+description = "Epistemic Uncertainty for Large Language Models"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "AGPL-3.0-or-later"}
+authors = [
+    {name = "Felipe M. Muniz", email = "contact@alethea.tech"}
+]
+keywords = [
+    "machine-learning",
+    "deep-learning",
+    "natural-language-processing",
+    "uncertainty-quantification",
+    "epistemic-uncertainty",
+    "transformer",
+    "language-models",
+    "calibration",
+    "hallucination",
+    "fractal-architecture"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.24.0",
+    "transformers>=4.30.0",
+    "datasets>=2.14.0",
+    "wandb>=0.15.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.65.0",
+    "einops>=0.6.1",
+    "tensorboard>=2.13.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "scipy>=1.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/AletheionAGI/aletheion-llm"
+Repository = "https://github.com/AletheionAGI/aletheion-llm"
+Documentation = "https://github.com/AletheionAGI/aletheion-llm/tree/main/docs"
+"Bug Tracker" = "https://github.com/AletheionAGI/aletheion-llm/issues"
+
+[tool.setuptools]
+packages = ["src", "src.aletheion", "data"]
+
+[tool.setuptools.package-dir]
+"" = "."
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
