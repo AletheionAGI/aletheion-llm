@@ -23,6 +23,7 @@ import json
 from pathlib import Path
 from typing import Dict, Tuple, Optional
 import math
+import gc
 
 import torch
 import torch.nn.functional as F
@@ -555,30 +556,41 @@ def main():
         num_workers=0
     )
 
-    # Load baseline model
+    # Load and evaluate baseline model
     print("\nLoading baseline model...")
     baseline_model = GPT2LMHeadModel.from_pretrained(args.baseline).to(device)
     print(f"  Parameters: {sum(p.numel() for p in baseline_model.parameters()) / 1e6:.1f}M")
 
-    # Load pyramidal model
-    print("\nLoading pyramidal model...")
-    pyramidal_model = AletheionPyramidalTransformer.load_pretrained(args.pyramidal, device=device)
-    print(f"  Parameters: {sum(p.numel() for p in pyramidal_model.parameters()) / 1e6:.1f}M")
-
-    # Evaluate baseline
     print("\nEvaluating baseline model...")
     baseline_results = evaluate_baseline(baseline_model, val_loader, device, args.max_batches)
     print(f"  Perplexity: {baseline_results['perplexity']:.2f}")
     print(f"  ECE: {baseline_results['ece']:.4f}")
     print(f"  Brier Score: {baseline_results['brier_score']:.4f}")
 
-    # Evaluate pyramidal
+    # Free up memory before loading pyramidal model
+    print("\nFreeing up memory...")
+    del baseline_model
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+
+    # Load and evaluate pyramidal model
+    print("\nLoading pyramidal model...")
+    pyramidal_model = AletheionPyramidalTransformer.load_pretrained(args.pyramidal, device=device)
+    print(f"  Parameters: {sum(p.numel() for p in pyramidal_model.parameters()) / 1e6:.1f}M")
+
     print("\nEvaluating pyramidal model...")
     pyramidal_results = evaluate_pyramidal(pyramidal_model, val_loader, device, args.max_batches)
     print(f"  Perplexity: {pyramidal_results['perplexity']:.2f}")
     print(f"  ECE: {pyramidal_results['ece']:.4f}")
     print(f"  Brier Score: {pyramidal_results['brier_score']:.4f}")
     print(f"  Mean Height: {pyramidal_results['heights'].mean():.4f}")
+
+    # Free up GPU memory after evaluation
+    del pyramidal_model
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
 
     # Statistical tests
     print("\nRunning statistical significance tests...")
