@@ -355,7 +355,7 @@ def main(args):
 
         progress = (step + 1) / max(1, args.steps)
         # FIX: Increase VARO regularization weight via linear schedule
-        varo_weight = 0.01 + progress * 0.09
+        varo_weight = 0.026 #01 + progress * 0.09
 
         # Train both models
         last_baseline_metrics = train_step(baseline_model, batch, baseline_opt, device)
