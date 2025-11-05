@@ -2,7 +2,7 @@
   "steps": 100,
   "batch_size": 32,
   "lr": 0.0003,
-  "lambda_base": 0.01,
+  "lambda_base": 0.005,
   "lambda_height": 0.02,
   "height_method": "error_based",
   "multi_head_height": false,

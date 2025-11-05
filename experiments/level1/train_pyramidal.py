@@ -118,6 +118,8 @@ def train_step(
         "mean_height": loss_dict['mean_height'],
         "target_height": loss_dict['target_height_mean'],
         "base_stability": loss_dict['base_stability_mean'],
+        "Q1_mean": loss_dict['Q1_mean'],
+        "Q2_mean": loss_dict['Q2_mean'],
         "lambda_base": loss_dict['lambda_base'],
         "lambda_height": loss_dict['lambda_height'],
     })
@@ -136,6 +138,11 @@ def train_step(
     loss.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     optimizer.step()
+
+    # Memory cleanup to prevent OOM
+    # Detach loss value before returning (already done above with .item())
+    # Delete large tensors that are no longer needed
+    del loss, outputs, input_ids, labels, shift_logits, shift_labels, shift_pyramid
 
     return metrics
 
@@ -330,7 +337,7 @@ def main():
     parser.add_argument('--steps', type=int, default=10000, help='Number of training steps')
     parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
     parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
-    parser.add_argument('--lambda-base', type=float, default=0.01, help='Base stability weight')
+    parser.add_argument('--lambda-base', type=float, default=0.005, help='Base stability weight (reduced from 0.01)')
     parser.add_argument('--lambda-height', type=float, default=0.02, help='Height calibration weight')
     parser.add_argument('--height-method', type=str, default='error_based',
                        choices=['error_based', 'entropy_based', 'loss_based'],
@@ -424,6 +431,8 @@ def main():
         'mean_height': [],
         'target_height': [],
         'base_stability': [],
+        'Q1_mean': [],
+        'Q2_mean': [],
         'w_memory': [],
         'w_pain': [],
         'w_choice': [],
@@ -469,6 +478,10 @@ def main():
         pbar.update(1)
 
         step += 1
+
+        # Periodic memory cleanup to prevent accumulation
+        if step % 10 == 0 and torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         # Evaluation
         if step % args.eval_interval == 0:

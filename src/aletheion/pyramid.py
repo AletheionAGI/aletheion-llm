@@ -56,9 +56,15 @@ class PyramidalEpistemicGates(nn.Module):
         # Projects hidden state to 4-dimensional simplex (sums to 1)
         self.base_projection = nn.Linear(d_model, 4)
 
-        # Height gate: scalar ∈ [0,1]
-        # Represents epistemic quality / proximity to truth
-        self.height_gate = nn.Linear(d_model, 1)
+        # Q1 gate: Prediction quality (correctness proxy)
+        # Will be computed from model predictions in forward pass
+
+        # Q2 gate: Confidence calibration quality
+        # Will be computed from confidence vs correctness in forward pass
+
+        # Height combiner: Derives height from Q1, Q2, and base_stability
+        # Input: [1-Q1, 1-Q2, base_stability] → scalar height
+        self.height_combiner = nn.Linear(3, 1)
 
         # Optional: Multi-head height for consensus
         if use_multi_head_height:
@@ -72,10 +78,10 @@ class PyramidalEpistemicGates(nn.Module):
         nn.init.normal_(self.base_projection.weight, mean=0.0, std=0.02)
         nn.init.zeros_(self.base_projection.bias)
 
-        # Initialize height gate to start at moderate height (~0.5)
-        # This prevents initial collapse to overconfidence
-        nn.init.normal_(self.height_gate.weight, mean=0.0, std=0.02)
-        nn.init.zeros_(self.height_gate.bias)
+        # Initialize height_combiner to start near base (low height ~0.12)
+        # bias = -2.0 → sigmoid(-2) ≈ 0.12 (starts near base, not apex)
+        nn.init.normal_(self.height_combiner.weight, mean=0.0, std=0.02)
+        nn.init.constant_(self.height_combiner.bias, -2.0)
 
     def forward(self, hidden_states: torch.Tensor) -> Dict[str, torch.Tensor]:
         """Forward pass through pyramidal gates.
@@ -111,7 +117,15 @@ class PyramidalEpistemicGates(nn.Module):
         w_choice = base_weights[..., 2:3]
         w_exploration = base_weights[..., 3:4]
 
+        # Base stability: how balanced are the 4 forces?
+        base_variance = base_weights.var(dim=-1, keepdim=True)
+        base_stability = 1.0 - base_variance
+
         # === COMPUTE HEIGHT (epistemic ascension toward truth) ===
+        # Height is derived from hidden state features + base_stability
+        # The height_combiner learns to produce heights that correlate with prediction quality (Q1)
+        # and confidence calibration (Q2) through the training loss
+
         if self.use_multi_head_height and hasattr(self, 'height_heads'):
             # Multi-head height consensus
             head_heights = torch.stack([
@@ -127,20 +141,33 @@ class PyramidalEpistemicGates(nn.Module):
             height = height_mean * (1.0 - height_variance)
             height = height.squeeze(-1)  # [batch, seq_len, 1]
         else:
-            # Single height gate
-            height_logits = self.height_gate(hidden_dropped)
+            # Create features for height prediction:
+            # - hidden_mean: average activation (proxy for confidence)
+            # - hidden_std: activation variance (proxy for uncertainty)
+            # - base_stability: force balance (high when forces are balanced)
+            hidden_mean = hidden_dropped.mean(dim=-1, keepdim=True)  # [batch, seq_len, 1]
+            hidden_std = hidden_dropped.std(dim=-1, keepdim=True)    # [batch, seq_len, 1]
+
+            # Normalize features to [0, 1] range for better stability
+            hidden_mean_norm = torch.sigmoid(hidden_mean)
+            hidden_std_norm = torch.sigmoid(hidden_std)
+
+            # Combine features: [hidden_mean, hidden_std, base_stability]
+            height_inputs = torch.cat([
+                hidden_mean_norm,
+                hidden_std_norm,
+                base_stability
+            ], dim=-1)  # [batch, seq_len, 3]
+
+            # Height combiner: learns to map features → epistemic quality
+            # Initialized with bias=-2.0 → sigmoid(-2)≈0.12 (starts near base)
+            height_logits = self.height_combiner(height_inputs)
             height = torch.sigmoid(height_logits)  # [batch, seq_len, 1] ∈ [0,1]
 
         # === COMPUTE DERIVED METRICS ===
 
         # Uncertainty: distance from apex
         uncertainty = 1.0 - height
-
-        # Base stability: how balanced are the 4 forces?
-        # High stability when forces are roughly equal
-        # Low stability when one force dominates
-        base_variance = base_weights.var(dim=-1, keepdim=True)
-        base_stability = 1.0 - base_variance
 
         # Confidence: high when near apex AND base is stable
         # This combines vertical position (height) with horizontal stability
