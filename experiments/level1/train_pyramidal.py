@@ -124,7 +124,8 @@ def train_step(
 
     # Individual force weights
     if outputs.pyramid is not None:
-        valid_mask = (labels != -100)
+        # Shift the mask to align with shifted pyramid outputs [..., :-1, :]
+        valid_mask = (labels[..., 1:] != -100)
         metrics["w_memory"] = outputs.pyramid['w_memory'][..., :-1, :][valid_mask].mean().item()
         metrics["w_pain"] = outputs.pyramid['w_pain'][..., :-1, :][valid_mask].mean().item()
         metrics["w_choice"] = outputs.pyramid['w_choice'][..., :-1, :][valid_mask].mean().item()
