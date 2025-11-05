@@ -1,5 +1,5 @@
 {
-  "steps": 10000,
+  "steps": 100,
   "batch_size": 32,
   "lr": 0.0003,
   "lambda_base": 0.01,
@@ -7,9 +7,9 @@
   "height_method": "error_based",
   "multi_head_height": false,
   "no_temp_modulation": false,
-  "eval_interval": 500,
-  "save_interval": 2000,
+  "eval_interval": 50,
+  "save_interval": 100,
   "seed": 42,
-  "dry_run": false,
+  "dry_run": true,
   "output_dir": "outputs/pyramidal"
 }
