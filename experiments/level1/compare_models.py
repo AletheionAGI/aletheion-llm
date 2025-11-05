@@ -90,7 +90,7 @@ def evaluate_baseline(
         if valid_mask.any():
             correct = (predictions == shift_labels).float()
 
-            # Collect metrics
+            # Collect metrics (move to CPU immediately)
             all_losses.append(outputs.loss.item())
             all_confidences.extend(confidence[valid_mask].cpu().numpy())
             all_correctness.extend(correct[valid_mask].cpu().numpy())
@@ -107,6 +107,15 @@ def evaluate_baseline(
 
                 all_probs.append(probs_flat[sampled_indices].cpu())
                 all_targets.append(labels_flat[sampled_indices].cpu())
+
+        # Explicit cleanup
+        del input_ids, labels, outputs, logits, shift_logits, shift_labels, probs
+        if valid_mask.any():
+            del confidence, predictions, valid_mask, correct
+
+        # Clear cache periodically
+        if batch_idx % 10 == 0 and torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     # Aggregate metrics
     avg_loss = np.mean(all_losses)
@@ -180,7 +189,7 @@ def evaluate_pyramidal(
             # Get pyramidal metrics
             height = outputs.pyramid['height'][..., :-1, :].squeeze(-1)
 
-            # Collect metrics
+            # Collect metrics (move to CPU immediately and convert to numpy)
             all_losses.append(outputs.loss.item())
             all_confidences.extend(confidence[valid_mask].cpu().numpy())
             all_correctness.extend(correct[valid_mask].cpu().numpy())
@@ -202,6 +211,16 @@ def evaluate_pyramidal(
 
                 all_probs.append(probs_flat[sampled_indices].cpu())
                 all_targets.append(labels_flat[sampled_indices].cpu())
+
+        # Explicit cleanup - free GPU memory immediately
+        del input_ids, labels, outputs, logits, shift_logits, shift_labels, probs
+        if valid_mask.any():
+            del confidence, predictions, valid_mask, correct, height, uncertainty
+
+        # Clear cache periodically (more aggressively for pyramidal)
+        if batch_idx % 5 == 0 and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
 
     # Aggregate metrics
     avg_loss = np.mean(all_losses)
@@ -521,7 +540,7 @@ def main():
     parser.add_argument('--pyramidal', type=str, required=True, help='Path to pyramidal model')
     parser.add_argument('--output', type=str, default='outputs/comparison', help='Output directory')
     parser.add_argument('--max-batches', type=int, default=100, help='Max evaluation batches')
-    parser.add_argument('--batch-size', type=int, default=4, help='Batch size')
+    parser.add_argument('--batch-size', type=int, default=2, help='Batch size (default: 2, reduce if OOM)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
 
     args = parser.parse_args()
