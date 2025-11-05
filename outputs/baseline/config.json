@@ -1,11 +1,14 @@
 {
   "steps": null,
   "num_epochs": 10,
-  "batch_size": 32,
+  "batch_size": 8,
+  "gradient_accumulation_steps": 4,
+  "gradient_checkpointing": true,
   "lr": 0.0003,
   "eval_interval": 500,
-  "save_interval": 2000,
+  "save_interval": 500,
   "seed": 42,
   "dry_run": false,
+  "resume_from": null,
   "output_dir": "outputs/baseline"
 }
