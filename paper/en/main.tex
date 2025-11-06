@@ -336,7 +336,73 @@ The gating interpolates between a confident softmax distribution and a maximally
 \subsection{Properties}
 Epistemic softmax reduces to standard softmax when $Q_1 = Q_2 = 1$, outputs uniform distributions when $Q_1 = Q_2 = 0$, remains differentiable, and exposes explicit uncertainty $u = 1 - Q_1 Q_2$.
 
+\subsection{Comparison with Standard Softmax}
+
+Table~\ref{tab:softmax_comparison} summarizes the key differences between standard softmax and epistemic softmax, highlighting how the latter addresses fundamental limitations of forced normalization.
+
+\begin{table}[h]
+\centering
+\caption{Comparison between standard softmax and epistemic softmax.}
+\label{tab:softmax_comparison}
+\begin{tabular}{ll}
+\toprule
+\textbf{Standard Softmax} & \textbf{Epistemic Softmax} \\
+\midrule
+Inputs logits & Inputs logits + gates \\
+Temperature fixed & Temperature adaptive \\
+Outputs $p$ & Outputs $\tilde{p}$, $u$ \\
+Forced confidence & Confidence modulated \\
+No uncertainty signal & Explicit uncertainty \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Fractal Architecture}
+
+The Aletheion architecture applies epistemic softmax hierarchically across all transformer components, creating a fractal pattern of uncertainty quantification. Figure~\ref{fig:fractal_architecture} illustrates the flow of epistemic gates through attention mechanisms, head aggregation, and output generation.
+
+\begin{figure}[h]
+\centering
+\small
+\begin{verbatim}
+Input Tokens
+     |
+[Embedding + Positional]
+     |
+┌───────────────────────────┐
+│ Layer ℓ                    │
+│ ┌───────────────────────┐ │
+│ │ Attention Logits      │ │
+│ │ epistemic_softmax     │◄┤ Q₁ (per-head)
+│ └───────────────────────┘ │
+│             │              │
+│      Attention Output      │
+│             │              │
+│ ┌───────────────────────┐ │
+│ │ Head Aggregation      │ │
+│ │ Q₂ Consensus Gate     │◄┤ Cross-head
+│ └───────────────────────┘ │
+│             │              │
+│     Residual + MLP         │
+│             │              │
+│   uncertainty_ℓ propagated │
+└───────────────────────────┘
+     |
+    ... (repeat for L layers)
+     |
+[Final Hidden State + aggregated uncertainty]
+     |
+┌───────────────────────────┐
+│ Output Logits             │
+│ epistemic_softmax         │◄┤ Q₁ + Q₂ (global)
+└───────────────────────────┘
+     |
+P(tokens), uncertainty_final
+\end{verbatim}
+\caption{\textbf{Fractal epistemic architecture.} Each layer applies epistemic softmax to attention weights (per-head $Q_1$ gates) and head aggregation ($Q_2$ consensus gate). Uncertainty propagates through layers and combines at the output, creating a multi-scale epistemic hierarchy.}
+\label{fig:fractal_architecture}
+\end{figure}
+
 \subsection{Level 1: Output-Only}
 Let $h_t$ denote decoder state, $z = W h_t$ the logits, and $c^{(\mathrm{out})}$ the context features (e.g., hidden state, attention summary). Epistemic softmax yields $(p_t, u_t) = \epsoftmax(z, c^{(\mathrm{out})})$. Uncertainty $u_t$ modulates decoding temperature and can trigger abstention policies.
 
@@ -481,6 +547,27 @@ For a transformer with $L$ layers, conservative deployment adopts
     u_{\mathrm{final}} = \max\bigl(\max_{l} u_{\mathrm{att}}^{(l)}, u_{\mathrm{out}}\bigr).
 \end{equation}
 Learned aggregators can be implemented as small monotone networks that take concatenated uncertainties and output a calibrated scalar.
+
+Figure~\ref{fig:uncertainty_flow} illustrates how layer-wise uncertainties aggregate into a final epistemic signal that can drive confidence-aware decoding and exploration strategies.
+
+\begin{figure}[h]
+\centering
+\small
+\begin{verbatim}
+Layer 1 Uncertainty (u₁) ──┐
+                           ▼
+Layer 2 Uncertainty (u₂) ──┐    Aggregate g(u)
+                           │         │
+⋮                          │         ▼
+Layer N Uncertainty (uₙ) ──┘   u_final → Exploration Controller
+                                       │
+                           Confidence-aware Decoding
+                                       │
+                             Response + uncertainty_final
+\end{verbatim}
+\caption{\textbf{Uncertainty flow through the epistemic architecture.} Layer-wise uncertainties are aggregated (e.g., via $\max$ or learned function $g$) into a final uncertainty scalar that drives exploration and confidence-aware decoding strategies.}
+\label{fig:uncertainty_flow}
+\end{figure}
 
 \section{Training with VARO}
 \subsection{Supervisory Signal $u^*$}
@@ -717,6 +804,29 @@ This emergent metalearning demonstrates:
 \caption{\textbf{Q1/Q2 trajectories over training steps 2000--3000.} The figure shows three distinct phases: initial high-uncertainty exploration (step 2400), low-uncertainty collapse testing (step 2700), and stabilization at optimal mid-range values (step 2750+). Validation metrics (shown in dashed lines) maintain separation throughout, confirming that training dynamics represent exploration rather than architectural failure.}
 \label{fig:q1q2_trajectories}
 \end{figure}
+
+\subsection{Training Performance Comparison}
+
+To validate the pyramidal architecture's effectiveness, we compare training dynamics between standard baseline transformers and pyramidal Q1Q2 models. Figure~\ref{fig:training_curves_comparison} illustrates the key differences in convergence behavior, calibration metrics, and epistemic gate evolution.
+
+\begin{figure}[h]
+\centering
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/baseline_training_curves.png}
+\caption*{(a) Baseline Transformer}
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/pyramidal_training_curves.png}
+\caption*{(b) Pyramidal Q1Q2 Architecture}
+\end{minipage}
+\caption{\textbf{Training curves comparison.} (a) Baseline transformer shows typical training dynamics with cross-entropy loss but no explicit uncertainty calibration. (b) Pyramidal Q1Q2 architecture exhibits adaptive epistemic dynamics with $Q_1$ and $Q_2$ gates maintaining distinct uncertainty modes. The pyramidal model achieves superior calibration (lower ECE) while preserving predictive performance, demonstrating the effectiveness of geometric epistemic constraints.}
+\label{fig:training_curves_comparison}
+\end{figure}
+
+The baseline model (Figure~\ref{fig:training_curves_comparison}a) shows standard convergence patterns with decreasing loss but no intrinsic mechanism for epistemic uncertainty. In contrast, the pyramidal model (Figure~\ref{fig:training_curves_comparison}b) demonstrates active exploration of the epistemic parameter space, with $Q_1$ and $Q_2$ gates discovering optimal calibration points through gradient dynamics. This validates the hypothesis that pyramidal geometry prevents gate collapse while maintaining interpretable epistemic semantics.
 
 \section{Theoretical Analysis}
 \subsection{Monotone Uncertainty Propagation}
