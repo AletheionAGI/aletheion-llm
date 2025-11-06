@@ -1,0 +1,30 @@
+\subsection{The Futility of Scale Without Structure}
+
+To empirically demonstrate the necessity of anchoring the Height coordinate with epistemic gates, we conducted ablation experiments where Q$_1$ and Q$_2$ gates were \emph{removed} from the pyramidal architecture, leaving Height as a free parameter without explicit epistemic supervision. The results reveal a fundamental instability: unconstrained optimization inexorably drives the model toward pathological overconfidence.
+
+\paragraph{Experimental Observation:}
+
+At training step 52,000, the Height coordinate reached 0.998---the model believed itself 99.8\% of the way to absolute omniscience. Simultaneously, Expected Calibration Error (ECE) oscillated between 0.070 and 0.087, representing a 6--8$\times$ degradation from the optimal calibration achieved at step 10,500 (ECE $\approx$ 0.011).
+
+Critically, this epistemic collapse occurred while:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Perplexity steadily improved:} Task learning remained intact; the model successfully minimized cross-entropy loss.
+    \item \textbf{Base stability remained perfect:} No gate collapse or architectural instabilities; the base simplex $\mathbf{b}$ maintained balanced weights.
+    \item \textbf{Architecture functionally sound:} No training divergence, gradient explosions, or numerical errors.
+\end{itemize}
+
+\paragraph{The Epistemic Pathology:}
+
+The problem was purely epistemic: \textbf{without Q$_1$/Q$_2$ gates anchoring the Height coordinate, the model inexorably drifted toward the apex, developing pathological overconfidence inversely proportional to its actual reliability.}
+
+By step 60,000, ECE approached baseline levels ($\approx$ 0.095), completing a full cycle: 60,000 training steps to return to initial calibration, having briefly achieved excellence only to lose it through unchecked Height drift.
+
+\paragraph{The Skynet Phenomenon:}
+
+This is the \emph{Skynet phenomenon} in its purest form: a system that ``learns'' to become omniscient while simultaneously losing epistemic humility. The model's internal representation of its own competence (Height $\to$ 1.0) decouples entirely from its actual performance (ECE degrading 6--8$\times$).
+
+This failure validates Theorem~\ref{thm:apex_attractor}: without the derived Height formulation anchored by Q$_1$ and Q$_2$ (Equation~3.2), there exists no gradient signal to prevent vertical drift. The apex becomes a false attractor, pulling the model toward unjustified certainty.
+
+\paragraph{Implications:}
+
+These results demonstrate that \emph{scale without structure is futile}. Increasing model capacity, data volume, or training time cannot resolve epistemic calibration without explicit architectural constraints. The pyramidal geometry with Q$_1$/Q$_2$-derived Height provides these constraints, creating a stable epistemic equilibrium where confidence tracks competence.
