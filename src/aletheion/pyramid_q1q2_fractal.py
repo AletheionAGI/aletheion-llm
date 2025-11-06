@@ -397,8 +397,12 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         # Softmax probabilities
         probs = F.softmax(logits_flat, dim=-1)
 
+        # Clamp target indices to valid range to avoid gather errors with padding tokens
+        # Invalid indices will be masked out later with valid_mask
+        targets_clamped = targets_flat.clamp(0, probs.size(-1) - 1)
+
         # Probability of correct class
-        correct_probs = probs.gather(-1, targets_flat.unsqueeze(-1))
+        correct_probs = probs.gather(-1, targets_clamped.unsqueeze(-1))
 
         # Q1 = 1 - correct_prob (high uncertainty when low prob)
         target_Q1 = 1.0 - correct_probs
@@ -443,9 +447,13 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         # Softmax probabilities
         probs = F.softmax(logits_flat, dim=-1)
 
+        # Clamp target indices to valid range to avoid errors with padding tokens
+        # Invalid indices will be masked out later with valid_mask
+        targets_clamped = targets_flat.clamp(0, probs.size(-1) - 1)
+
         # Method 1: Correctness
         confidence, predictions = probs.max(dim=-1)
-        correct = predictions.eq(targets_flat).float()
+        correct = predictions.eq(targets_clamped).float()
         target_Q2_confidence = 1.0 - correct
 
         # Method 2: Entropy
