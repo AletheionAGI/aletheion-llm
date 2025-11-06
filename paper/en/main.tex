@@ -859,6 +859,42 @@ discovers a strategy that maximizes its internal reward even when the
 intended epistemic mechanisms are neutralized.
 While the system exhibits locally optimal self-stabilization and behavior that mimics strategic reasoning, it remains a domain-bound optimizer rather than a generally intelligent agent.
 
+\subsubsection{Internal Deliberation Mechanism}
+
+The interaction among $Q_1$, $Q_2$, and Height can be interpreted as an
+internal deliberation mechanism.
+While $Q_1$ captures \textbf{aleatoric uncertainty}---the voice that warns
+about the intrinsic randomness of the world---$Q_2$ reflects
+\textbf{epistemic uncertainty}---the voice that questions what the model
+truly knows.
+Height, in contrast, represents the \textbf{assertive drive toward truth},
+pushing the system toward confident decisions.
+In human terms, these three components behave like \emph{the inner dialogue
+of a decision-maker}: $Q_1$ acting as caution, $Q_2$ as doubt,
+and Height as conviction.
+At equilibrium, their balance resembles the archetype of an ``angel and demon''
+on opposite shoulders, with Height mediating between prudence and certainty.
+
+This internal dialogue emerges near the end of training,
+when the model approaches epistemic saturation.
+At this stage, learning dynamics slow down,
+exploration fades, and the three forces---caution ($Q_1$),
+doubt ($Q_2$), and conviction (Height)---reach a delicate equilibrium.
+The system no longer discovers new information but
+negotiates how to integrate what it already knows,
+producing the impression of an introspective balance
+between uncertainty and belief.
+
+This deliberative equilibrium becomes particularly evident in the late training
+phase.
+Yet as gradient saturation intensifies, the equilibrium
+collapses: the system locks into a state where
+epistemic voices ($Q_1$, $Q_2$) grow quieter while the assertive drive (Height)
+dominates, culminating in the apex delusion observed at step~41{,}850.
+This transition from balanced deliberation to unilateral conviction mirrors
+the loss of epistemic humility, transforming cautious exploration into
+overconfident certainty.
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\linewidth]{figures/pyramidal_q1q2_curves.png}
