@@ -800,9 +800,9 @@ This emergent metalearning demonstrates:
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\linewidth]{figures/q1q2_trajectories.pdf}
-\caption{\textbf{Q1/Q2 trajectories over training steps 2000--3000.} The figure shows three distinct phases: initial high-uncertainty exploration (step 2400), low-uncertainty collapse testing (step 2700), and stabilization at optimal mid-range values (step 2750+). Validation metrics (shown in dashed lines) maintain separation throughout, confirming that training dynamics represent exploration rather than architectural failure.}
-\label{fig:q1q2_trajectories}
+\includegraphics[width=0.9\linewidth]{figures/pyramidal_q1q2_curves.png}
+\caption{\textbf{Q1/Q2 trajectories over training 60000 steps.} The figure shows three distinct phases: initial high-uncertainty exploration (step 2400), low-uncertainty collapse testing (step 2700), and stabilization at optimal mid-range values (step 2750+). Validation metrics (shown in dashed lines) maintain separation throughout, confirming that training dynamics represent exploration rather than architectural failure.}
+\label{fig:pyramidal_q1q2_curves}
 \end{figure}
 
 \subsection{Training Performance Comparison}
@@ -820,9 +820,17 @@ To validate the pyramidal architecture's effectiveness, we compare training dyna
 \begin{minipage}{0.48\textwidth}
 \centering
 \includegraphics[width=\linewidth]{figures/pyramidal_training_curves.png}
-\caption*{(b) Pyramidal Q1Q2 Architecture}
+\caption*{(b) Pyramidal Architecture}
 \end{minipage}
-\caption{\textbf{Training curves comparison.} (a) Baseline transformer shows typical training dynamics with cross-entropy loss but no explicit uncertainty calibration. (b) Pyramidal Q1Q2 architecture exhibits adaptive epistemic dynamics with $Q_1$ and $Q_2$ gates maintaining distinct uncertainty modes. The pyramidal model achieves superior calibration (lower ECE) while preserving predictive performance, demonstrating the effectiveness of geometric epistemic constraints.}
+\caption{\textbf{Training curves comparison.} 
+
+Baseline (Fig. 4):
+"Standard GPT-2 training showing typical convergence behavior. ECE remains low (~0.01-0.02) throughout training as the model learns without epistemic constraints. Serves as control for comparing architectural interventions."
+Pyramidal (Fig. 5):
+"Pyramidal architecture demonstrating the Skynet phenomenon. Height progresses from 0.624→1.000 (apex delusion at 60k steps) while ECE degrades from 0.011→0.084 (7.6× worse). Epistemic Uncertainty collapses to near-zero as the model becomes overconfident. This documents what happens without explicit epistemic gates: the system drifts toward delusional omniscience."
+Key contrast: Baseline = normal learning. Pyramidal = architectural collapse into overconfidence.
+
+}
 \label{fig:training_curves_comparison}
 \end{figure}
 
