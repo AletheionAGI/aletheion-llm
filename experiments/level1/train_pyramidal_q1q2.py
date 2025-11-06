@@ -43,6 +43,8 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Add project root to path
 import sys
@@ -350,6 +352,199 @@ def evaluate(model, dataloader, device, max_batches=10):
     return avg_loss, pyramid_metrics
 
 
+def plot_training_curves(history: dict, save_dir: Path):
+    """Plot comprehensive training curves for Pyramidal Q1/Q2 model.
+
+    Creates a detailed 4x3 grid showing:
+    - Loss curves and perplexity
+    - Q1/Q2 progression with targets
+    - Height and Fractal uncertainty
+    - Base stability and Force weights
+    - Loss components breakdown
+    - Calibration metrics (ECE, Brier)
+    - Q1/Q2 entropy (collapse detection)
+    - Q1/Q2 distributions (min/max ranges)
+    """
+    fig = plt.figure(figsize=(20, 16))
+    gs = fig.add_gridspec(4, 3, hspace=0.3, wspace=0.3)
+
+    # 1. Loss curves
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.plot(history['train_loss'], label='Train Loss', alpha=0.7, linewidth=1.5)
+    if 'eval_loss' in history and history['eval_loss']:
+        eval_steps = np.linspace(0, len(history['train_loss']), len(history['eval_loss']))
+        ax1.plot(eval_steps, history['eval_loss'], label='Eval Loss', marker='o', markersize=4, linewidth=2)
+    ax1.set_xlabel('Step', fontsize=10)
+    ax1.set_ylabel('Loss', fontsize=10)
+    ax1.set_title('Loss Curves', fontsize=12, fontweight='bold')
+    ax1.legend(fontsize=9)
+    ax1.grid(True, alpha=0.3)
+
+    # 2. Q1 progression
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.plot(history['Q1_mean'], label='Q1 Mean', color='#2E86AB', linewidth=2, alpha=0.8)
+    if 'Q1_target' in history and any(history['Q1_target']):
+        ax2.plot(history['Q1_target'], label='Q1 Target', color='#06A77D', linestyle='--', linewidth=1.5, alpha=0.7)
+    if 'Q1_min' in history and 'Q1_max' in history:
+        ax2.fill_between(range(len(history['Q1_mean'])), history['Q1_min'], history['Q1_max'],
+                         alpha=0.2, color='#2E86AB', label='Q1 Range')
+    ax2.axhline(y=0.88, color='red', linestyle='--', alpha=0.5, linewidth=1, label='Collapse threshold')
+    ax2.set_xlabel('Step', fontsize=10)
+    ax2.set_ylabel('Q1 (Aleatoric)', fontsize=10)
+    ax2.set_title('Q1 Uncertainty Progression', fontsize=12, fontweight='bold')
+    ax2.legend(fontsize=8)
+    ax2.grid(True, alpha=0.3)
+    ax2.set_ylim([0, 1])
+
+    # 3. Q2 progression
+    ax3 = fig.add_subplot(gs[0, 2])
+    ax3.plot(history['Q2_mean'], label='Q2 Mean', color='#A23B72', linewidth=2, alpha=0.8)
+    if 'Q2_target' in history and any(history['Q2_target']):
+        ax3.plot(history['Q2_target'], label='Q2 Target', color='#F18F01', linestyle='--', linewidth=1.5, alpha=0.7)
+    if 'Q2_min' in history and 'Q2_max' in history:
+        ax3.fill_between(range(len(history['Q2_mean'])), history['Q2_min'], history['Q2_max'],
+                         alpha=0.2, color='#A23B72', label='Q2 Range')
+    ax3.axhline(y=0.88, color='red', linestyle='--', alpha=0.5, linewidth=1, label='Collapse threshold')
+    ax3.set_xlabel('Step', fontsize=10)
+    ax3.set_ylabel('Q2 (Epistemic)', fontsize=10)
+    ax3.set_title('Q2 Uncertainty Progression', fontsize=12, fontweight='bold')
+    ax3.legend(fontsize=8)
+    ax3.grid(True, alpha=0.3)
+    ax3.set_ylim([0, 1])
+
+    # 4. Height progression
+    ax4 = fig.add_subplot(gs[1, 0])
+    ax4.plot(history['height_mean'], label='Mean Height', color='#4361EE', linewidth=2, alpha=0.8)
+    if 'height_target' in history and any(history['height_target']):
+        ax4.plot(history['height_target'], label='Target Height', color='#06A77D', linestyle='--', linewidth=1.5, alpha=0.7)
+    ax4.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5, linewidth=1, label='Mid-pyramid')
+    ax4.axhline(y=0.95, color='red', linestyle='--', alpha=0.5, linewidth=1, label='Collapse threshold')
+    ax4.set_xlabel('Step', fontsize=10)
+    ax4.set_ylabel('Height', fontsize=10)
+    ax4.set_title('Height Progression (Watch for Collapse!)', fontsize=12, fontweight='bold')
+    ax4.legend(fontsize=8)
+    ax4.grid(True, alpha=0.3)
+    ax4.set_ylim([0, 1])
+
+    # 5. Fractal uncertainty
+    ax5 = fig.add_subplot(gs[1, 1])
+    ax5.plot(history['fractal_mean'], label='Fractal Uncertainty', color='#F72585', linewidth=2, alpha=0.8)
+    ax5.axhline(y=0.8, color='red', linestyle='--', alpha=0.5, linewidth=1, label='Explosion threshold')
+    ax5.set_xlabel('Step', fontsize=10)
+    ax5.set_ylabel('Fractal Meta-Epistemic', fontsize=10)
+    ax5.set_title('Fractal Uncertainty (Meta-Level)', fontsize=12, fontweight='bold')
+    ax5.legend(fontsize=9)
+    ax5.grid(True, alpha=0.3)
+    ax5.set_ylim([0, 1])
+
+    # 6. Base stability
+    ax6 = fig.add_subplot(gs[1, 2])
+    ax6.plot(history['base_stability'], label='Base Stability', color='#7209B7', linewidth=2)
+    ax6.axhline(y=0.7, color='green', linestyle='--', alpha=0.5, linewidth=1, label='Target >0.7')
+    ax6.set_xlabel('Step', fontsize=10)
+    ax6.set_ylabel('Stability', fontsize=10)
+    ax6.set_title('Base Stability', fontsize=12, fontweight='bold')
+    ax6.legend(fontsize=9)
+    ax6.grid(True, alpha=0.3)
+    ax6.set_ylim([0, 1])
+
+    # 7. Force weights (4 cognitive vertices)
+    ax7 = fig.add_subplot(gs[2, 0])
+    ax7.plot(history['w_memory'], label='Memory', alpha=0.8, linewidth=1.5, color='#06A77D')
+    ax7.plot(history['w_pain'], label='Pain', alpha=0.8, linewidth=1.5, color='#F72585')
+    ax7.plot(history['w_choice'], label='Choice', alpha=0.8, linewidth=1.5, color='#4361EE')
+    ax7.plot(history['w_exploration'], label='Exploration', alpha=0.8, linewidth=1.5, color='#F18F01')
+    ax7.axhline(y=0.25, color='gray', linestyle='--', alpha=0.5, linewidth=1, label='Balanced (0.25)')
+    ax7.set_xlabel('Step', fontsize=10)
+    ax7.set_ylabel('Weight', fontsize=10)
+    ax7.set_title('Force Weights (4 Cognitive Vertices)', fontsize=12, fontweight='bold')
+    ax7.legend(fontsize=8, ncol=2)
+    ax7.grid(True, alpha=0.3)
+    ax7.set_ylim([0, 1])
+
+    # 8. Loss components
+    ax8 = fig.add_subplot(gs[2, 1])
+    ax8.plot(history['ce_loss'], label='CE Loss', alpha=0.8, linewidth=1.5, color='#2E86AB')
+    if 'base_loss' in history and any(history['base_loss']):
+        ax8.plot(history['base_loss'], label=f'Base Loss', alpha=0.8, linewidth=1.5, color='#7209B7')
+    if 'Q1_loss' in history and any(history['Q1_loss']):
+        ax8.plot(history['Q1_loss'], label=f'Q1 Loss', alpha=0.8, linewidth=1.5, color='#2E86AB')
+    if 'Q2_loss' in history and any(history['Q2_loss']):
+        ax8.plot(history['Q2_loss'], label=f'Q2 Loss', alpha=0.8, linewidth=1.5, color='#A23B72')
+    if 'fractal_loss' in history and any(history['fractal_loss']):
+        ax8.plot(history['fractal_loss'], label=f'Fractal Loss', alpha=0.8, linewidth=1.5, color='#F72585')
+    if 'height_loss' in history and any(history['height_loss']):
+        ax8.plot(history['height_loss'], label=f'Height Loss', alpha=0.8, linewidth=1.5, color='#06A77D')
+    ax8.set_xlabel('Step', fontsize=10)
+    ax8.set_ylabel('Loss', fontsize=10)
+    ax8.set_title('Loss Components Breakdown', fontsize=12, fontweight='bold')
+    ax8.legend(fontsize=7, ncol=2)
+    ax8.grid(True, alpha=0.3)
+    ax8.set_yscale('log')
+
+    # 9. Calibration metrics (ECE, Brier Score)
+    ax9 = fig.add_subplot(gs[2, 2])
+    if 'ece' in history and any(history['ece']):
+        ax9.plot(history['ece'], label='ECE (Expected Calibration Error)', alpha=0.8, linewidth=2, color='#F18F01')
+    if 'brier_score' in history and any(history['brier_score']):
+        ax9_twin = ax9.twinx()
+        ax9_twin.plot(history['brier_score'], label='Brier Score', alpha=0.8, linewidth=2, color='#A23B72', linestyle='--')
+        ax9_twin.set_ylabel('Brier Score', fontsize=10, color='#A23B72')
+        ax9_twin.tick_params(axis='y', labelcolor='#A23B72')
+        ax9_twin.legend(fontsize=9, loc='upper right')
+    ax9.set_xlabel('Step', fontsize=10)
+    ax9.set_ylabel('ECE', fontsize=10, color='#F18F01')
+    ax9.tick_params(axis='y', labelcolor='#F18F01')
+    ax9.set_title('Calibration Metrics', fontsize=12, fontweight='bold')
+    ax9.legend(fontsize=9, loc='upper left')
+    ax9.grid(True, alpha=0.3)
+
+    # 10. Q1/Q2 Entropy (Collapse detection)
+    ax10 = fig.add_subplot(gs[3, 0])
+    if 'Q1_entropy' in history and any(history['Q1_entropy']):
+        ax10.plot(history['Q1_entropy'], label='Q1 Entropy', alpha=0.8, linewidth=2, color='#2E86AB')
+    if 'Q2_entropy' in history and any(history['Q2_entropy']):
+        ax10.plot(history['Q2_entropy'], label='Q2 Entropy', alpha=0.8, linewidth=2, color='#A23B72')
+    ax10.axhline(y=0.1, color='red', linestyle='--', alpha=0.5, linewidth=1, label='Saturation threshold')
+    ax10.set_xlabel('Step', fontsize=10)
+    ax10.set_ylabel('Entropy', fontsize=10)
+    ax10.set_title('Q1/Q2 Entropy (Collapse Detection)', fontsize=12, fontweight='bold')
+    ax10.legend(fontsize=9)
+    ax10.grid(True, alpha=0.3)
+    ax10.set_ylim([0, 1])
+
+    # 11. Q1/Q2 Ranges (Distribution width)
+    ax11 = fig.add_subplot(gs[3, 1])
+    if 'Q1_range' in history and any(history['Q1_range']):
+        ax11.plot(history['Q1_range'], label='Q1 Range (max-min)', alpha=0.8, linewidth=2, color='#2E86AB')
+    if 'Q2_range' in history and any(history['Q2_range']):
+        ax11.plot(history['Q2_range'], label='Q2 Range (max-min)', alpha=0.8, linewidth=2, color='#A23B72')
+    ax11.axhline(y=0.01, color='red', linestyle='--', alpha=0.5, linewidth=1, label='Collapse threshold')
+    ax11.set_xlabel('Step', fontsize=10)
+    ax11.set_ylabel('Range', fontsize=10)
+    ax11.set_title('Q1/Q2 Distribution Width', fontsize=12, fontweight='bold')
+    ax11.legend(fontsize=9)
+    ax11.grid(True, alpha=0.3)
+    ax11.set_ylim([0, 1])
+
+    # 12. Perplexity
+    ax12 = fig.add_subplot(gs[3, 2])
+    if 'eval_perplexity' in history and history['eval_perplexity']:
+        eval_steps = np.linspace(0, len(history['train_loss']), len(history['eval_perplexity']))
+        ax12.plot(eval_steps, history['eval_perplexity'], label='Eval Perplexity',
+                 marker='o', markersize=4, linewidth=2, color='#7209B7')
+    ax12.set_xlabel('Step', fontsize=10)
+    ax12.set_ylabel('Perplexity', fontsize=10)
+    ax12.set_title('Evaluation Perplexity', fontsize=12, fontweight='bold')
+    ax12.legend(fontsize=9)
+    ax12.grid(True, alpha=0.3)
+
+    plt.suptitle('Pyramidal Q1/Q2/Fractal Training Curves', fontsize=16, fontweight='bold', y=0.995)
+    plt.savefig(save_dir / 'training_curves.png', dpi=300, bbox_inches='tight')
+    print(f"📊 Training curves saved to {save_dir / 'training_curves.png'}")
+    plt.close()
+
+
 def main():
     args = parse_args()
 
@@ -520,6 +715,41 @@ def main():
     if use_amp:
         print("   ✓ GradScaler initialized for mixed precision training")
 
+    # Initialize training history
+    history = {
+        'train_loss': [],
+        'ce_loss': [],
+        'base_loss': [],
+        'Q1_loss': [],
+        'Q2_loss': [],
+        'fractal_loss': [],
+        'height_loss': [],
+        'Q1_mean': [],
+        'Q2_mean': [],
+        'Q1_target': [],
+        'Q2_target': [],
+        'Q1_min': [],
+        'Q1_max': [],
+        'Q2_min': [],
+        'Q2_max': [],
+        'Q1_range': [],
+        'Q2_range': [],
+        'height_mean': [],
+        'height_target': [],
+        'fractal_mean': [],
+        'base_stability': [],
+        'w_memory': [],
+        'w_pain': [],
+        'w_choice': [],
+        'w_exploration': [],
+        'ece': [],
+        'brier_score': [],
+        'Q1_entropy': [],
+        'Q2_entropy': [],
+        'eval_loss': [],
+        'eval_perplexity': []
+    }
+
     # Training loop
     global_step = start_step
     start_time = time.time()
@@ -558,6 +788,68 @@ def main():
 
         # Use accumulated loss for logging
         loss = accumulated_loss
+
+        # Update history with training metrics
+        history['train_loss'].append(loss)
+
+        if pyramid_outputs is not None and loss_dict is not None:
+            # Q1/Q2 metrics
+            Q1 = pyramid_outputs['Q1_mean']
+            Q2 = pyramid_outputs['Q2_mean']
+            height = pyramid_outputs['height']
+            fractal = pyramid_outputs['fractal_uncertainty']
+
+            history['Q1_mean'].append(Q1.mean().item())
+            history['Q2_mean'].append(Q2.mean().item())
+            history['Q1_min'].append(Q1.min().item())
+            history['Q1_max'].append(Q1.max().item())
+            history['Q2_min'].append(Q2.min().item())
+            history['Q2_max'].append(Q2.max().item())
+            history['Q1_range'].append((Q1.max() - Q1.min()).item())
+            history['Q2_range'].append((Q2.max() - Q2.min()).item())
+
+            history['Q1_target'].append(loss_dict.get('target_Q1_mean', 0.0))
+            history['Q2_target'].append(loss_dict.get('target_Q2_mean', 0.0))
+
+            history['height_mean'].append(height.mean().item())
+            history['height_target'].append(loss_dict.get('target_height_mean', 0.0))
+            history['fractal_mean'].append(fractal.mean().item())
+
+            # Base stability and forces
+            history['base_stability'].append(loss_dict.get('base_stability', 0.0))
+            history['w_memory'].append(loss_dict.get('mean_memory', 0.0))
+            history['w_pain'].append(loss_dict.get('mean_pain', 0.0))
+            history['w_choice'].append(loss_dict.get('mean_choice', 0.0))
+            history['w_exploration'].append(loss_dict.get('mean_exploration', 0.0))
+
+            # Loss components
+            history['ce_loss'].append(loss_dict.get('ce_loss', 0.0))
+            history['base_loss'].append(loss_dict.get('base_loss', 0.0))
+            history['Q1_loss'].append(loss_dict.get('Q1_loss', 0.0))
+            history['Q2_loss'].append(loss_dict.get('Q2_loss', 0.0))
+            history['fractal_loss'].append(loss_dict.get('fractal_loss', 0.0))
+            history['height_loss'].append(loss_dict.get('height_loss', 0.0))
+
+            # Calibration
+            history['ece'].append(loss_dict.get('ece', 0.0))
+            history['brier_score'].append(loss_dict.get('brier_score', 0.0))
+
+            # Entropy (collapse detection)
+            def binary_entropy(p):
+                p = p.clamp(1e-8, 1-1e-8)
+                return -(p * p.log() + (1-p) * (1-p).log()).mean().item()
+
+            history['Q1_entropy'].append(binary_entropy(Q1))
+            history['Q2_entropy'].append(binary_entropy(Q2))
+        else:
+            # Fill with zeros if no pyramid outputs
+            for key in ['Q1_mean', 'Q2_mean', 'Q1_min', 'Q1_max', 'Q2_min', 'Q2_max',
+                        'Q1_range', 'Q2_range', 'Q1_target', 'Q2_target', 'height_mean',
+                        'height_target', 'fractal_mean', 'base_stability', 'w_memory',
+                        'w_pain', 'w_choice', 'w_exploration', 'ce_loss', 'base_loss',
+                        'Q1_loss', 'Q2_loss', 'fractal_loss', 'height_loss', 'ece',
+                        'brier_score', 'Q1_entropy', 'Q2_entropy']:
+                history[key].append(0.0)
 
         # Log training metrics
         if global_step % 10 == 0:
@@ -699,6 +991,10 @@ def main():
             print(f"\nEvaluating at step {global_step}...")
             val_loss, val_pyramid_metrics = evaluate(model, val_loader, device)
 
+            # Update history with eval metrics
+            history['eval_loss'].append(val_loss)
+            history['eval_perplexity'].append(torch.exp(torch.tensor(val_loss)).item())
+
             writer.add_scalar('val/loss', val_loss, global_step)
             for key, value in val_pyramid_metrics.items():
                 if key.startswith('force_'):
@@ -758,6 +1054,16 @@ def main():
     final_path = exp_dir / 'final_model'
     model.save_pretrained(str(final_path))
     print(f"\n✅ Training complete! Final model saved to {final_path}")
+
+    # Save training history
+    history_path = exp_dir / 'history.json'
+    with open(history_path, 'w') as f:
+        json.dump(history, f, indent=2)
+    print(f"💾 Training history saved to {history_path}")
+
+    # Plot training curves
+    print("\n📊 Generating training curves...")
+    plot_training_curves(history, exp_dir)
 
     writer.close()
 
