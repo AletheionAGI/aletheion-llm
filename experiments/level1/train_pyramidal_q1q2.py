@@ -49,7 +49,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.aletheion.pyramidal_q1q2_model import AletheionPyramidalQ1Q2Transformer
-from data.dataset import TinyStoriesDataset, load_wikitext_dataset
+from data.dataset import load_wikitext_dataset
 from src.utils import get_device, set_seed
 
 
@@ -461,18 +461,8 @@ def main():
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"   Model parameters: {total_params:,} (trainable: {trainable_params:,})")
 
-    # Load datasets (only if TinyStories, WikiText-2 already loaded above)
-    if args.dataset == 'tinystories':
-        train_dataset = TinyStoriesDataset(
-            data_dir=args.data_dir,
-            split='train',
-            max_length=args.max_seq_len
-        )
-        val_dataset = TinyStoriesDataset(
-            data_dir=args.data_dir,
-            split='validation',
-            max_length=args.max_seq_len
-        )
+    # Note: WikiText-2 datasets already loaded above
+    # TinyStories support has been removed
 
     # Create dataloaders with appropriate collate_fn
     if args.dataset == 'wikitext':
