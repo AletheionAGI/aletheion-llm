@@ -1357,7 +1357,11 @@ Penalize miscalibrated confidence directly in the reward.
 
 \subsubsection*{4. Catastrophic Forgetting During Fine-Tuning}
 
-\textbf{Problem:} Fine-tuning on narrow distribution may collapse gates.
+\textbf{Problem:} Fine-tuning on narrow distribution may collapse gates. As illustrated in Step~36{,}300, the model undergoes a transient phase of
+\textbf{representational compression} (Memory~$\downarrow$, Pain~$\uparrow$),
+consistent with the ``Catastrophic Forgetting'' dynamics described in
+Section~\ref{sec:catastrophic-forgetting}.
+
 
 \textbf{Example:} Fine-tune on medical QA dataset $\to$ gates learn to always be confident on medical queries, but forget to trigger uncertainty on non-medical queries.
 
