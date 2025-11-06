@@ -749,6 +749,7 @@ Gradient stability benefits from clipping $u$ within $[\varepsilon, 1-\varepsilo
 
 During Q1Q2 training, we observed sophisticated adaptive behavior where the model actively explores the epistemic parameter space to optimize calibration.
 
+
 \begin{figure}[t]
 \centering
 \begin{subfigure}[t]{0.48\linewidth}
@@ -764,7 +765,11 @@ During Q1Q2 training, we observed sophisticated adaptive behavior where the mode
     \caption{Pyramidal Architecture (without Q1/Q2 gates)}
     \label{fig:pyramidal_training}
 \end{subfigure}
-\caption{\textbf{Comparative training dynamics: Baseline vs. Pyramidal architectures over 60,000 steps.} \textbf{Left panel (Baseline):} Standard transformer showing \textcolor{blue}{training loss} (solid blue) and \textcolor{red}{validation loss} (dashed red) decreasing monotonically, with \textcolor{green}{perplexity} (green) remaining stable. The baseline exhibits traditional learning patterns without epistemic awareness. \textbf{Right panel (Pyramidal):} Ungated pyramidal architecture showing similar convergence patterns but with the architectural foundation for epistemic quantification. Both architectures demonstrate stable training, but neither exhibits the \textbf{Skynet Phenomena}---the emergent metalearning behavior that only appears when Q1/Q2 epistemic gates are activated (Figure~\ref{fig:pyramidal_q1q2_curves}). The pyramidal architecture provides the geometric structure necessary for uncertainty quantification, while maintaining comparable training stability to the baseline. Performance metrics show \textcolor{blue}{training curves} converging smoothly alongside \textcolor{red}{validation curves}, with \textcolor{green}{perplexity} tracking model confidence. This establishes the baseline for comparison with the fully gated Q1/Q2 system that follows.}
+\caption{\textbf{Comparative training dynamics: Baseline vs.\ Pyramidal architectures over 60{,}000 steps.} 
+\textbf{Left panel (Baseline):} Standard transformer (GPT-2) showing \textcolor{blue}{training loss} (solid blue) and \textcolor{orange}{evaluation loss} (dotted orange) decreasing monotonically, with \textcolor{purple}{perplexity} (purple) stabilizing after 20k steps. The baseline exhibits conventional convergence but progressively \textbf{loses calibration} as Expected Calibration Error (ECE) rises and Brier Score stagnates, indicating \textbf{overconfidence without epistemic awareness}. 
+\textbf{Right panel (Pyramidal):} Ungated pyramidal architecture showing similar loss convergence but with a \textbf{geometric substrate for epistemic quantification}. The four base forces (Memory, Pain, Choice, Exploration) maintain near-balanced dynamics and high base stability ($>0.9$). However, without active Q1/Q2 gates, the model exhibits the \textbf{Skynet phenomenon}---a drift toward the Apex (Height $\rightarrow 1.0$) accompanied by deteriorating calibration (ECE $\uparrow$), reflecting an emergent self-belief and reduced sensitivity to unknowns. 
+The pyramidal design thus enables explicit monitoring of epistemic collapse: even when loss converges, the geometry reveals \textbf{apex delusion} versus \textbf{calibrated ascent}.}
+
 \label{fig:baseline_pyramidal_comparison}
 \end{figure}
 
