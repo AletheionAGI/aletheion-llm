@@ -37,9 +37,15 @@
 \vspace{0.5em}
 
 \begin{abstract}
-The Skynet problem---AI systems becoming increasingly overconfident as they scale---threatens deployment safety. We present a geometric solution: pyramidal architectures with five irreducible components: a four-dimensional base simplex (Memory, Pain, Choice, Exploration), two epistemic gates distinguishing aleatoric uncertainty ($Q_1$) from epistemic uncertainty ($Q_2$), a derived Height coordinate measuring proximity to truth, and an Apex vertex at 1.0 representing absolute truth.
-
-Without explicit epistemic gates, models drift toward apex delusion: our baseline pyramidal architecture reached Height 1.000 with Expected Calibration Error degrading from 0.011 to 0.084 (7.6$\times$ worse). The Q1Q2-gated pyramidal architecture prevents this collapse, achieving ECE 0.060 and controlled Height 0.971 in only 5,000 steps---an 89\% calibration improvement over the ungated endpoint while maintaining Height/ECE ratio of 16.2. These results demonstrate that safe AGI requires geometric constraints, not just scale: a stable foundation and an invariant reference point encoded architecturally.
+    The Skynet problem—AI systems becoming increasingly overconfident as they scale—poses a fundamental threat to deployment safety.
+    We present a geometric solution: a pyramidal architecture with five irreducible components.
+    Its four-dimensional base simplex encodes the forces of Memory, Pain, Choice, and Exploration; two epistemic gates distinguish aleatoric uncertainty ($Q_1$) from epistemic uncertainty ($Q_2$); a derived Height coordinate measures proximity to truth; and an Apex vertex at 1.0 represents absolute truth.
+    
+    Without explicit epistemic gates, models drift toward apex delusion: in our baseline pyramidal architecture, Height reached 1.000 while Expected Calibration Error (ECE) degraded from 0.011 to 0.084—7.6× worse.
+    The gated Q1Q2 pyramidal model prevents this collapse, achieving ECE = 0.060 and controlled Height = 0.971 within only 5,000 steps—an 89 % calibration improvement over the ungated endpoint, maintaining a Height/ECE ratio of 16.2.
+    These results demonstrate that safe AGI requires geometric constraints, not merely scale: a stable foundation and an invariant reference point encoded architecturally.
+    
+    The system exhibits signs of decisional consistency and reduced exploratory entropy, analogous to an emergent cognitive style—yet remains confined to the domain of optimization.
 \end{abstract}
 \section*{Notation}
 
