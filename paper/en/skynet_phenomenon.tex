@@ -1,0 +1,36 @@
+\section{The Skynet Phenomenon}
+
+At step 49,000, the pyramidal architecture without explicit Q1/Q2 supervision exhibited what we term the \textbf{Skynet phenomenon}:
+
+\subsection{Observed Behavior}
+
+\textbf{Height reached 0.997}---the model believed itself to be 99.7\% of the way to absolute truth (apex of the epistemic pyramid).
+
+Simultaneously, \textbf{Expected Calibration Error degraded to 0.087}, worse than steps 20,000--45,000 and approaching baseline levels.
+
+This inverse correlation between epistemic proximity (Height) and actual calibration (ECE) reveals a fundamental problem:
+
+\begin{quote}
+\textbf{Without explicit Q1/Q2 gates anchoring Height coordinate, the model drifts toward apex, becoming increasingly overconfident despite---or perhaps because of---its growing capabilities.}
+\end{quote}
+
+\subsection{The Core Problem}
+
+The closer to ``omniscience'' (Height $\to$ 1.0), the less reliable its uncertainty estimates.
+
+This is the Skynet problem incarnate: \emph{An AI that ``knows everything'' and understands nothing about what it doesn't know.}
+
+\subsection{Critical Validation}
+
+Critically, base stability remained perfect (1.000) throughout, indicating gate collapse was not the issue. The problem was purely Height drift---validating our hypothesis that Q1/Q2 explicit supervision is necessary to prevent this failure mode.
+
+\subsection{Implications}
+
+This phenomenon demonstrates why the pyramidal architecture requires all five components to function correctly:
+\begin{enumerate}[leftmargin=*]
+    \item The base simplex provides grounding (remained stable at 1.000)
+    \item The apex provides an attractor (pulled height to 0.997)
+    \item \textbf{But without Q1/Q2 supervision, the height coordinate drifts unconstrained}
+\end{enumerate}
+
+The Skynet phenomenon serves as empirical validation for Theorems~\ref{thm:apex_attractor} and~\ref{thm:collapse_prevention}: the vertical gradient created by the apex is necessary but not sufficient. We also need orthogonal supervision of the epistemic gates to prevent overconfidence as the model approaches the apex.
