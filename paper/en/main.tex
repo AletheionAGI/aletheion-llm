@@ -5,6 +5,7 @@
 \usepackage{algpseudocode}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\usepackage{subcaption}
 \usepackage{hyperref}
 \usepackage{cleveref}
 \usepackage{enumitem}
@@ -747,6 +748,25 @@ Gradient stability benefits from clipping $u$ within $[\varepsilon, 1-\varepsilo
 \section{Adaptive Epistemic Dynamics: Emergent Metalearning}
 
 During Q1Q2 training, we observed sophisticated adaptive behavior where the model actively explores the epistemic parameter space to optimize calibration.
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/baseline_training_curves.png}
+    \caption{Baseline Transformer}
+    \label{fig:baseline_training}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/pyramidal_training_curves.png}
+    \caption{Pyramidal Architecture (without Q1/Q2 gates)}
+    \label{fig:pyramidal_training}
+\end{subfigure}
+\caption{\textbf{Comparative training dynamics: Baseline vs. Pyramidal architectures over 60,000 steps.} \textbf{Left panel (Baseline):} Standard transformer showing \textcolor{blue}{training loss} (solid blue) and \textcolor{red}{validation loss} (dashed red) decreasing monotonically, with \textcolor{green}{perplexity} (green) remaining stable. The baseline exhibits traditional learning patterns without epistemic awareness. \textbf{Right panel (Pyramidal):} Ungated pyramidal architecture showing similar convergence patterns but with the architectural foundation for epistemic quantification. Both architectures demonstrate stable training, but neither exhibits the \textbf{Skynet Phenomena}---the emergent metalearning behavior that only appears when Q1/Q2 epistemic gates are activated (Figure~\ref{fig:pyramidal_q1q2_curves}). The pyramidal architecture provides the geometric structure necessary for uncertainty quantification, while maintaining comparable training stability to the baseline. Performance metrics show \textcolor{blue}{training curves} converging smoothly alongside \textcolor{red}{validation curves}, with \textcolor{green}{perplexity} tracking model confidence. This establishes the baseline for comparison with the fully gated Q1/Q2 system that follows.}
+\label{fig:baseline_pyramidal_comparison}
+\end{figure}
 
 \subsection{Exploration Cycles}
 
