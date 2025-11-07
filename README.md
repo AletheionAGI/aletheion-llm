@@ -17,6 +17,7 @@
 
 ## Table of Contents
 
+- [Philosophical Foundations](#Philosophical-Foundations)
 - [Overview](#overview)
 - [Features](#features)
 - [Background](#background)
@@ -32,6 +33,22 @@
 - [Contact](#contact)
 
 ---
+
+## Philosophical Foundations
+
+The epistemic framework behind Aletheion was first explored in 
+"Demotéica" (Maya Rahto), a philosophical novel about ideological 
+possession and epistemic authenticity.
+
+For readers interested in the conceptual origins of Q1/Q2 gates 
+and the "apex delusion" problem, the book is available on Amazon:
+
+PT-BR: https://www.amazon.com.br/Demot%C3%A9ica-Completo-Maya-Rahto-ebook/dp/B09YN3MBQW
+
+EN: https://www.amazon.com/dp/B0F2GDCGK5
+
+*Note: Reading the book is not required to use Aletheion, but 
+provides deeper context on the philosophical motivations.*
 
 ## Overview
 
