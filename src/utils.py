@@ -5,16 +5,16 @@ from __future__ import annotations
 import math
 import random
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import torch
 import yaml
 
 
-def load_config(path: str | Path) -> Dict[str, Any]:
+def load_config(path: str | Path) -> dict[str, Any]:
     """Load a YAML configuration file."""
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

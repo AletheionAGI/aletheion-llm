@@ -12,13 +12,11 @@ Tests cover:
 
 import pytest
 import torch
-import torch.nn as nn
-
 from src.aletheion.gates import (
-    LocalUncertaintyGate,
     CrossContextGate,
+    LocalUncertaintyGate,
+    entropy_regularization,
     epistemic_softmax,
-    entropy_regularization
 )
 
 

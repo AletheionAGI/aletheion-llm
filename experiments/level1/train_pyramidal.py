@@ -14,26 +14,24 @@ Usage:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
-import os
-import json
 import gc
+import json
 from pathlib import Path
-from typing import Dict
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
+from data.dataset import load_wikitext_dataset
+from src import get_device, set_seed
+from src.aletheion.loss import PyramidalVAROLoss, compute_calibration_metrics
+from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import numpy as np
-
-from src import BaselineTransformer, get_device, set_seed
-from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
-from src.aletheion.loss import PyramidalVAROLoss, compute_calibration_metrics
-from data.dataset import load_wikitext_dataset
 
 
 def collate_fn(batch):
@@ -85,7 +83,7 @@ def create_pyramidal_model(
 
 def train_step(
     model: AletheionPyramidalTransformer,
-    batch: Dict,
+    batch: dict,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     pyramid_loss: PyramidalVAROLoss,
@@ -93,7 +91,7 @@ def train_step(
     is_accumulation_step: bool = False,
     scaler = None,
     use_amp: bool = False
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Perform one training step with optional gradient accumulation and mixed precision.
 
     Args:
@@ -116,7 +114,7 @@ def train_step(
     input_ids = batch["input_ids"].to(device)
     labels = batch["labels"].to(device)
 
-    metrics: Dict[str, float] = {}
+    metrics: dict[str, float] = {}
 
     # Forward pass with optional mixed precision
     if use_amp and scaler is not None:
@@ -214,7 +212,7 @@ def evaluate_model(
     device: torch.device,
     compute_calibration: bool = True,
     max_eval_batches: int = 100  # CRITICAL: Limit evaluation to prevent OOM
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Evaluate model and compute metrics using online statistics.
 
     IMPORTANT: This function now uses incremental computation to avoid
@@ -377,7 +375,7 @@ def evaluate_model(
     return metrics
 
 
-def plot_training_curves(history: Dict[str, list], save_dir: Path):
+def plot_training_curves(history: dict[str, list], save_dir: Path):
     """Plot training curves."""
     fig, axes = plt.subplots(3, 2, figsize=(15, 12))
 
@@ -505,16 +503,16 @@ def main():
 
     effective_batch_size = args.batch_size * args.gradient_accumulation_steps
 
-    print(f"🔻 Training Pyramidal Epistemology Model")
+    print("🔻 Training Pyramidal Epistemology Model")
     if args.num_epochs is not None:
         print(f"   - Epochs: {args.num_epochs}")
     elif args.steps is not None:
         print(f"   - Steps: {args.steps}")
     print(f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
     if args.gradient_checkpointing:
-        print(f"   - Gradient checkpointing: enabled")
+        print("   - Gradient checkpointing: enabled")
     if args.fp16:
-        print(f"   - Mixed precision (fp16): enabled")
+        print("   - Mixed precision (fp16): enabled")
     if args.resume_from:
         print(f"   - Resuming from: {args.resume_from}")
     print(f"   - λ_base: {args.lambda_base}")
@@ -593,7 +591,7 @@ def main():
         # Load history if available
         history_path = Path(args.resume_from).parent / 'history.json'
         if history_path.exists():
-            with open(history_path, 'r') as f:
+            with open(history_path) as f:
                 history = json.load(f)
             print(f"   ✓ Loaded training history ({len(history['train_loss'])} steps)")
 
@@ -682,7 +680,7 @@ def main():
         metrics = accumulated_metrics
 
         # Log metrics
-        for key in history.keys():
+        for key in history:
             if key in metrics:
                 history[key].append(metrics[key])
             elif key.startswith('eval_'):

@@ -10,12 +10,11 @@ Tests:
 import pytest
 import torch
 import torch.nn as nn
-
 from src.aletheion.pyramid_q1q2_fractal import (
+    EpistemicMultiHeadAttention,
     PyramidalEpistemicGatesWithQ1Q2,
     PyramidalVAROLossWithQ1Q2,
-    EpistemicMultiHeadAttention,
-    compute_pyramidal_q1q2_metrics
+    compute_pyramidal_q1q2_metrics,
 )
 from src.aletheion.pyramidal_q1q2_model import AletheionPyramidalQ1Q2Transformer
 

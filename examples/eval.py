@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Tuple
 
 import torch
-from torch.utils.data import DataLoader
-
 from data.dataset import collate_fn, load_wikitext_dataset
 from src import BaselineTransformer, get_device
+from torch.utils.data import DataLoader
 
 
-def evaluate_checkpoint(checkpoint_path: Path) -> Tuple[float, float]:
+def evaluate_checkpoint(checkpoint_path: Path) -> tuple[float, float]:
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     config = checkpoint["config"]
 

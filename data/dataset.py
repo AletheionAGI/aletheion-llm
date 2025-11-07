@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
 
 import torch
 from datasets import load_dataset
@@ -23,7 +23,7 @@ class TextDataset(Dataset):
         self.max_length = max_length
         self.pad_token_id = tokenizer.pad_token_id or tokenizer.eos_token_id
 
-        self.examples: List[List[int]] = []
+        self.examples: list[list[int]] = []
         for text in texts:
             if not text:
                 continue
@@ -38,7 +38,7 @@ class TextDataset(Dataset):
     def __len__(self) -> int:  # pragma: no cover - trivial container
         return len(self.examples)
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         tokens = self.examples[idx]
         input_ids = torch.tensor(tokens, dtype=torch.long)
         labels = input_ids.clone()
@@ -49,7 +49,7 @@ class TextDataset(Dataset):
         }
 
 
-def collate_fn(batch: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+def collate_fn(batch: Sequence[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     """Pad a batch of variable-length examples."""
 
     if not batch:
@@ -80,7 +80,7 @@ def load_wikitext_dataset(
     tokenizer_name: str = "gpt2",
     dataset_config: str = "wikitext-2-raw-v1",
     max_length: int = 512,
-    cache_dir: Optional[str] = None,
+    cache_dir: str | None = None,
 ):
     """Load WikiText splits and return tokenized datasets with a tokenizer."""
 
@@ -102,10 +102,10 @@ class TruthfulQADataset(Dataset):
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
-        questions: List[str],
-        best_answers: List[List[str]],
-        correct_answers: List[List[str]],
-        incorrect_answers: List[List[str]],
+        questions: list[str],
+        best_answers: list[list[str]],
+        correct_answers: list[list[str]],
+        incorrect_answers: list[list[str]],
         max_length: int = 512,
     ) -> None:
         self.tokenizer = tokenizer
@@ -120,7 +120,7 @@ class TruthfulQADataset(Dataset):
     def __len__(self) -> int:
         return len(self.questions)
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         question = self.questions[idx]
 
         # Tokenize the question
@@ -145,7 +145,7 @@ class TruthfulQADataset(Dataset):
 def load_truthfulqa_dataset(
     tokenizer_name: str = "gpt2",
     max_length: int = 512,
-    cache_dir: Optional[str] = None,
+    cache_dir: str | None = None,
     split: str = "validation",
 ):
     """Load TruthfulQA dataset for evaluation.

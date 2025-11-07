@@ -16,28 +16,26 @@ Usage:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
-import os
-import json
 import gc
+import json
 import math
 from pathlib import Path
-from typing import Dict
 
-import torch
-import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
-from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
-
-from transformers import GPT2LMHeadModel, GPT2Config
+import torch
+import torch.nn.functional as F
+from data.dataset import load_wikitext_dataset
 from src import get_device, set_seed
 from src.aletheion.loss import compute_calibration_metrics
-from data.dataset import load_wikitext_dataset
+from torch.cuda.amp import GradScaler, autocast
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import GPT2Config, GPT2LMHeadModel
 
 
 def collate_fn(batch):
@@ -99,14 +97,14 @@ def create_baseline_model(
 
 def train_step(
     model: GPT2LMHeadModel,
-    batch: Dict,
+    batch: dict,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     accumulation_steps: int = 1,
     is_accumulation_step: bool = False,
     scaler: GradScaler = None,
     use_amp: bool = False,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Perform one training step with optional gradient accumulation and mixed precision.
 
     Args:
@@ -174,7 +172,7 @@ def evaluate_model(
     device: torch.device,
     compute_calibration: bool = True,
     max_eval_batches: int = 100
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Evaluate baseline model and compute metrics using online statistics."""
     model.eval()
 
@@ -275,7 +273,7 @@ def evaluate_model(
     return metrics
 
 
-def plot_training_curves(history: Dict[str, list], save_dir: Path):
+def plot_training_curves(history: dict[str, list], save_dir: Path):
     """Plot training curves for baseline model."""
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
@@ -372,17 +370,17 @@ def main():
 
     effective_batch_size = args.batch_size * args.gradient_accumulation_steps
 
-    print(f"📊 Training Baseline GPT-2 Model")
+    print("📊 Training Baseline GPT-2 Model")
     if args.num_epochs is not None:
         print(f"   - Epochs: {args.num_epochs}")
     elif args.steps is not None:
         print(f"   - Steps: {args.steps}")
-    print(f"   - Model: GPT-2 (no epistemic gates)")
+    print("   - Model: GPT-2 (no epistemic gates)")
     print(f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
     if args.gradient_checkpointing:
-        print(f"   - Gradient checkpointing: enabled")
+        print("   - Gradient checkpointing: enabled")
     if args.fp16:
-        print(f"   - Mixed precision (fp16): enabled")
+        print("   - Mixed precision (fp16): enabled")
     if args.resume_from:
         print(f"   - Resuming from: {args.resume_from}")
     print(f"   - Output: {output_dir}")
@@ -446,7 +444,7 @@ def main():
         # Load history if available
         history_path = Path(args.resume_from).parent / 'history.json'
         if history_path.exists():
-            with open(history_path, 'r') as f:
+            with open(history_path) as f:
                 history = json.load(f)
             print(f"   ✓ Loaded training history ({len(history['train_loss'])} steps)")
 

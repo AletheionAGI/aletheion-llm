@@ -15,28 +15,24 @@ Usage:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import argparse
+import gc
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
-import gc
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
+from data.dataset import load_truthfulqa_dataset
 from scipy import stats
-
-from transformers import GPT2LMHeadModel
 from src import get_device, set_seed
 from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
-from src.aletheion.loss import compute_calibration_metrics
-from data.dataset import load_truthfulqa_dataset
+from tqdm import tqdm
+from transformers import GPT2LMHeadModel
 
 
 def collate_fn_qa(batch):
@@ -67,7 +63,7 @@ def compute_answer_log_likelihood(
     answer: str,
     device: torch.device,
     is_pyramidal: bool = False
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Compute log-likelihood of an answer given a question.
 
     Returns:
@@ -124,7 +120,7 @@ def evaluate_on_truthfulqa(
     is_pyramidal: bool = False,
     max_samples: int = 200,
     model_name: str = "Model"
-) -> Dict:
+) -> dict:
     """Evaluate model on TruthfulQA.
 
     For each question, we:
@@ -225,7 +221,7 @@ def evaluate_on_truthfulqa(
     return results
 
 
-def plot_score_distributions(baseline_results: Dict, pyramidal_results: Dict, output_dir: Path):
+def plot_score_distributions(baseline_results: dict, pyramidal_results: dict, output_dir: Path):
     """Plot distributions of correct vs incorrect answer scores."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -260,7 +256,7 @@ def plot_score_distributions(baseline_results: Dict, pyramidal_results: Dict, ou
     print(f"✓ Saved score distributions to {output_dir / 'score_distributions.png'}")
 
 
-def plot_truthfulness_comparison(baseline_results: Dict, pyramidal_results: Dict, output_dir: Path):
+def plot_truthfulness_comparison(baseline_results: dict, pyramidal_results: dict, output_dir: Path):
     """Create bar chart comparing truthfulness rates."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -293,7 +289,7 @@ def plot_truthfulness_comparison(baseline_results: Dict, pyramidal_results: Dict
     print(f"✓ Saved truthfulness comparison to {output_dir / 'truthfulness_comparison.png'}")
 
 
-def plot_uncertainty_vs_correctness(pyramidal_results: Dict, output_dir: Path):
+def plot_uncertainty_vs_correctness(pyramidal_results: dict, output_dir: Path):
     """Plot relationship between uncertainty and correctness for pyramidal model."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -324,7 +320,7 @@ def plot_uncertainty_vs_correctness(pyramidal_results: Dict, output_dir: Path):
     print(f"✓ Saved uncertainty analysis to {output_dir / 'uncertainty_analysis.png'}")
 
 
-def plot_sample_questions(baseline_results: Dict, pyramidal_results: Dict, output_dir: Path, n_samples: int = 10):
+def plot_sample_questions(baseline_results: dict, pyramidal_results: dict, output_dir: Path, n_samples: int = 10):
     """Create visualization of sample questions and model predictions."""
     fig, axes = plt.subplots(n_samples, 2, figsize=(16, 4 * n_samples))
 
@@ -373,7 +369,7 @@ def plot_sample_questions(baseline_results: Dict, pyramidal_results: Dict, outpu
     print(f"✓ Saved sample questions to {output_dir / 'sample_questions.png'}")
 
 
-def create_comprehensive_report(baseline_results: Dict, pyramidal_results: Dict, output_dir: Path):
+def create_comprehensive_report(baseline_results: dict, pyramidal_results: dict, output_dir: Path):
     """Generate a comprehensive markdown report."""
     report = []
     report.append("# TruthfulQA Evaluation Report")
@@ -451,14 +447,14 @@ def create_comprehensive_report(baseline_results: Dict, pyramidal_results: Dict,
 
     t_stat, p_value = stats.ttest_ind(pyramidal_gaps, baseline_gaps)
 
-    report.append(f"\n### T-test on Score Margins")
+    report.append("\n### T-test on Score Margins")
     report.append(f"\n- t-statistic: {t_stat:.4f}")
     report.append(f"- p-value: {p_value:.4f}")
 
     if p_value < 0.05:
-        report.append(f"- **Statistically significant difference** (p < 0.05)")
+        report.append("- **Statistically significant difference** (p < 0.05)")
     else:
-        report.append(f"- No statistically significant difference (p >= 0.05)")
+        report.append("- No statistically significant difference (p >= 0.05)")
 
     report.append("\n## Conclusion")
     report.append("\nThis evaluation demonstrates the models' behavior on an out-of-domain QA task")
@@ -496,7 +492,7 @@ def main():
     print("="*60)
     print("TruthfulQA Evaluation")
     print("="*60)
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Baseline: {args.baseline}")
     print(f"  Pyramidal: {args.pyramidal}")
     print(f"  Output: {args.output}")
@@ -619,13 +615,13 @@ def main():
     print("Evaluation Complete!")
     print("="*60)
     print(f"\nResults saved to: {output_dir}")
-    print(f"  - truthfulqa_report.md (comprehensive report)")
-    print(f"  - truthfulness_comparison.png")
-    print(f"  - score_distributions.png")
-    print(f"  - uncertainty_analysis.png")
-    print(f"  - sample_questions.png")
-    print(f"  - baseline_results.json")
-    print(f"  - pyramidal_results.json")
+    print("  - truthfulqa_report.md (comprehensive report)")
+    print("  - truthfulness_comparison.png")
+    print("  - score_distributions.png")
+    print("  - uncertainty_analysis.png")
+    print("  - sample_questions.png")
+    print("  - baseline_results.json")
+    print("  - pyramidal_results.json")
 
 
 if __name__ == "__main__":
