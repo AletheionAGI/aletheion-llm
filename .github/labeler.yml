@@ -1,0 +1,83 @@
+# Auto-labeling configuration for pull requests
+# This file is used by the labeler GitHub Action to automatically apply labels
+# based on changed files in pull requests
+
+# Documentation
+documentation:
+  - changed-files:
+    - any-glob-to-any-file: ['docs/**/*', '*.md', 'mkdocs.yml']
+
+# Tests
+tests:
+  - changed-files:
+    - any-glob-to-any-file: ['tests/**/*', 'pytest.ini']
+
+# Core library
+core:
+  - changed-files:
+    - any-glob-to-any-file: ['src/**/*.py']
+
+# Epistemic gates
+epistemic:
+  - changed-files:
+    - any-glob-to-any-file: ['src/aletheion/**/*', 'src/**/gates.py', 'src/**/loss.py']
+
+# Model architecture
+model:
+  - changed-files:
+    - any-glob-to-any-file: ['src/**/model.py', 'src/**/attention.py', 'src/**/pyramidal*.py']
+
+# Training
+training:
+  - changed-files:
+    - any-glob-to-any-file: ['src/**/training/**/*', 'examples/train*.py', 'experiments/**/*']
+
+# Configuration
+config:
+  - changed-files:
+    - any-glob-to-any-file: ['config/**/*', '*.yaml', '*.yml', '*.toml', '*.ini']
+
+# CI/CD
+ci-cd:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/**/*', 'Dockerfile', 'docker-compose*.yml']
+
+# Dependencies
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file: ['requirements.txt', 'pyproject.toml', 'setup.py', 'setup.cfg']
+
+# Examples
+examples:
+  - changed-files:
+    - any-glob-to-any-file: ['examples/**/*']
+
+# Scripts
+scripts:
+  - changed-files:
+    - any-glob-to-any-file: ['scripts/**/*']
+
+# Data processing
+data:
+  - changed-files:
+    - any-glob-to-any-file: ['data/**/*']
+
+# Benchmarks
+benchmarks:
+  - changed-files:
+    - any-glob-to-any-file: ['**/benchmark*.py', '**/test_truthfulqa.py', '**/test_abstention.py']
+
+# Docker
+docker:
+  - changed-files:
+    - any-glob-to-any-file: ['Dockerfile', 'docker-compose*.yml', '.dockerignore']
+
+# GitHub Actions
+github-actions:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/workflows/**/*']
+
+# Community files
+community:
+  - changed-files:
+    - any-glob-to-any-file: ['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'SECURITY.md', 'SUPPORT.md', 'GOVERNANCE.md']
