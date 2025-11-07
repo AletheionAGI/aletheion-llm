@@ -16,8 +16,6 @@ References:
 
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -83,7 +81,7 @@ class PyramidalEpistemicGates(nn.Module):
         nn.init.normal_(self.height_combiner.weight, mean=0.0, std=0.02)
         nn.init.constant_(self.height_combiner.bias, -2.0)
 
-    def forward(self, hidden_states: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def forward(self, hidden_states: torch.Tensor) -> dict[str, torch.Tensor]:
         """Forward pass through pyramidal gates.
 
         Args:
@@ -189,7 +187,7 @@ class PyramidalEpistemicGates(nn.Module):
     def get_pyramid_position(
         self,
         hidden_states: torch.Tensor
-    ) -> Dict[str, torch.Tensor]:
+    ) -> dict[str, torch.Tensor]:
         """Get the AI's position in the pyramid.
 
         Returns detailed geometric information about the epistemic state.
@@ -278,9 +276,9 @@ class PyramidalTemperatureModulator(nn.Module):
 
 
 def compute_pyramidal_metrics(
-    pyramid_outputs: Dict[str, torch.Tensor],
-    valid_mask: Optional[torch.Tensor] = None
-) -> Dict[str, float]:
+    pyramid_outputs: dict[str, torch.Tensor],
+    valid_mask: torch.Tensor | None = None
+) -> dict[str, float]:
     """Compute aggregate metrics from pyramidal outputs.
 
     Args:

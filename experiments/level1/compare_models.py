@@ -16,30 +16,28 @@ Usage:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import argparse
-import json
-from pathlib import Path
-from typing import Dict, Tuple, Optional
-import math
 import gc
+import json
+import math
+from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
+from data.dataset import load_wikitext_dataset
+from scipy import stats
+from src import get_device, set_seed
+from src.aletheion.loss import compute_calibration_metrics
+from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-from scipy import stats
-
 from transformers import GPT2LMHeadModel
-from src import get_device, set_seed
-from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
-from src.aletheion.loss import compute_calibration_metrics
-from data.dataset import load_wikitext_dataset
 
 
 def collate_fn(batch):
@@ -57,7 +55,7 @@ def evaluate_baseline(
     loader: DataLoader,
     device: torch.device,
     max_batches: int = 100
-) -> Dict:
+) -> dict:
     """Evaluate baseline model."""
     model.eval()
 
@@ -151,7 +149,7 @@ def evaluate_pyramidal(
     loader: DataLoader,
     device: torch.device,
     max_batches: int = 100
-) -> Dict:
+) -> dict:
     """Evaluate pyramidal model."""
     model.eval()
 
@@ -253,8 +251,8 @@ def evaluate_pyramidal(
 
 
 def plot_calibration_comparison(
-    baseline_results: Dict,
-    pyramidal_results: Dict,
+    baseline_results: dict,
+    pyramidal_results: dict,
     save_path: Path
 ):
     """Plot reliability diagrams for both models."""
@@ -314,8 +312,8 @@ def plot_calibration_comparison(
 
 
 def plot_perplexity_ece_scatter(
-    baseline_results: Dict,
-    pyramidal_results: Dict,
+    baseline_results: dict,
+    pyramidal_results: dict,
     save_path: Path
 ):
     """Plot perplexity vs ECE scatter."""
@@ -368,9 +366,9 @@ def plot_perplexity_ece_scatter(
 
 
 def statistical_significance_test(
-    baseline_results: Dict,
-    pyramidal_results: Dict
-) -> Dict:
+    baseline_results: dict,
+    pyramidal_results: dict
+) -> dict:
     """Perform statistical significance tests."""
     results = {}
 
@@ -453,9 +451,9 @@ def statistical_significance_test(
 
 
 def create_summary_report(
-    baseline_results: Dict,
-    pyramidal_results: Dict,
-    stat_results: Dict,
+    baseline_results: dict,
+    pyramidal_results: dict,
+    stat_results: dict,
     save_path: Path
 ):
     """Create markdown summary report."""
@@ -684,10 +682,10 @@ def main():
     print("=" * 80)
     print(f"\nResults saved to: {output_dir}")
     print("\nFiles generated:")
-    print(f"  - results.json: Raw numerical results")
-    print(f"  - report.md: Markdown summary report")
-    print(f"  - calibration_plots.png: Reliability diagrams")
-    print(f"  - perplexity_ece_scatter.png: Perplexity vs ECE trade-off")
+    print("  - results.json: Raw numerical results")
+    print("  - report.md: Markdown summary report")
+    print("  - calibration_plots.png: Reliability diagrams")
+    print("  - perplexity_ece_scatter.png: Perplexity vs ECE trade-off")
 
 
 if __name__ == '__main__':

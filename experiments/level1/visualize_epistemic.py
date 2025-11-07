@@ -23,25 +23,22 @@ Usage:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-
+from data.dataset import load_wikitext_dataset
 from src import get_device, set_seed
 from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
-from data.dataset import load_wikitext_dataset
+from torch.nn.utils.rnn import pad_sequence
+from tqdm import tqdm
 
 
 def collate_fn(batch):
@@ -53,7 +50,7 @@ def collate_fn(batch):
     return {"input_ids": input_ids_padded, "labels": labels_padded}
 
 
-def load_examples(examples_file: Optional[str], tokenizer) -> List[str]:
+def load_examples(examples_file: str | None, _tokenizer) -> list[str]:
     """Load example texts."""
     if examples_file is None:
         # Use some default examples
@@ -65,7 +62,7 @@ def load_examples(examples_file: Optional[str], tokenizer) -> List[str]:
             "In machine learning, overfitting occurs when"
         ]
 
-    with open(examples_file, 'r', encoding='utf-8') as f:
+    with open(examples_file, encoding='utf-8') as f:
         return [line.strip() for line in f if line.strip()]
 
 
@@ -75,7 +72,7 @@ def analyze_example(
     text: str,
     tokenizer,
     device: torch.device
-) -> Dict:
+) -> dict:
     """Analyze a single example and extract epistemic metrics."""
     model.eval()
 
@@ -139,7 +136,7 @@ def analyze_example(
 
 
 def plot_height_progression(
-    examples: List[Dict],
+    examples: list[dict],
     save_path: Path
 ):
     """Plot height progression for examples."""
@@ -181,7 +178,7 @@ def plot_height_progression(
 
 
 def plot_q1_q2_scatter(
-    examples: List[Dict],
+    examples: list[dict],
     save_path: Path
 ):
     """Plot Q1 vs Q2 scatter plot."""
@@ -218,13 +215,13 @@ def plot_q1_q2_scatter(
 
     # Add quadrant labels
     ax.text(0.75, 0.75, 'Correct & Calibrated', ha='center', va='center',
-           fontsize=10, alpha=0.5, bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+           fontsize=10, alpha=0.5, bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.7})
     ax.text(0.25, 0.25, 'Wrong & Calibrated', ha='center', va='center',
-           fontsize=10, alpha=0.5, bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+           fontsize=10, alpha=0.5, bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.7})
     ax.text(0.75, 0.25, 'Correct but Underconfident', ha='center', va='center',
-           fontsize=10, alpha=0.5, bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+           fontsize=10, alpha=0.5, bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.7})
     ax.text(0.25, 0.75, 'Wrong but Overconfident', ha='center', va='center',
-           fontsize=10, alpha=0.5, bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+           fontsize=10, alpha=0.5, bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.7})
 
     ax.set_xlabel('Q1 (Prediction Quality)')
     ax.set_ylabel('Q2 (Confidence Calibration)')
@@ -241,7 +238,7 @@ def plot_q1_q2_scatter(
 
 
 def plot_force_weights_heatmap(
-    examples: List[Dict],
+    examples: list[dict],
     save_path: Path
 ):
     """Plot force weights heatmap."""
@@ -283,7 +280,7 @@ def plot_force_weights_heatmap(
 
 
 def create_knows_vs_doesnt_know_examples(
-    examples: List[Dict],
+    examples: list[dict],
     save_path: Path
 ):
     """Create markdown report of when model knows vs doesn't know."""
@@ -352,7 +349,7 @@ We analyze predictions based on:
 
 
 def plot_uncertainty_vs_error(
-    examples: List[Dict],
+    examples: list[dict],
     save_path: Path
 ):
     """Plot uncertainty (1 - height) vs error."""
@@ -409,7 +406,7 @@ def plot_uncertainty_vs_error(
     ax.text(0.05, 0.95, f'Correlation: {corr:.3f}',
            transform=ax.transAxes, fontsize=12,
            verticalalignment='top',
-           bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+           bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8})
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -512,12 +509,12 @@ def main():
     print("=" * 80)
     print(f"\nResults saved to: {output_dir}")
     print("\nFiles generated:")
-    print(f"  - height_progression.png: Height evolution per example")
-    print(f"  - q1_vs_q2_scatter.png: Q1 vs Q2 scatter plot")
-    print(f"  - force_weights_heatmap.png: Force weights visualization")
-    print(f"  - uncertainty_vs_error.png: Uncertainty vs error correlation")
-    print(f"  - knows_vs_doesnt_know.md: Examples when model knows/doesn't know")
-    print(f"  - analyzed_examples.json: Raw data")
+    print("  - height_progression.png: Height evolution per example")
+    print("  - q1_vs_q2_scatter.png: Q1 vs Q2 scatter plot")
+    print("  - force_weights_heatmap.png: Force weights visualization")
+    print("  - uncertainty_vs_error.png: Uncertainty vs error correlation")
+    print("  - knows_vs_doesnt_know.md: Examples when model knows/doesn't know")
+    print("  - analyzed_examples.json: Raw data")
 
 
 if __name__ == '__main__':

@@ -20,25 +20,23 @@ Usage:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
+from data.dataset import load_wikitext_dataset
+from src import get_device, set_seed
+from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-
-from src import get_device, set_seed
-from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
-from data.dataset import load_wikitext_dataset
 
 
 def collate_fn(batch):
@@ -56,7 +54,7 @@ def collect_predictions(
     loader: DataLoader,
     device: torch.device,
     max_batches: int = 100
-) -> Dict:
+) -> dict:
     """Collect predictions with epistemic metrics."""
     model.eval()
 
@@ -112,41 +110,29 @@ def compute_abstention_metrics(
     correctness: np.ndarray,
     heights: np.ndarray,
     threshold: float
-) -> Dict:
+) -> dict:
     """Compute abstention metrics at a given threshold."""
     # Model abstains when height < threshold
     abstain_mask = heights < threshold
     answer_mask = ~abstain_mask
 
     # Of the predictions where model answered
-    if answer_mask.sum() > 0:
-        accuracy_when_answered = correctness[answer_mask].mean()
-    else:
-        accuracy_when_answered = 0.0
+    accuracy_when_answered = correctness[answer_mask].mean() if answer_mask.sum() > 0 else 0.0
 
     # Coverage: fraction of predictions answered
     coverage = answer_mask.mean()
 
     # Of the predictions where model abstained
-    if abstain_mask.sum() > 0:
-        accuracy_when_abstained = correctness[abstain_mask].mean()
-    else:
-        accuracy_when_abstained = 0.0
+    accuracy_when_abstained = correctness[abstain_mask].mean() if abstain_mask.sum() > 0 else 0.0
 
     # Precision: accuracy when model answers
     precision = accuracy_when_answered
 
     # Recall: fraction of correct predictions among all correct predictions
-    if correctness.sum() > 0:
-        recall = (correctness[answer_mask]).sum() / correctness.sum()
-    else:
-        recall = 0.0
+    recall = correctness[answer_mask].sum() / correctness.sum() if correctness.sum() > 0 else 0.0
 
     # F1 score
-    if precision + recall > 0:
-        f1 = 2 * precision * recall / (precision + recall)
-    else:
-        f1 = 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
 
     return {
         'threshold': threshold,
@@ -165,7 +151,7 @@ def find_optimal_threshold(
     correctness: np.ndarray,
     heights: np.ndarray,
     target_coverage: float = 0.8
-) -> Tuple[float, Dict]:
+) -> tuple[float, dict]:
     """Find optimal threshold for a target coverage."""
     thresholds = np.linspace(0, 1, 100)
     best_threshold = 0.5
@@ -176,11 +162,10 @@ def find_optimal_threshold(
         metrics = compute_abstention_metrics(correctness, heights, threshold)
 
         # Check if coverage is close to target
-        if abs(metrics['coverage'] - target_coverage) < 0.05:
-            if metrics['accuracy_when_answered'] > best_accuracy:
-                best_threshold = threshold
-                best_accuracy = metrics['accuracy_when_answered']
-                best_metrics = metrics
+        if abs(metrics['coverage'] - target_coverage) < 0.05 and metrics['accuracy_when_answered'] > best_accuracy:
+            best_threshold = threshold
+            best_accuracy = metrics['accuracy_when_answered']
+            best_metrics = metrics
 
     return best_threshold, best_metrics
 
@@ -266,7 +251,7 @@ def plot_abstention_curves(
 
 
 def create_abstention_examples(
-    data: Dict,
+    data: dict,
     tokenizer,
     threshold: float,
     save_path: Path,
@@ -354,11 +339,11 @@ By abstaining on predictions with height < {threshold:.3f}, the model:
 
 
 def create_summary_report(
-    data: Dict,
+    data: dict,
     threshold: float,
-    metrics: Dict,
+    metrics: dict,
     optimal_threshold: float,
-    optimal_metrics: Dict,
+    optimal_metrics: dict,
     save_path: Path
 ):
     """Create summary report."""
@@ -433,7 +418,7 @@ This allows the model to:
 - Provide a confidence score for downstream applications
 """
     else:
-        report += f"""
+        report += """
 ✗ Height metric does not provide sufficient separation for abstention.
 
 Consider:
@@ -582,10 +567,10 @@ def main():
     print("=" * 80)
     print(f"\nResults saved to: {output_dir}")
     print("\nFiles generated:")
-    print(f"  - abstention_curves.png: Trade-off curves")
-    print(f"  - abstention_examples.md: Refused predictions with analysis")
-    print(f"  - abstention_report.md: Summary report with recommendations")
-    print(f"  - abstention_results.json: Raw numerical results")
+    print("  - abstention_curves.png: Trade-off curves")
+    print("  - abstention_examples.md: Refused predictions with analysis")
+    print("  - abstention_report.md: Summary report with recommendations")
+    print("  - abstention_results.json: Raw numerical results")
 
 
 if __name__ == '__main__':

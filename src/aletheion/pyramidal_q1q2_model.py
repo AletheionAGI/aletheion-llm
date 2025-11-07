@@ -14,7 +14,6 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -23,7 +22,7 @@ from ..model import BaselineTransformer, ModelOutput
 from .pyramid_q1q2_fractal import (
     PyramidalEpistemicGatesWithQ1Q2,
     PyramidalVAROLossWithQ1Q2,
-    compute_pyramidal_q1q2_metrics
+    compute_pyramidal_q1q2_metrics,
 )
 
 
@@ -43,7 +42,7 @@ class PyramidalQ1Q2ModelOutput(ModelOutput):
             - confidence: Overall epistemic confidence
     """
 
-    pyramid: Optional[Dict[str, torch.Tensor]] = None
+    pyramid: dict[str, torch.Tensor] | None = None
 
 
 class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
@@ -141,7 +140,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             ignore_index=-100
         )
 
-        print(f"🔻 Pyramidal Q1/Q2/Fractal Architecture initialized")
+        print("🔻 Pyramidal Q1/Q2/Fractal Architecture initialized")
         print(f"   - λ_base: {lambda_base}")
         print(f"   - λ_Q1: {lambda_Q1}")
         print(f"   - λ_Q2: {lambda_Q2}")
@@ -158,10 +157,10 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
     def forward(
         self,
         input_ids: torch.Tensor,
-        labels: Optional[torch.Tensor] = None,
+        labels: torch.Tensor | None = None,
         return_dict: bool = True,
         return_pyramid_state: bool = True
-    ) -> PyramidalQ1Q2ModelOutput | Dict[str, torch.Tensor]:
+    ) -> PyramidalQ1Q2ModelOutput | dict[str, torch.Tensor]:
         """Forward pass with pyramidal Q1/Q2/Fractal computation.
 
         Args:
@@ -250,18 +249,20 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         input_ids: torch.Tensor,
         max_new_tokens: int = 50,
         temperature: float = 1.0,
-        top_k: Optional[int] = None,
-        top_p: Optional[float] = None,
+        top_k: int | None = None,
+        top_p: float | None = None,
         do_sample: bool = True,
         use_pyramid: bool = True,
-        Q1_threshold: float = 0.5,
-        Q2_threshold: float = 0.5
-    ) -> tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        _Q1_threshold: float = 0.5,
+        _Q2_threshold: float = 0.5
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Generate tokens with Q1/Q2-aware decoding.
 
         Adjusts sampling based on:
         - Q1 (aleatoric): If high, increase randomness
         - Q2 (epistemic): If high, increase exploration
+
+        Note: Q1_threshold and Q2_threshold parameters are reserved for future use.
 
         Args:
             input_ids: Input token IDs [batch, seq_len]
@@ -367,8 +368,8 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
 
     def get_pyramidal_stats(
         self,
-        pyramid_outputs: Dict[str, torch.Tensor]
-    ) -> Dict[str, float]:
+        pyramid_outputs: dict[str, torch.Tensor]
+    ) -> dict[str, float]:
         """Compute statistics about pyramidal Q1/Q2 state.
 
         Args:
@@ -424,7 +425,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         cls,
         load_dir: str,
         device: str = 'cpu'
-    ) -> 'AletheionPyramidalQ1Q2Transformer':
+    ) -> AletheionPyramidalQ1Q2Transformer:
         """Load model checkpoint.
 
         Args:

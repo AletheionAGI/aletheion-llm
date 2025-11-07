@@ -12,22 +12,20 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict, Tuple
 
 import torch
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
-
+from data.dataset import collate_fn, load_wikitext_dataset
 from src import get_device, load_config, set_seed
+from src.aletheion.loss import VaroLoss
+from src.aletheion.model import AletheionTransformer
 from src.utils import (
     constant_schedule,
     cosine_decay_with_warmup,
     linear_decay_with_warmup,
 )
-from src.aletheion.model import AletheionTransformer
-from src.aletheion.loss import VaroLoss
-from data.dataset import collate_fn, load_wikitext_dataset
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 try:  # pragma: no cover - optional dependency
     import wandb
@@ -35,7 +33,7 @@ except Exception:  # pragma: no cover - fallback when wandb missing
     wandb = None
 
 
-def build_dataloaders(config: Dict) -> Tuple[DataLoader, DataLoader]:
+def build_dataloaders(config: dict) -> tuple[DataLoader, DataLoader]:
     """Instantiate dataloaders for training and validation."""
 
     data_cfg = config["data"]
@@ -69,7 +67,7 @@ def build_dataloaders(config: Dict) -> Tuple[DataLoader, DataLoader]:
     return train_loader, val_loader
 
 
-def create_model(config: Dict, device: torch.device) -> AletheionTransformer:
+def create_model(config: dict, device: torch.device) -> AletheionTransformer:
     """Create Aletheion model with epistemic gates."""
     model_cfg = config["model"]
     epistemic_cfg = model_cfg.get("epistemic", {})
@@ -96,7 +94,7 @@ def create_model(config: Dict, device: torch.device) -> AletheionTransformer:
     return model
 
 
-def create_optimizer(config: Dict, model: AletheionTransformer) -> torch.optim.Optimizer:
+def create_optimizer(config: dict, model: AletheionTransformer) -> torch.optim.Optimizer:
     opt_cfg = config["optimizer"]
     training_cfg = config["training"]
 
@@ -115,7 +113,7 @@ def create_optimizer(config: Dict, model: AletheionTransformer) -> torch.optim.O
 
 def create_scheduler(
     optimizer: torch.optim.Optimizer,
-    config: Dict,
+    config: dict,
     total_steps: int,
 ) -> torch.optim.lr_scheduler.LambdaLR:
     training_cfg = config["training"]
@@ -137,7 +135,7 @@ def evaluate(
     device: torch.device,
     mixed_precision: bool,
     varo_loss: VaroLoss
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Evaluate model on validation set with uncertainty metrics."""
     model.eval()
     total_loss = 0.0

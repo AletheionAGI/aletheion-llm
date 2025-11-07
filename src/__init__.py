@@ -1,8 +1,8 @@
 """Baseline transformer package."""
 
+from .attention import CausalSelfAttention, MultiHeadAttention
 from .model import BaselineTransformer
-from .attention import MultiHeadAttention, CausalSelfAttention
-from .utils import load_config, set_seed, get_device
+from .utils import get_device, load_config, set_seed
 
 __all__ = [
     "BaselineTransformer",

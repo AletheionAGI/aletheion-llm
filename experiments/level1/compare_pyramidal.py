@@ -12,25 +12,22 @@ Usage:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
-import os
 import json
 from pathlib import Path
-from typing import Dict, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
-import torch.nn.functional as F
+from data.dataset import load_wikitext_dataset
+from src import BaselineTransformer, get_device, set_seed
+from src.aletheion.loss import PyramidalVAROLoss
+from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import numpy as np
-
-from src import BaselineTransformer, get_device, set_seed
-from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
-from src.aletheion.loss import PyramidalVAROLoss, compute_calibration_metrics
-from data.dataset import load_wikitext_dataset
 
 
 def collate_fn(batch):
@@ -50,7 +47,7 @@ def train_baseline(
     steps: int,
     eval_interval: int,
     lr: float = 3e-4
-) -> Dict:
+) -> dict:
     """Train baseline model."""
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     history = {'train_loss': [], 'eval_loss': [], 'eval_perplexity': []}
@@ -113,7 +110,7 @@ def train_pyramidal(
     eval_interval: int,
     pyramid_loss: PyramidalVAROLoss,
     lr: float = 3e-4
-) -> Dict:
+) -> dict:
     """Train pyramidal model."""
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     history = {
@@ -191,7 +188,7 @@ def train_pyramidal(
     return history
 
 
-def plot_comparison(baseline_hist: Dict, pyramidal_hist: Dict, save_dir: Path):
+def plot_comparison(baseline_hist: dict, pyramidal_hist: dict, save_dir: Path):
     """Plot comparison between baseline and pyramidal."""
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
@@ -253,7 +250,7 @@ def plot_comparison(baseline_hist: Dict, pyramidal_hist: Dict, save_dir: Path):
     final_pyramidal_ppl = pyramidal_hist['eval_perplexity'][-1] if pyramidal_hist['eval_perplexity'] else 0
     improvement = ((final_baseline_ppl - final_pyramidal_ppl) / final_baseline_ppl * 100) if final_baseline_ppl > 0 else 0
 
-    axes[1, 2].text(0.1, 0.8, f"Final Perplexity:", fontsize=12, weight='bold')
+    axes[1, 2].text(0.1, 0.8, "Final Perplexity:", fontsize=12, weight='bold')
     axes[1, 2].text(0.1, 0.7, f"  Baseline: {final_baseline_ppl:.2f}", fontsize=11)
     axes[1, 2].text(0.1, 0.6, f"  Pyramidal: {final_pyramidal_ppl:.2f}", fontsize=11)
     axes[1, 2].text(0.1, 0.5, f"  Improvement: {improvement:+.2f}%", fontsize=11,

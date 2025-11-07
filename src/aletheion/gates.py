@@ -11,8 +11,6 @@ References:
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -166,11 +164,11 @@ def epistemic_softmax(
     logits: torch.Tensor,
     context: torch.Tensor,
     q1_gate: LocalUncertaintyGate,
-    q2_gate: Optional[CrossContextGate] = None,
+    q2_gate: CrossContextGate | None = None,
     base_temperature: float = 1.0,
     confidence_threshold: float = 0.7,
     eps: float = 1e-8
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Epistemic softmax operator (Algorithm 1 from paper).
 
     Combines local and global uncertainty gates to produce a calibrated
@@ -214,10 +212,7 @@ def epistemic_softmax(
     # Step 2: Compute q2 (cross-context consensus) if available
     if q2_gate is not None:
         # Ensure context is 3D for Q2
-        if context.dim() == 2:
-            context_3d = context.unsqueeze(1)  # (B, 1, d_model)
-        else:
-            context_3d = context
+        context_3d = context.unsqueeze(1) if context.dim() == 2 else context
 
         q2 = q2_gate(context_3d)  # (B, T, 1)
 

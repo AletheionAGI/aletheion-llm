@@ -19,17 +19,21 @@ Main components:
     - PyramidalEpistemicGatesWithQ1Q2: Complete pyramidal with Q1/Q2/Fractal
 """
 
-from .gates import LocalUncertaintyGate, CrossContextGate, epistemic_softmax
-from .loss import VaroLoss, PyramidalVAROLoss
-from .model import AletheionTransformer, AletheionModelOutput
-from .pyramid import PyramidalEpistemicGates, PyramidalTemperatureModulator, compute_pyramidal_metrics
-from .pyramidal_model import AletheionPyramidalTransformer, PyramidalModelOutput
+from .gates import CrossContextGate, LocalUncertaintyGate, epistemic_softmax
+from .loss import PyramidalVAROLoss, VaroLoss
+from .model import AletheionModelOutput, AletheionTransformer
+from .pyramid import (
+    PyramidalEpistemicGates,
+    PyramidalTemperatureModulator,
+    compute_pyramidal_metrics,
+)
 from .pyramid_q1q2_fractal import (
+    EpistemicMultiHeadAttention,
     PyramidalEpistemicGatesWithQ1Q2,
     PyramidalVAROLossWithQ1Q2,
-    EpistemicMultiHeadAttention,
-    compute_pyramidal_q1q2_metrics
+    compute_pyramidal_q1q2_metrics,
 )
+from .pyramidal_model import AletheionPyramidalTransformer, PyramidalModelOutput
 from .pyramidal_q1q2_model import AletheionPyramidalQ1Q2Transformer, PyramidalQ1Q2ModelOutput
 
 __all__ = [

@@ -1,17 +1,17 @@
 """MEMORY-EFFICIENT evaluation - computes ECE incrementally."""
 import sys
+
 sys.path.insert(0, '/home/sapo/aletheion-llm')
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torch.nn.utils.rnn import pad_sequence
-from tqdm import tqdm
-import numpy as np
-
+from data.dataset import load_wikitext_dataset
 from src import BaselineTransformer, get_device
 from src.aletheion.model import AletheionTransformer
-from data.dataset import load_wikitext_dataset
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 
 def collate_fn(batch):
     input_ids = [item['input_ids'] for item in batch]
@@ -28,30 +28,30 @@ class IncrementalECE:
         self.bin_counts = torch.zeros(n_bins)
         self.bin_correct = torch.zeros(n_bins)
         self.bin_conf_sum = torch.zeros(n_bins)
-        
+
     def update(self, probs, targets):
         """Update bins with new batch."""
         confidences, predictions = probs.max(dim=1)
         accuracies = predictions.eq(targets).float()
-        
+
         for i in range(self.n_bins):
             in_bin = (confidences > self.bin_boundaries[i]) & (confidences <= self.bin_boundaries[i+1])
             self.bin_counts[i] += in_bin.sum().item()
             self.bin_correct[i] += accuracies[in_bin].sum().item()
             self.bin_conf_sum[i] += confidences[in_bin].sum().item()
-    
+
     def compute(self):
         """Compute final ECE."""
         ece = 0.0
         total = self.bin_counts.sum()
-        
+
         for i in range(self.n_bins):
             if self.bin_counts[i] > 0:
                 acc = self.bin_correct[i] / self.bin_counts[i]
                 conf = self.bin_conf_sum[i] / self.bin_counts[i]
                 prop = self.bin_counts[i] / total
                 ece += abs(conf - acc) * prop
-        
+
         return ece.item()
 
 def evaluate(model, loader, device):
@@ -61,41 +61,41 @@ def evaluate(model, loader, device):
     total_correct = 0
     total_samples = 0
     ece_calculator = IncrementalECE(n_bins=10)
-    
+
     with torch.no_grad():
         for batch in tqdm(loader, desc="Eval"):
             input_ids = batch["input_ids"].to(device)
             labels = batch["labels"].to(device)
-            
+
             try:
                 outputs = model(input_ids, labels=labels, return_uncertainty=True)
-            except:
+            except Exception:
                 outputs = model(input_ids, labels=labels)
-            
+
             total_loss += outputs.loss.item()
-            
+
             # Process batch immediately, don't accumulate
             probs_flat = F.softmax(outputs.logits, dim=-1).view(-1, outputs.logits.size(-1))
             targets_flat = labels.view(-1)
             valid = targets_flat != -100
-            
+
             if valid.any():
                 probs_valid = probs_flat[valid].cpu()
                 targets_valid = targets_flat[valid].cpu()
-                
+
                 # Update ECE incrementally
                 ece_calculator.update(probs_valid, targets_valid)
-                
+
                 # Update accuracy
                 predictions = probs_valid.max(dim=1)[1]
                 total_correct += predictions.eq(targets_valid).sum().item()
                 total_samples += targets_valid.size(0)
-                
+
                 # Free memory immediately
                 del probs_valid, targets_valid, probs_flat, targets_flat
-            
+
             torch.cuda.empty_cache()
-    
+
     return {
         "loss": total_loss / len(loader),
         "ece": ece_calculator.compute(),

@@ -34,24 +34,23 @@ Expected healthy behavior:
 
 import argparse
 import json
-import os
-import time
-from pathlib import Path
-
-import torch
-import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-import matplotlib.pyplot as plt
-import numpy as np
 
 # Add project root to path
 import sys
+import time
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.aletheion.pyramidal_q1q2_model import AletheionPyramidalQ1Q2Transformer
 from data.dataset import load_wikitext_dataset
+from src.aletheion.pyramidal_q1q2_model import AletheionPyramidalQ1Q2Transformer
 from src.utils import get_device, set_seed
 
 
@@ -315,7 +314,7 @@ def evaluate(model, dataloader, device, max_batches=10):
                     force_sums['choice'] += loss_dict['mean_choice']
                     force_sums['exploration'] += loss_dict['mean_exploration']
                     force_sums['base_stability'] += loss_dict['base_stability']
-            except Exception as e:
+            except Exception:
                 # Skip if calibration computation fails
                 pass
 
@@ -466,15 +465,15 @@ def plot_training_curves(history: dict, save_dir: Path):
     ax8 = fig.add_subplot(gs[2, 1])
     ax8.plot(history['ce_loss'], label='CE Loss', alpha=0.8, linewidth=1.5, color='#2E86AB')
     if 'base_loss' in history and any(history['base_loss']):
-        ax8.plot(history['base_loss'], label=f'Base Loss', alpha=0.8, linewidth=1.5, color='#7209B7')
+        ax8.plot(history['base_loss'], label='Base Loss', alpha=0.8, linewidth=1.5, color='#7209B7')
     if 'Q1_loss' in history and any(history['Q1_loss']):
-        ax8.plot(history['Q1_loss'], label=f'Q1 Loss', alpha=0.8, linewidth=1.5, color='#2E86AB')
+        ax8.plot(history['Q1_loss'], label='Q1 Loss', alpha=0.8, linewidth=1.5, color='#2E86AB')
     if 'Q2_loss' in history and any(history['Q2_loss']):
-        ax8.plot(history['Q2_loss'], label=f'Q2 Loss', alpha=0.8, linewidth=1.5, color='#A23B72')
+        ax8.plot(history['Q2_loss'], label='Q2 Loss', alpha=0.8, linewidth=1.5, color='#A23B72')
     if 'fractal_loss' in history and any(history['fractal_loss']):
-        ax8.plot(history['fractal_loss'], label=f'Fractal Loss', alpha=0.8, linewidth=1.5, color='#F72585')
+        ax8.plot(history['fractal_loss'], label='Fractal Loss', alpha=0.8, linewidth=1.5, color='#F72585')
     if 'height_loss' in history and any(history['height_loss']):
-        ax8.plot(history['height_loss'], label=f'Height Loss', alpha=0.8, linewidth=1.5, color='#06A77D')
+        ax8.plot(history['height_loss'], label='Height Loss', alpha=0.8, linewidth=1.5, color='#06A77D')
     ax8.set_xlabel('Step', fontsize=10)
     ax8.set_ylabel('Loss', fontsize=10)
     ax8.set_title('Loss Components Breakdown', fontsize=12, fontweight='bold')
@@ -571,15 +570,15 @@ def main():
     print(f"Experiment: {args.experiment_name}")
     print(f"Device: {device}")
     print(f"Dataset: {args.dataset.upper()}")
-    print(f"\nTraining Configuration:")
+    print("\nTraining Configuration:")
     print(f"  Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
     if args.gradient_checkpointing:
-        print(f"  Gradient checkpointing: enabled")
+        print("  Gradient checkpointing: enabled")
     if args.fp16:
-        print(f"  Mixed precision (fp16): enabled")
+        print("  Mixed precision (fp16): enabled")
     if args.resume_from:
         print(f"  Resuming from: {args.resume_from}")
-    print(f"\nPyramidal Parameters:")
+    print("\nPyramidal Parameters:")
     print(f"  λ_base:    {args.lambda_base}")
     print(f"  λ_Q1:      {args.lambda_Q1}")
     print(f"  λ_Q2:      {args.lambda_Q2}")

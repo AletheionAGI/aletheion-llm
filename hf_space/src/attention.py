@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -56,9 +55,9 @@ class MultiHeadAttention(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
+        mask: torch.Tensor | None = None,
         return_attention: bool = False,
-    ) -> torch.Tensor | Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Run attention over the input sequence.
 
         Args:
@@ -113,8 +112,8 @@ class MultiHeadAttention(nn.Module):
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        mask: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Scaled dot-product attention used when FlashAttention is disabled."""
 
         # (B, H, T, T)
@@ -157,7 +156,7 @@ class CausalSelfAttention(MultiHeadAttention):
         self,
         x: torch.Tensor,
         **kwargs: object,
-    ) -> torch.Tensor | Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         seq_len = x.size(1)
         mask = self.causal_mask[:, :, :seq_len, :seq_len]
         return super().forward(x, mask=mask, **kwargs)

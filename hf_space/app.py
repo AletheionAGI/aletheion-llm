@@ -3,10 +3,8 @@ Aletheion LLM Demo - HuggingFace Space
 Interactive demo for Aletheion Pyramidal Model with epistemic uncertainty quantification.
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Dict, Tuple
 
 import gradio as gr
 import numpy as np
@@ -61,7 +59,7 @@ class AletheionDemo:
 
             # Load model configuration
             import json
-            with open(config_path, 'r') as f:
+            with open(config_path) as f:
                 config = json.load(f)
 
             # Initialize Aletheion Pyramidal model
@@ -106,7 +104,7 @@ class AletheionDemo:
         temperature: float = 1.0,
         top_k: int = 50,
         top_p: float = 0.95
-    ) -> Tuple[str, Dict[str, float]]:
+    ) -> tuple[str, dict[str, float]]:
         """Generate text with uncertainty metrics.
 
         Args:
@@ -201,7 +199,7 @@ class AletheionDemo:
             print(error_msg)
             return error_msg, {}
 
-    def format_metrics(self, metrics: Dict[str, float]) -> str:
+    def format_metrics(self, metrics: dict[str, float]) -> str:
         """Format metrics dictionary as readable string.
 
         Args:

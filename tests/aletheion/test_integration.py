@@ -12,17 +12,18 @@ Tests the complete pipeline:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+import tempfile
+from pathlib import Path
 
 import pytest
 import torch
-from pathlib import Path
-import tempfile
-
-from src import set_seed, get_device
-from src.aletheion.model import AletheionTransformer
+from data.dataset import collate_fn, load_wikitext_dataset
+from src import get_device, set_seed
 from src.aletheion.loss import VaroLoss
-from data.dataset import load_wikitext_dataset, collate_fn
+from src.aletheion.model import AletheionTransformer
 from torch.utils.data import DataLoader, Subset
 
 
@@ -170,7 +171,7 @@ class TestAletheionIntegration:
             optimizer.step()
 
         # Loss should be finite
-        assert all(torch.isfinite(torch.tensor(l)) for l in losses)
+        assert all(torch.isfinite(torch.tensor(loss_value)) for loss_value in losses)
 
         # Loss should generally decrease (with some tolerance for small dataset)
         # Check that final loss is not worse than first loss by more than 20%
@@ -179,7 +180,7 @@ class TestAletheionIntegration:
     def test_checkpoint_save_load(self, device):
         """Test saving and loading Aletheion checkpoint."""
         set_seed(42)
-        
+
         # Create model
         model = AletheionTransformer(
             vocab_size=1000,
@@ -189,29 +190,29 @@ class TestAletheionIntegration:
             d_ff=1024,
             max_seq_len=128
         ).to(device)
-        
+
         model.eval()  # ADICIONAR ESTA LINHA
-        
+
         # Generate test input
         input_ids = torch.randint(0, 1000, (2, 16), device=device)
-        
+
         # Get output from original model
         with torch.no_grad():
             output1 = model(input_ids, return_uncertainty=True)
-        
+
         # Save and load using proper methods
         with tempfile.TemporaryDirectory() as tmpdir:
             # Save checkpoint
             model.save_pretrained(tmpdir)
-            
+
             # Load checkpoint
             model2 = AletheionTransformer.load_pretrained(tmpdir, device=str(device))
             model2.eval()  # ADICIONAR ESTA LINHA
-            
+
             # Get output from loaded model
             with torch.no_grad():
                 output2 = model2(input_ids, return_uncertainty=True)
-            
+
             # Compare outputs
             assert torch.allclose(output1.logits, output2.logits, atol=1e-5), \
                 "Loaded model produces different logits"

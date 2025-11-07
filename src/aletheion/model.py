@@ -16,13 +16,12 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
 
 from ..model import BaselineTransformer, ModelOutput
-from .gates import LocalUncertaintyGate, CrossContextGate, epistemic_softmax
+from .gates import CrossContextGate, LocalUncertaintyGate, epistemic_softmax
 
 
 @dataclass
@@ -38,10 +37,10 @@ class AletheionModelOutput(ModelOutput):
         probs_gated: Gated probability distribution (epistemic softmax output)
     """
 
-    uncertainty: Optional[torch.Tensor] = None
-    q1: Optional[torch.Tensor] = None
-    q2: Optional[torch.Tensor] = None
-    probs_gated: Optional[torch.Tensor] = None
+    uncertainty: torch.Tensor | None = None
+    q1: torch.Tensor | None = None
+    q2: torch.Tensor | None = None
+    probs_gated: torch.Tensor | None = None
 
 
 class AletheionTransformer(BaselineTransformer):
@@ -110,14 +109,14 @@ class AletheionTransformer(BaselineTransformer):
             dropout=dropout
         )
 
-        print(f"🔮 Aletheion Level 1 initialized")
+        print("🔮 Aletheion Level 1 initialized")
         print(f"   - Q₁ threshold: {q1_threshold}")
         print(f"   - Q₂ threshold: {q2_threshold}")
         print(f"   - Base temperature: {base_temperature}")
         print(f"   - Epistemic parameters: {self._count_epistemic_params():,}")
-        
-        
-    
+
+
+
     def _count_epistemic_params(self) -> int:
         """Count parameters in epistemic gates."""
         q1_params = sum(p.numel() for p in self.q1_gate.parameters())
@@ -127,10 +126,10 @@ class AletheionTransformer(BaselineTransformer):
     def forward(
         self,
         input_ids: torch.Tensor,
-        labels: Optional[torch.Tensor] = None,
+        labels: torch.Tensor | None = None,
         return_dict: bool = True,
         return_uncertainty: bool = True
-    ) -> AletheionModelOutput | Dict[str, torch.Tensor]:
+    ) -> AletheionModelOutput | dict[str, torch.Tensor]:
         """Forward pass with epistemic uncertainty quantification.
 
         Args:
@@ -228,8 +227,8 @@ class AletheionTransformer(BaselineTransformer):
         input_ids: torch.Tensor,
         max_new_tokens: int = 50,
         temperature: float = 1.0,
-        top_k: Optional[int] = None,
-        top_p: Optional[float] = None,
+        top_k: int | None = None,
+        top_p: float | None = None,
         do_sample: bool = True,
         use_epistemic: bool = True,
         uncertainty_threshold: float = 0.8
@@ -326,7 +325,7 @@ class AletheionTransformer(BaselineTransformer):
 
         return generated, uncertainties_tensor
 
-    def get_uncertainty_stats(self, uncertainty: torch.Tensor) -> Dict[str, float]:
+    def get_uncertainty_stats(self, uncertainty: torch.Tensor) -> dict[str, float]:
         """Compute statistics about uncertainty values.
 
         Args:
@@ -345,18 +344,18 @@ class AletheionTransformer(BaselineTransformer):
 
     def save_pretrained(self, save_dir: str) -> None:
         """Save model checkpoint including epistemic gates.
-        
+
         Args:
             save_dir: Directory to save checkpoint
         """
         import os
         os.makedirs(save_dir, exist_ok=True)
-        
+
         # Get config from first attention block (BaselineTransformer doesn't expose these)
         first_block = self.blocks[0]
         n_heads = first_block.attn.n_heads
         d_ff = first_block.ffn.fc1.out_features
-        
+
         # Save full state dict (includes all parameters)
         checkpoint = {
             'model_state_dict': self.state_dict(),
@@ -375,36 +374,36 @@ class AletheionTransformer(BaselineTransformer):
                 'base_temperature': self.base_temperature,
             }
         }
-        
+
         torch.save(checkpoint, os.path.join(save_dir, 'pytorch_model.bin'))
         print(f"✅ Model saved to {save_dir}")
 
     @classmethod
-    def load_pretrained(cls, load_dir: str, device: str = 'cpu') -> 'AletheionTransformer':
+    def load_pretrained(cls, load_dir: str, device: str = 'cpu') -> AletheionTransformer:
         """Load model checkpoint including epistemic gates.
-        
+
         Args:
             load_dir: Directory containing checkpoint
             device: Device to load model on
-            
+
         Returns:
             Loaded AletheionTransformer instance
         """
         import os
         checkpoint_path = os.path.join(load_dir, 'pytorch_model.bin')
-        
+
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
-        
+
         checkpoint = torch.load(checkpoint_path, map_location=device)
         config = checkpoint['config']
-        
+
         # Instantiate model with saved config
         model = cls(**config)
-        
+
         # Load weights
         model.load_state_dict(checkpoint['model_state_dict'])
         model.to(device)
-        
+
         print(f"✅ Model loaded from {load_dir}")
         return model

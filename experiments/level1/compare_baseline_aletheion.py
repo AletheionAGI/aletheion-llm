@@ -14,27 +14,25 @@ Usage:
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import argparse
-import os
 from pathlib import Path
-from typing import Dict, Tuple
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
+from data.dataset import load_wikitext_dataset
+from src import BaselineTransformer, get_device, set_seed
+from src.aletheion.loss import VaroLoss, compute_calibration_metrics
+from src.aletheion.model import AletheionTransformer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-
-from src import BaselineTransformer, get_device, set_seed
-from src.aletheion.model import AletheionTransformer
-from src.aletheion.loss import VaroLoss, compute_calibration_metrics
-from data.dataset import load_wikitext_dataset
 
 
 # FIX: Custom collate function to handle variable sequence lengths during evaluation/training
-def collate_fn(batch: Tuple[Dict[str, torch.Tensor], ...]) -> Dict[str, torch.Tensor]:
+def collate_fn(batch: tuple[dict[str, torch.Tensor], ...]) -> dict[str, torch.Tensor]:
     """Pad variable length sequences for input IDs and labels."""
 
     input_ids = [item["input_ids"] for item in batch]
@@ -82,12 +80,12 @@ def create_aletheion_model(vocab_size: int, device: torch.device) -> AletheionTr
 
 def train_step(
     model: torch.nn.Module,
-    batch: Dict,
+    batch: dict,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     varo_loss: VaroLoss | None = None,
     varo_weight: float | None = None,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Perform one training step and return diagnostics."""
     model.train()
     optimizer.zero_grad()
@@ -115,7 +113,7 @@ def train_step(
     else:
         outputs = model(input_ids, labels=labels)
 
-    metrics: Dict[str, float] = {}
+    metrics: dict[str, float] = {}
 
     # Compute loss
     if isinstance(model, AletheionTransformer) and varo_loss is not None and outputs.uncertainty is not None:
@@ -169,7 +167,7 @@ def evaluate_model(
     loader: DataLoader,
     device: torch.device,
     compute_calibration: bool = True
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Evaluate model and compute metrics."""
     model.eval()
     total_loss = 0.0
@@ -248,8 +246,8 @@ def evaluate_model(
 
 
 def plot_reliability_diagram(
-    baseline_metrics: Dict,
-    aletheion_metrics: Dict,
+    _baseline_metrics: dict,
+    _aletheion_metrics: dict,
     save_path: Path
 ) -> None:
     """Plot reliability diagram comparing both models."""
@@ -342,8 +340,8 @@ def main(args):
     checkpoints_dir = Path("checkpoints")
     checkpoints_dir.mkdir(exist_ok=True)
 
-    last_baseline_metrics: Dict[str, float] = {}
-    last_aletheion_metrics: Dict[str, float] = {}
+    last_baseline_metrics: dict[str, float] = {}
+    last_aletheion_metrics: dict[str, float] = {}
 
     for step in tqdm(range(args.steps), desc="Training"):
         # Get batch

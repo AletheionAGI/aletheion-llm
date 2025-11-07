@@ -25,28 +25,26 @@ Usage:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import argparse
 import json
 import math
 from pathlib import Path
-from typing import Dict, List
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
+from data.dataset import load_wikitext_dataset
+from src import get_device, set_seed
+from src.aletheion.loss import compute_calibration_metrics
+from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
-from src import get_device, set_seed
-from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
-from src.aletheion.loss import compute_calibration_metrics
-from data.dataset import load_wikitext_dataset
+from transformers import GPT2LMHeadModel
 
 
 class CustomTextDataset(Dataset):
@@ -57,7 +55,7 @@ class CustomTextDataset(Dataset):
         self.max_length = max_length
 
         # Read text file
-        with open(text_file, 'r', encoding='utf-8') as f:
+        with open(text_file, encoding='utf-8') as f:
             text = f.read()
 
         # Split into chunks
@@ -119,7 +117,7 @@ def evaluate_model_ood(
     device: torch.device,
     is_pyramidal: bool = False,
     max_batches: int = 100
-) -> Dict:
+) -> dict:
     """Evaluate model on OOD data."""
     model.eval()
 
@@ -229,8 +227,8 @@ def evaluate_model_ood(
 
 
 def plot_ood_calibration(
-    in_domain_results: Dict,
-    ood_results: Dict,
+    in_domain_results: dict,
+    ood_results: dict,
     save_path: Path,
     model_name: str = "Model"
 ):
@@ -291,8 +289,8 @@ def plot_ood_calibration(
 
 
 def plot_uncertainty_distribution(
-    in_domain_results: Dict,
-    ood_results: Dict,
+    in_domain_results: dict,
+    ood_results: dict,
     save_path: Path
 ):
     """Plot uncertainty distribution for pyramidal model."""
@@ -369,8 +367,8 @@ def plot_uncertainty_distribution(
 
 
 def create_ood_report(
-    in_domain_results: Dict,
-    ood_results: Dict,
+    in_domain_results: dict,
+    ood_results: dict,
     save_path: Path,
     model_name: str,
     dataset_name: str,
@@ -457,7 +455,7 @@ def create_ood_report(
 - **Interpretation**: {'✓ Uncertainty appropriately increases on OOD data' if ood_results['mean_uncertainty'] > in_domain_results['mean_uncertainty'] else '✗ Uncertainty does not increase on OOD data'}
 """
 
-    report += f"""
+    report += """
 ## Conclusion
 
 """

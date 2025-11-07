@@ -15,8 +15,6 @@ References:
 
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -55,9 +53,9 @@ class VaroLoss(nn.Module):
         logits: torch.Tensor,
         targets: torch.Tensor,
         uncertainty: torch.Tensor,
-        u_star: Optional[torch.Tensor] = None,
-        head_logits: Optional[torch.Tensor] = None
-    ) -> Dict[str, torch.Tensor]:
+        u_star: torch.Tensor | None = None,
+        head_logits: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """Compute VARO loss.
 
         Args:
@@ -126,9 +124,9 @@ class VaroLoss(nn.Module):
 
     def _compute_u_star(
         self,
-        logits: torch.Tensor,
+        _logits: torch.Tensor,
         targets: torch.Tensor,
-        head_logits: Optional[torch.Tensor] = None
+        head_logits: torch.Tensor | None = None
     ) -> torch.Tensor:
         """Compute target uncertainty u*.
 
@@ -137,7 +135,7 @@ class VaroLoss(nn.Module):
         - Fallback (Uniform): u* = 0.5 for all tokens
 
         Args:
-            logits: Model logits
+            _logits: Model logits (reserved for future use)
             targets: Target labels
             head_logits: Per-head logits for variance computation
 
@@ -188,8 +186,8 @@ class VaroLoss(nn.Module):
 
 def create_uncertainty_targets_from_token_frequency(
     tokens: torch.Tensor,
-    vocab_size: int,
-    token_counts: Optional[torch.Tensor] = None,
+    _vocab_size: int,
+    token_counts: torch.Tensor | None = None,
     rare_threshold: float = 0.01
 ) -> torch.Tensor:
     """Create uncertainty targets based on token rarity.
@@ -198,7 +196,7 @@ def create_uncertainty_targets_from_token_frequency(
 
     Args:
         tokens: Token IDs of shape (batch, seq_len)
-        vocab_size: Size of vocabulary
+        _vocab_size: Size of vocabulary (reserved for future use)
         token_counts: Pre-computed token frequency counts of shape (vocab_size,)
                      If None, returns uniform uncertainty
         rare_threshold: Fraction of total tokens below which a token is considered rare
@@ -229,7 +227,7 @@ def create_uncertainty_targets_from_token_frequency(
 
 def create_uncertainty_targets_from_ambiguity(
     targets: torch.Tensor,
-    valid_labels: Optional[Dict[int, list]] = None
+    valid_labels: dict[int, list] | None = None
 ) -> torch.Tensor:
     """Create uncertainty targets based on label ambiguity.
 
@@ -269,7 +267,7 @@ def compute_calibration_metrics(
     targets: torch.Tensor,
     uncertainty: torch.Tensor,
     n_bins: int = 10
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Compute calibration metrics (ECE, Brier score, etc.).
 
     Args:
@@ -439,8 +437,8 @@ class PyramidalVAROLoss(nn.Module):
         self,
         logits: torch.Tensor,
         targets: torch.Tensor,
-        pyramid_outputs: Dict[str, torch.Tensor]
-    ) -> Dict[str, torch.Tensor]:
+        pyramid_outputs: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
         """Compute pyramidal VARO loss.
 
         Args:

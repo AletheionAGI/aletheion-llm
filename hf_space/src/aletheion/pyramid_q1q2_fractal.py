@@ -17,12 +17,11 @@ References:
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
 
 from .loss import compute_calibration_metrics
 
@@ -114,7 +113,7 @@ class PyramidalEpistemicGatesWithQ1Q2(nn.Module):
         nn.init.normal_(self.fractal_gate.weight, mean=0.0, std=0.02)
         nn.init.constant_(self.fractal_gate.bias, -1.0)  # sigmoid(-1) ≈ 0.27
 
-    def forward(self, hidden_states: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def forward(self, hidden_states: torch.Tensor) -> dict[str, torch.Tensor]:
         """Forward pass through pyramidal gates with Q1/Q2/Fractal.
 
         Args:
@@ -466,8 +465,8 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         self,
         logits: torch.Tensor,
         targets: torch.Tensor,
-        pyramid_outputs: Dict[str, torch.Tensor]
-    ) -> Dict[str, torch.Tensor]:
+        pyramid_outputs: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
         """Compute total pyramidal VARO loss with Q1/Q2/Fractal.
 
         Args:
@@ -489,8 +488,9 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         base_weights = pyramid_outputs['base_weights']
         Q1_mean = pyramid_outputs['Q1_mean']
         Q2_mean = pyramid_outputs['Q2_mean']
-        Q1_var = pyramid_outputs['Q1_var']
-        Q2_var = pyramid_outputs['Q2_var']
+        # Q1_var and Q2_var are not currently used in loss computation
+        # Q1_var = pyramid_outputs['Q1_var']
+        # Q2_var = pyramid_outputs['Q2_var']
         height = pyramid_outputs['height']
         fractal_uncertainty = pyramid_outputs['fractal_uncertainty']
 
@@ -549,7 +549,6 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
             # Flatten for calibration computation
             probs_flat = probs.view(-1, probs.size(-1))  # [B*T, V]
             targets_flat = targets.view(-1)  # [B*T]
-            valid_mask_flat = valid_mask.view(-1)  # [B*T, 1]
 
             # Filter out padding tokens
             valid_indices = (targets_flat != self.ignore_index)
@@ -616,9 +615,9 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
 
 
 def compute_pyramidal_q1q2_metrics(
-    pyramid_outputs: Dict[str, torch.Tensor],
-    valid_mask: Optional[torch.Tensor] = None
-) -> Dict[str, float]:
+    pyramid_outputs: dict[str, torch.Tensor],
+    valid_mask: torch.Tensor | None = None
+) -> dict[str, float]:
     """Compute aggregate metrics from pyramidal Q1/Q2 outputs.
 
     Args:

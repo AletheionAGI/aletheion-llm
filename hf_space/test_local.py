@@ -7,6 +7,7 @@ Run this before deploying to verify everything works.
 import sys
 from pathlib import Path
 
+
 def test_imports():
     """Test that all required imports work."""
     print("🧪 Testing imports...")
@@ -19,8 +20,8 @@ def test_imports():
         return False
 
     try:
-        from transformers import GPT2Tokenizer
-        print(f"✅ Transformers (GPT2Tokenizer)")
+        from transformers import GPT2Tokenizer as _GPT2Tokenizer  # noqa: F401
+        print("✅ Transformers (GPT2Tokenizer)")
     except ImportError as e:
         print(f"❌ Transformers import failed: {e}")
         return False
@@ -95,21 +96,21 @@ def test_aletheion_imports():
     sys.path.insert(0, str(Path(__file__).parent / "src"))
 
     try:
-        from aletheion.pyramidal_model import AletheionPyramidalTransformer
+        from aletheion.pyramidal_model import AletheionPyramidalTransformer as _APT  # noqa: F401
         print("✅ AletheionPyramidalTransformer")
     except ImportError as e:
         print(f"❌ AletheionPyramidalTransformer import failed: {e}")
         return False
 
     try:
-        from aletheion.gates import PyramidalEpistemicGates
+        from aletheion.gates import PyramidalEpistemicGates as _PEG  # noqa: F401
         print("✅ PyramidalEpistemicGates")
     except ImportError as e:
         print(f"❌ PyramidalEpistemicGates import failed: {e}")
         return False
 
     try:
-        from model import BaselineTransformer
+        from model import BaselineTransformer as _BT  # noqa: F401
         print("✅ BaselineTransformer")
     except ImportError as e:
         print(f"❌ BaselineTransformer import failed: {e}")
@@ -137,7 +138,7 @@ def test_model_initialization():
             dropout=0.1,
         )
 
-        print(f"✅ Model initialized successfully")
+        print("✅ Model initialized successfully")
         print(f"   Parameters: {sum(p.numel() for p in model.parameters()):,}")
         return True
 
@@ -160,7 +161,7 @@ def test_tokenizer():
         tokens = tokenizer.encode(test_text)
         decoded = tokenizer.decode(tokens)
 
-        print(f"✅ Tokenizer works")
+        print("✅ Tokenizer works")
         print(f"   Input: {test_text}")
         print(f"   Tokens: {tokens}")
         print(f"   Decoded: {decoded}")
@@ -177,10 +178,10 @@ def test_config():
 
     try:
         import json
-        with open("model/config.json", 'r') as f:
+        with open("model/config.json") as f:
             config = json.load(f)
 
-        print(f"✅ Config is valid JSON")
+        print("✅ Config is valid JSON")
         print(f"   Keys: {list(config.keys())}")
         return True
 

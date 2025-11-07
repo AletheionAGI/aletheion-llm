@@ -17,13 +17,16 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
 
 from ..model import BaselineTransformer, ModelOutput
-from .pyramid import PyramidalEpistemicGates, PyramidalTemperatureModulator, compute_pyramidal_metrics
+from .pyramid import (
+    PyramidalEpistemicGates,
+    PyramidalTemperatureModulator,
+    compute_pyramidal_metrics,
+)
 
 
 @dataclass
@@ -42,7 +45,7 @@ class PyramidalModelOutput(ModelOutput):
             - w_memory, w_pain, w_choice, w_exploration: Individual force weights
     """
 
-    pyramid: Optional[Dict[str, torch.Tensor]] = None
+    pyramid: dict[str, torch.Tensor] | None = None
 
 
 class AletheionPyramidalTransformer(BaselineTransformer):
@@ -124,7 +127,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
                 max_temperature_scale=max_temperature_scale
             )
 
-        print(f"🔻 Pyramidal Epistemology initialized")
+        print("🔻 Pyramidal Epistemology initialized")
         print(f"   - λ_base: {lambda_base}")
         print(f"   - λ_height: {lambda_height}")
         print(f"   - Height method: {height_method}")
@@ -139,10 +142,10 @@ class AletheionPyramidalTransformer(BaselineTransformer):
     def forward(
         self,
         input_ids: torch.Tensor,
-        labels: Optional[torch.Tensor] = None,
+        labels: torch.Tensor | None = None,
         return_dict: bool = True,
         return_pyramid_state: bool = True
-    ) -> PyramidalModelOutput | Dict[str, torch.Tensor]:
+    ) -> PyramidalModelOutput | dict[str, torch.Tensor]:
         """Forward pass with pyramidal epistemic computation.
 
         Args:
@@ -222,12 +225,12 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         input_ids: torch.Tensor,
         max_new_tokens: int = 50,
         temperature: float = 1.0,
-        top_k: Optional[int] = None,
-        top_p: Optional[float] = None,
+        top_k: int | None = None,
+        top_p: float | None = None,
         do_sample: bool = True,
         use_pyramid: bool = True,
         height_threshold: float = 0.5
-    ) -> tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Generate tokens with pyramidal epistemic-aware decoding.
 
         Args:
@@ -330,7 +333,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
 
         return generated, pyramid_history
 
-    def get_pyramidal_stats(self, pyramid_outputs: Dict[str, torch.Tensor]) -> Dict[str, float]:
+    def get_pyramidal_stats(self, pyramid_outputs: dict[str, torch.Tensor]) -> dict[str, float]:
         """Compute statistics about pyramidal state.
 
         Args:
@@ -380,7 +383,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         print(f"✅ Pyramidal model saved to {save_dir}")
 
     @classmethod
-    def load_pretrained(cls, load_dir: str, device: str = 'cpu') -> 'AletheionPyramidalTransformer':
+    def load_pretrained(cls, load_dir: str, device: str = 'cpu') -> AletheionPyramidalTransformer:
         """Load model checkpoint including pyramidal gates.
 
         Args:

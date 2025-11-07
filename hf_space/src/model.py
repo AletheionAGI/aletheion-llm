@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -17,7 +16,7 @@ class ModelOutput:
     """Container mirroring Hugging Face style outputs."""
 
     logits: torch.Tensor
-    loss: Optional[torch.Tensor] = None
+    loss: torch.Tensor | None = None
 
 
 class FeedForward(nn.Module):
@@ -136,9 +135,9 @@ class BaselineTransformer(nn.Module):
     def forward(
         self,
         input_ids: torch.Tensor,
-        labels: Optional[torch.Tensor] = None,
+        labels: torch.Tensor | None = None,
         return_dict: bool = True,
-    ) -> ModelOutput | Dict[str, torch.Tensor]:
+    ) -> ModelOutput | dict[str, torch.Tensor]:
         batch_size, seq_len = input_ids.shape
         if seq_len > self.max_seq_len:
             raise ValueError(
@@ -177,8 +176,8 @@ class BaselineTransformer(nn.Module):
         input_ids: torch.Tensor,
         max_new_tokens: int = 50,
         temperature: float = 1.0,
-        top_k: Optional[int] = None,
-        top_p: Optional[float] = None,
+        top_k: int | None = None,
+        top_p: float | None = None,
         do_sample: bool = True,
     ) -> torch.Tensor:
         self.eval()
