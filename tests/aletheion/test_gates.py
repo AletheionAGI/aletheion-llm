@@ -340,6 +340,10 @@ class TestEpistemicSoftmax:
         q1_gate = LocalUncertaintyGate(d_model=batch_config["d_model"]).to(device)
         q2_gate = CrossContextGate(d_model=batch_config["d_model"], n_heads=4).to(device)
 
+        # Set to eval mode to disable dropout for deterministic testing
+        q1_gate.eval()
+        q2_gate.eval()
+
         logits = torch.randn(4, 32, 1000, device=device)
         context = torch.randn(4, 32, batch_config["d_model"], device=device)
 

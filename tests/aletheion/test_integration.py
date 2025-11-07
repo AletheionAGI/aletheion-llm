@@ -35,11 +35,14 @@ def device():
 @pytest.fixture
 def small_dataset():
     """Load a small subset of WikiText-2 for fast testing."""
-    train_ds, val_ds, tokenizer, vocab_size = load_wikitext_dataset(
+    train_ds, val_ds, test_ds, tokenizer = load_wikitext_dataset(
         tokenizer_name="gpt2",
         dataset_config="wikitext-2-raw-v1",
         max_length=128  # Shorter sequences for faster testing
     )
+
+    # Get vocab size from tokenizer
+    vocab_size = len(tokenizer)
 
     # Use only first 10 samples
     train_subset = Subset(train_ds, range(min(10, len(train_ds))))
