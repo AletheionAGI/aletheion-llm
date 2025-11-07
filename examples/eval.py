@@ -6,10 +6,9 @@ import argparse
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader
-
 from data.dataset import collate_fn, load_wikitext_dataset
 from src import BaselineTransformer, get_device
+from torch.utils.data import DataLoader
 
 
 def evaluate_checkpoint(checkpoint_path: Path) -> tuple[float, float]:
