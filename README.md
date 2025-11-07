@@ -44,6 +44,16 @@
 
 ---
 
+## Author's Note
+
+This project was developed independently in Brazil, grounded in the belief that scientific progress should transcend geography, language, and institutional boundaries.
+
+Aletheion is an open research effort built on transparency, reproducibility, and epistemic humility — values that matter more than prestige or affiliation.
+
+All constructive collaboration is welcome. The goal is not recognition, but understanding.
+
+---
+
 ## Philosophical Foundations
 
 The epistemic framework behind Aletheion was first explored in 
