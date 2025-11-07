@@ -20,12 +20,11 @@ from pathlib import Path
 
 import pytest
 import torch
-from torch.utils.data import DataLoader, Subset
-
 from data.dataset import collate_fn, load_wikitext_dataset
 from src import get_device, set_seed
 from src.aletheion.loss import VaroLoss
 from src.aletheion.model import AletheionTransformer
+from torch.utils.data import DataLoader, Subset
 
 
 @pytest.fixture

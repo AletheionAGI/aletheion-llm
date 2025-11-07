@@ -26,14 +26,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
 from data.dataset import load_wikitext_dataset
 from src import get_device, set_seed
 from src.aletheion.loss import PyramidalVAROLoss, compute_calibration_metrics
 from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 def collate_fn(batch):
