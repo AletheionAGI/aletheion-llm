@@ -37,8 +37,8 @@ class VaroLoss(nn.Module):
     def __init__(
         self,
         lambda_varo: float = 0.1,
-        u_star_method: str = 'head_variance',
-        ignore_index: int = -100
+        u_star_method: str = "head_variance",
+        ignore_index: int = -100,
     ) -> None:
         super().__init__()
         self.lambda_varo = lambda_varo
@@ -54,7 +54,7 @@ class VaroLoss(nn.Module):
         targets: torch.Tensor,
         uncertainty: torch.Tensor,
         u_star: torch.Tensor | None = None,
-        head_logits: torch.Tensor | None = None
+        head_logits: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         """Compute VARO loss.
 
@@ -88,14 +88,12 @@ class VaroLoss(nn.Module):
 
         # Compute target uncertainty if not provided
         if u_star is None:
-            u_star = self._compute_u_star(
-                logits=logits,
-                targets=targets,
-                head_logits=head_logits
-            )
+            u_star = self._compute_u_star(logits=logits, targets=targets, head_logits=head_logits)
 
         # Match shapes for uncertainty loss
-        uncertainty_squeezed = uncertainty.squeeze(-1) if uncertainty.dim() > targets.dim() else uncertainty
+        uncertainty_squeezed = (
+            uncertainty.squeeze(-1) if uncertainty.dim() > targets.dim() else uncertainty
+        )
         u_star_squeezed = u_star.squeeze(-1) if u_star.dim() > targets.dim() else u_star
 
         # Create mask for valid positions (ignore padding)
@@ -115,18 +113,15 @@ class VaroLoss(nn.Module):
 
         # Return detailed breakdown
         return {
-            'loss': total_loss,
-            'ce_loss': ce_loss,
-            'uncertainty_loss': uncertainty_loss,
-            'u_star_mean': (u_star_squeezed * valid_mask).sum() / (valid_mask.sum() + 1e-8),
-            'u_pred_mean': (uncertainty_squeezed * valid_mask).sum() / (valid_mask.sum() + 1e-8)
+            "loss": total_loss,
+            "ce_loss": ce_loss,
+            "uncertainty_loss": uncertainty_loss,
+            "u_star_mean": (u_star_squeezed * valid_mask).sum() / (valid_mask.sum() + 1e-8),
+            "u_pred_mean": (uncertainty_squeezed * valid_mask).sum() / (valid_mask.sum() + 1e-8),
         }
 
     def _compute_u_star(
-        self,
-        _logits: torch.Tensor,
-        targets: torch.Tensor,
-        head_logits: torch.Tensor | None = None
+        self, _logits: torch.Tensor, targets: torch.Tensor, head_logits: torch.Tensor | None = None
     ) -> torch.Tensor:
         """Compute target uncertainty u*.
 
@@ -142,10 +137,10 @@ class VaroLoss(nn.Module):
         Returns:
             u_star: Target uncertainty of same shape as targets
         """
-        if self.u_star_method == 'head_variance' and head_logits is not None:
+        if self.u_star_method == "head_variance" and head_logits is not None:
             return self._compute_head_variance_uncertainty(head_logits)
 
-        elif self.u_star_method == 'data_ambiguity':
+        elif self.u_star_method == "data_ambiguity":
             # For future implementation with multi-label data
             # Currently returns moderate uncertainty
             return torch.full_like(targets, 0.5, dtype=torch.float32)
@@ -154,10 +149,7 @@ class VaroLoss(nn.Module):
             # Uniform uncertainty as baseline
             return torch.full_like(targets, 0.5, dtype=torch.float32)
 
-    def _compute_head_variance_uncertainty(
-        self,
-        head_logits: torch.Tensor
-    ) -> torch.Tensor:
+    def _compute_head_variance_uncertainty(self, head_logits: torch.Tensor) -> torch.Tensor:
         """Compute uncertainty from variance across attention heads.
 
         From paper Equation (14):
@@ -173,7 +165,9 @@ class VaroLoss(nn.Module):
             u_star: Normalized variance in [0, 1]
         """
         # Compute variance across heads (dim=0)
-        variance = torch.var(head_logits, dim=0)  # (batch, seq_len, vocab_size) or (batch, vocab_size)
+        variance = torch.var(
+            head_logits, dim=0
+        )  # (batch, seq_len, vocab_size) or (batch, vocab_size)
 
         # Average variance across vocabulary dimension
         mean_variance = variance.mean(dim=-1)  # (batch, seq_len) or (batch,)
@@ -188,7 +182,7 @@ def create_uncertainty_targets_from_token_frequency(
     tokens: torch.Tensor,
     _vocab_size: int,
     token_counts: torch.Tensor | None = None,
-    rare_threshold: float = 0.01
+    rare_threshold: float = 0.01,
 ) -> torch.Tensor:
     """Create uncertainty targets based on token rarity.
 
@@ -226,8 +220,7 @@ def create_uncertainty_targets_from_token_frequency(
 
 
 def create_uncertainty_targets_from_ambiguity(
-    targets: torch.Tensor,
-    valid_labels: dict[int, list] | None = None
+    targets: torch.Tensor, valid_labels: dict[int, list] | None = None
 ) -> torch.Tensor:
     """Create uncertainty targets based on label ambiguity.
 
@@ -263,10 +256,7 @@ def create_uncertainty_targets_from_ambiguity(
 
 
 def compute_calibration_metrics(
-    probs: torch.Tensor,
-    targets: torch.Tensor,
-    uncertainty: torch.Tensor,
-    n_bins: int = 10
+    probs: torch.Tensor, targets: torch.Tensor, uncertainty: torch.Tensor, n_bins: int = 10
 ) -> dict[str, float]:
     """Compute calibration metrics (ECE, Brier score, etc.).
 
@@ -321,9 +311,9 @@ def compute_calibration_metrics(
         uncertainty_error_corr = 0.0
 
     return {
-        'ece': ece.item(),
-        'brier_score': brier_score.item(),
-        'uncertainty_error_corr': uncertainty_error_corr
+        "ece": ece.item(),
+        "brier_score": brier_score.item(),
+        "uncertainty_error_corr": uncertainty_error_corr,
     }
 
 
@@ -356,8 +346,8 @@ class PyramidalVAROLoss(nn.Module):
         self,
         lambda_base: float = 0.01,
         lambda_height: float = 0.02,
-        height_method: str = 'error_based',
-        ignore_index: int = -100
+        height_method: str = "error_based",
+        ignore_index: int = -100,
     ) -> None:
         super().__init__()
         self.lambda_base = lambda_base
@@ -370,10 +360,7 @@ class PyramidalVAROLoss(nn.Module):
         self.initial_lambda_height = lambda_height
 
     def compute_target_height(
-        self,
-        logits: torch.Tensor,
-        targets: torch.Tensor,
-        method: str = 'error_based'
+        self, logits: torch.Tensor, targets: torch.Tensor, method: str = "error_based"
     ) -> torch.Tensor:
         """Compute ideal height based on prediction quality.
 
@@ -395,7 +382,7 @@ class PyramidalVAROLoss(nn.Module):
         """
         probs = F.softmax(logits, dim=-1)
 
-        if method == 'error_based':
+        if method == "error_based":
             # Get predicted class and confidence
             confidence, predictions = probs.max(dim=-1)
 
@@ -406,7 +393,7 @@ class PyramidalVAROLoss(nn.Module):
             # Low when wrong OR uncertain
             target_height = correct * confidence + (1 - correct) * (1 - confidence)
 
-        elif method == 'entropy_based':
+        elif method == "entropy_based":
             # Low entropy (certain) → high height
             # High entropy (uncertain) → low height
             entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1)
@@ -414,14 +401,14 @@ class PyramidalVAROLoss(nn.Module):
             normalized_entropy = entropy / max_entropy
             target_height = 1.0 - normalized_entropy
 
-        elif method == 'loss_based':
+        elif method == "loss_based":
             # Low loss → high height
             # Compute per-token cross-entropy
             ce_loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)),
                 targets.view(-1),
-                reduction='none',
-                ignore_index=self.ignore_index
+                reduction="none",
+                ignore_index=self.ignore_index,
             )
             # Reshape back
             ce_loss = ce_loss.view(targets.shape)
@@ -434,10 +421,7 @@ class PyramidalVAROLoss(nn.Module):
         return target_height
 
     def forward(
-        self,
-        logits: torch.Tensor,
-        targets: torch.Tensor,
-        pyramid_outputs: dict[str, torch.Tensor]
+        self, logits: torch.Tensor, targets: torch.Tensor, pyramid_outputs: dict[str, torch.Tensor]
     ) -> dict[str, torch.Tensor]:
         """Compute pyramidal VARO loss.
 
@@ -467,16 +451,12 @@ class PyramidalVAROLoss(nn.Module):
         targets_flat = targets.view(-1)
 
         # Standard cross-entropy loss
-        ce_loss = F.cross_entropy(
-            logits_flat,
-            targets_flat,
-            ignore_index=self.ignore_index
-        )
+        ce_loss = F.cross_entropy(logits_flat, targets_flat, ignore_index=self.ignore_index)
 
         # Extract pyramid state
-        base_weights = pyramid_outputs['base_weights']
-        height = pyramid_outputs['height']
-        base_stability = pyramid_outputs['base_stability']
+        base_weights = pyramid_outputs["base_weights"]
+        height = pyramid_outputs["height"]
+        base_stability = pyramid_outputs["base_stability"]
 
         # Create mask for valid tokens (ignore padding)
         valid_mask = (targets != self.ignore_index).unsqueeze(-1)  # [batch, seq_len, 1]
@@ -506,7 +486,9 @@ class PyramidalVAROLoss(nn.Module):
         # Penalize when height doesn't match target
         target_height = self.compute_target_height(
             logits, targets, method=self.height_method
-        ).unsqueeze(-1)  # [batch, seq_len, 1]
+        ).unsqueeze(
+            -1
+        )  # [batch, seq_len, 1]
 
         height_error = (height - target_height) ** 2
         height_loss = (height_error * valid_mask).sum() / (valid_mask.sum() + 1e-8)
@@ -523,15 +505,15 @@ class PyramidalVAROLoss(nn.Module):
         Q2_mean = (Q2 * valid_mask).sum() / num_valid
 
         return {
-            'loss': total_loss,
-            'ce_loss': ce_loss.item(),
-            'base_loss': base_loss.item(),
-            'height_loss': height_loss.item(),
-            'mean_height': mean_height.item(),
-            'target_height_mean': target_height_mean.item(),
-            'base_stability_mean': base_stability_mean.item(),
-            'Q1_mean': Q1_mean.item(),
-            'Q2_mean': Q2_mean.item(),
-            'lambda_base': self.lambda_base,
-            'lambda_height': self.lambda_height
+            "loss": total_loss,
+            "ce_loss": ce_loss.item(),
+            "base_loss": base_loss.item(),
+            "height_loss": height_loss.item(),
+            "mean_height": mean_height.item(),
+            "target_height_mean": target_height_mean.item(),
+            "base_stability_mean": base_stability_mean.item(),
+            "Q1_mean": Q1_mean.item(),
+            "Q2_mean": Q2_mean.item(),
+            "lambda_base": self.lambda_base,
+            "lambda_height": self.lambda_height,
         }

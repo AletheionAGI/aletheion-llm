@@ -53,9 +53,7 @@ class LocalUncertaintyGate(nn.Module):
         """
         # Validate input shape
         if context.dim() not in [2, 3]:
-            raise ValueError(
-                f"Expected context to be 2D or 3D, got shape {context.shape}"
-            )
+            raise ValueError(f"Expected context to be 2D or 3D, got shape {context.shape}")
 
         # Apply dropout for regularization
         context = self.dropout(context)
@@ -80,12 +78,7 @@ class CrossContextGate(nn.Module):
         dropout: Dropout probability
     """
 
-    def __init__(
-        self,
-        d_model: int,
-        n_heads: int = 4,
-        dropout: float = 0.1
-    ) -> None:
+    def __init__(self, d_model: int, n_heads: int = 4, dropout: float = 0.1) -> None:
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
@@ -137,7 +130,7 @@ class CrossContextGate(nn.Module):
         v = v.transpose(1, 2)
 
         # Compute attention scores
-        attn_scores = (q @ k.transpose(-2, -1)) / (self.d_head ** 0.5)
+        attn_scores = (q @ k.transpose(-2, -1)) / (self.d_head**0.5)
         attn_weights = F.softmax(attn_scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
 
@@ -167,7 +160,7 @@ def epistemic_softmax(
     q2_gate: CrossContextGate | None = None,
     base_temperature: float = 1.0,
     confidence_threshold: float = 0.7,
-    eps: float = 1e-8
+    eps: float = 1e-8,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Epistemic softmax operator (Algorithm 1 from paper).
 
@@ -231,7 +224,7 @@ def epistemic_softmax(
     temperature = torch.where(
         confidence < confidence_threshold,
         base_temperature / confidence,
-        torch.full_like(confidence, base_temperature)
+        torch.full_like(confidence, base_temperature),
     )
 
     # Expand temperature to match logits shape

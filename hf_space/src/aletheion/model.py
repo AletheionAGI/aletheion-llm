@@ -80,7 +80,7 @@ class AletheionTransformer(BaselineTransformer):
         q1_threshold: float = 0.7,
         q2_threshold: float = 0.7,
         base_temperature: float = 1.0,
-        n_consensus_heads: int = 4
+        n_consensus_heads: int = 4,
     ) -> None:
         # Initialize baseline transformer
         super().__init__(
@@ -92,7 +92,7 @@ class AletheionTransformer(BaselineTransformer):
             max_seq_len=max_seq_len,
             dropout=dropout,
             tie_weights=tie_weights,
-            use_flash_attention=use_flash_attention
+            use_flash_attention=use_flash_attention,
         )
 
         # Store epistemic parameters
@@ -103,19 +103,13 @@ class AletheionTransformer(BaselineTransformer):
 
         # Add epistemic gates
         self.q1_gate = LocalUncertaintyGate(d_model=d_model, dropout=dropout)
-        self.q2_gate = CrossContextGate(
-            d_model=d_model,
-            n_heads=n_consensus_heads,
-            dropout=dropout
-        )
+        self.q2_gate = CrossContextGate(d_model=d_model, n_heads=n_consensus_heads, dropout=dropout)
 
         print("🔮 Aletheion Level 1 initialized")
         print(f"   - Q₁ threshold: {q1_threshold}")
         print(f"   - Q₂ threshold: {q2_threshold}")
         print(f"   - Base temperature: {base_temperature}")
         print(f"   - Epistemic parameters: {self._count_epistemic_params():,}")
-
-
 
     def _count_epistemic_params(self) -> int:
         """Count parameters in epistemic gates."""
@@ -128,7 +122,7 @@ class AletheionTransformer(BaselineTransformer):
         input_ids: torch.Tensor,
         labels: torch.Tensor | None = None,
         return_dict: bool = True,
-        return_uncertainty: bool = True
+        return_uncertainty: bool = True,
     ) -> AletheionModelOutput | dict[str, torch.Tensor]:
         """Forward pass with epistemic uncertainty quantification.
 
@@ -143,9 +137,7 @@ class AletheionTransformer(BaselineTransformer):
         """
         batch_size, seq_len = input_ids.shape
         if seq_len > self.max_seq_len:
-            raise ValueError(
-                f"Sequence length {seq_len} exceeds maximum {self.max_seq_len}"
-            )
+            raise ValueError(f"Sequence length {seq_len} exceeds maximum {self.max_seq_len}")
 
         # Standard transformer forward pass (same as baseline)
         token_emb = self.token_embedding(input_ids)
@@ -181,7 +173,7 @@ class AletheionTransformer(BaselineTransformer):
                 q1_gate=self.q1_gate,
                 q2_gate=self.q2_gate,
                 base_temperature=self.base_temperature,
-                confidence_threshold=self.confidence_threshold
+                confidence_threshold=self.confidence_threshold,
             )
 
             # Store individual gate outputs for analysis
@@ -199,7 +191,7 @@ class AletheionTransformer(BaselineTransformer):
             loss = nn.functional.cross_entropy(
                 shift_logits.view(-1, shift_logits.size(-1)),
                 shift_labels.view(-1),
-                ignore_index=-100
+                ignore_index=-100,
             )
 
         if return_dict:
@@ -209,7 +201,7 @@ class AletheionTransformer(BaselineTransformer):
                 uncertainty=uncertainty,
                 q1=q1,
                 q2=q2,
-                probs_gated=probs_gated
+                probs_gated=probs_gated,
             )
 
         return {
@@ -218,7 +210,7 @@ class AletheionTransformer(BaselineTransformer):
             "uncertainty": uncertainty,
             "q1": q1,
             "q2": q2,
-            "probs_gated": probs_gated
+            "probs_gated": probs_gated,
         }
 
     @torch.no_grad()
@@ -231,7 +223,7 @@ class AletheionTransformer(BaselineTransformer):
         top_p: float | None = None,
         do_sample: bool = True,
         use_epistemic: bool = True,
-        uncertainty_threshold: float = 0.8
+        uncertainty_threshold: float = 0.8,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Generate tokens with epistemic uncertainty-aware decoding.
 
@@ -279,7 +271,7 @@ class AletheionTransformer(BaselineTransformer):
                 adjusted_temp = torch.where(
                     uncertainty > uncertainty_threshold,
                     temperature * (1.0 + uncertainty),
-                    torch.full_like(uncertainty, temperature)
+                    torch.full_like(uncertainty, temperature),
                 )
 
                 # Apply adjusted temperature per sample
@@ -339,7 +331,7 @@ class AletheionTransformer(BaselineTransformer):
             "uncertainty_mean": u_flat.mean().item(),
             "uncertainty_std": u_flat.std().item(),
             "uncertainty_min": u_flat.min().item(),
-            "uncertainty_max": u_flat.max().item()
+            "uncertainty_max": u_flat.max().item(),
         }
 
     def save_pretrained(self, save_dir: str) -> None:
@@ -349,6 +341,7 @@ class AletheionTransformer(BaselineTransformer):
             save_dir: Directory to save checkpoint
         """
         import os
+
         os.makedirs(save_dir, exist_ok=True)
 
         # Get config from first attention block (BaselineTransformer doesn't expose these)
@@ -358,28 +351,29 @@ class AletheionTransformer(BaselineTransformer):
 
         # Save full state dict (includes all parameters)
         checkpoint = {
-            'model_state_dict': self.state_dict(),
-            'config': {
-                'vocab_size': self.token_embedding.num_embeddings,
-                'd_model': self.token_embedding.embedding_dim,
-                'n_layers': len(self.blocks),
-                'n_heads': n_heads,
-                'd_ff': d_ff,
-                'max_seq_len': self.pos_embedding.num_embeddings,
-                'dropout': 0.1,  # Default, extracted from blocks if needed
-                'tie_weights': self.token_embedding.weight.data_ptr() == self.lm_head.weight.data_ptr(),
-                'use_flash_attention': False,
-                'q1_threshold': self.q1_threshold,
-                'q2_threshold': self.q2_threshold,
-                'base_temperature': self.base_temperature,
-            }
+            "model_state_dict": self.state_dict(),
+            "config": {
+                "vocab_size": self.token_embedding.num_embeddings,
+                "d_model": self.token_embedding.embedding_dim,
+                "n_layers": len(self.blocks),
+                "n_heads": n_heads,
+                "d_ff": d_ff,
+                "max_seq_len": self.pos_embedding.num_embeddings,
+                "dropout": 0.1,  # Default, extracted from blocks if needed
+                "tie_weights": self.token_embedding.weight.data_ptr()
+                == self.lm_head.weight.data_ptr(),
+                "use_flash_attention": False,
+                "q1_threshold": self.q1_threshold,
+                "q2_threshold": self.q2_threshold,
+                "base_temperature": self.base_temperature,
+            },
         }
 
-        torch.save(checkpoint, os.path.join(save_dir, 'pytorch_model.bin'))
+        torch.save(checkpoint, os.path.join(save_dir, "pytorch_model.bin"))
         print(f"✅ Model saved to {save_dir}")
 
     @classmethod
-    def load_pretrained(cls, load_dir: str, device: str = 'cpu') -> AletheionTransformer:
+    def load_pretrained(cls, load_dir: str, device: str = "cpu") -> AletheionTransformer:
         """Load model checkpoint including epistemic gates.
 
         Args:
@@ -390,19 +384,20 @@ class AletheionTransformer(BaselineTransformer):
             Loaded AletheionTransformer instance
         """
         import os
-        checkpoint_path = os.path.join(load_dir, 'pytorch_model.bin')
+
+        checkpoint_path = os.path.join(load_dir, "pytorch_model.bin")
 
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
 
         checkpoint = torch.load(checkpoint_path, map_location=device)
-        config = checkpoint['config']
+        config = checkpoint["config"]
 
         # Instantiate model with saved config
         model = cls(**config)
 
         # Load weights
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint["model_state_dict"])
         model.to(device)
 
         print(f"✅ Model loaded from {load_dir}")

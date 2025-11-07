@@ -205,7 +205,9 @@ class BaselineTransformer(nn.Module):
                 sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1]
                 sorted_indices_to_remove[..., 0] = 0
 
-                indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                indices_to_remove = sorted_indices_to_remove.scatter(
+                    1, sorted_indices, sorted_indices_to_remove
+                )
                 logits[indices_to_remove] = float("-inf")
 
             probs = F.softmax(logits, dim=-1)

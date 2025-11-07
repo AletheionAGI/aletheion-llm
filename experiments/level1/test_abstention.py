@@ -53,7 +53,7 @@ def collect_predictions(
     model: AletheionPyramidalTransformer,
     loader: DataLoader,
     device: torch.device,
-    max_batches: int = 100
+    max_batches: int = 100,
 ) -> dict:
     """Collect predictions with epistemic metrics."""
     model.eval()
@@ -83,10 +83,10 @@ def collect_predictions(
         confidence, predictions = probs.max(dim=-1)
 
         # Get height
-        height = outputs.pyramid['height'][..., :-1, :].squeeze(-1)
+        height = outputs.pyramid["height"][..., :-1, :].squeeze(-1)
 
         # Compute correctness
-        valid_mask = (shift_labels != -100)
+        valid_mask = shift_labels != -100
         if valid_mask.any():
             correct = (predictions == shift_labels).float()
 
@@ -98,18 +98,16 @@ def collect_predictions(
             all_predictions.extend(predictions[valid_mask].cpu().numpy())
 
     return {
-        'heights': np.array(all_heights),
-        'confidences': np.array(all_confidences),
-        'correctness': np.array(all_correctness),
-        'tokens': np.array(all_tokens),
-        'predictions': np.array(all_predictions)
+        "heights": np.array(all_heights),
+        "confidences": np.array(all_confidences),
+        "correctness": np.array(all_correctness),
+        "tokens": np.array(all_tokens),
+        "predictions": np.array(all_predictions),
     }
 
 
 def compute_abstention_metrics(
-    correctness: np.ndarray,
-    heights: np.ndarray,
-    threshold: float
+    correctness: np.ndarray, heights: np.ndarray, threshold: float
 ) -> dict:
     """Compute abstention metrics at a given threshold."""
     # Model abstains when height < threshold
@@ -135,22 +133,20 @@ def compute_abstention_metrics(
     f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
 
     return {
-        'threshold': threshold,
-        'coverage': coverage,
-        'accuracy_when_answered': accuracy_when_answered,
-        'accuracy_when_abstained': accuracy_when_abstained,
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'n_answered': answer_mask.sum(),
-        'n_abstained': abstain_mask.sum()
+        "threshold": threshold,
+        "coverage": coverage,
+        "accuracy_when_answered": accuracy_when_answered,
+        "accuracy_when_abstained": accuracy_when_abstained,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "n_answered": answer_mask.sum(),
+        "n_abstained": abstain_mask.sum(),
     }
 
 
 def find_optimal_threshold(
-    correctness: np.ndarray,
-    heights: np.ndarray,
-    target_coverage: float = 0.8
+    correctness: np.ndarray, heights: np.ndarray, target_coverage: float = 0.8
 ) -> tuple[float, dict]:
     """Find optimal threshold for a target coverage."""
     thresholds = np.linspace(0, 1, 100)
@@ -162,19 +158,18 @@ def find_optimal_threshold(
         metrics = compute_abstention_metrics(correctness, heights, threshold)
 
         # Check if coverage is close to target
-        if abs(metrics['coverage'] - target_coverage) < 0.05 and metrics['accuracy_when_answered'] > best_accuracy:
+        if (
+            abs(metrics["coverage"] - target_coverage) < 0.05
+            and metrics["accuracy_when_answered"] > best_accuracy
+        ):
             best_threshold = threshold
-            best_accuracy = metrics['accuracy_when_answered']
+            best_accuracy = metrics["accuracy_when_answered"]
             best_metrics = metrics
 
     return best_threshold, best_metrics
 
 
-def plot_abstention_curves(
-    correctness: np.ndarray,
-    heights: np.ndarray,
-    save_path: Path
-):
+def plot_abstention_curves(correctness: np.ndarray, heights: np.ndarray, save_path: Path):
     """Plot abstention trade-off curves."""
     thresholds = np.linspace(0, 1, 50)
 
@@ -187,23 +182,32 @@ def plot_abstention_curves(
 
     for threshold in thresholds:
         metrics = compute_abstention_metrics(correctness, heights, threshold)
-        coverages.append(metrics['coverage'])
-        accuracies_answered.append(metrics['accuracy_when_answered'])
-        accuracies_abstained.append(metrics['accuracy_when_abstained'])
-        precisions.append(metrics['precision'])
-        recalls.append(metrics['recall'])
-        f1s.append(metrics['f1'])
+        coverages.append(metrics["coverage"])
+        accuracies_answered.append(metrics["accuracy_when_answered"])
+        accuracies_abstained.append(metrics["accuracy_when_abstained"])
+        precisions.append(metrics["precision"])
+        recalls.append(metrics["recall"])
+        f1s.append(metrics["f1"])
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
 
     # Coverage vs Accuracy
     ax = axes[0, 0]
-    ax.plot(coverages, accuracies_answered, 'b-', label='Accuracy when answered', linewidth=2)
-    ax.plot(coverages, accuracies_abstained, 'r--', label='Accuracy when abstained', linewidth=2, alpha=0.7)
-    ax.axhline(y=correctness.mean(), color='gray', linestyle='--', alpha=0.5, label='Overall accuracy')
-    ax.set_xlabel('Coverage (fraction answered)')
-    ax.set_ylabel('Accuracy')
-    ax.set_title('Selective Prediction: Coverage vs Accuracy Trade-off')
+    ax.plot(coverages, accuracies_answered, "b-", label="Accuracy when answered", linewidth=2)
+    ax.plot(
+        coverages,
+        accuracies_abstained,
+        "r--",
+        label="Accuracy when abstained",
+        linewidth=2,
+        alpha=0.7,
+    )
+    ax.axhline(
+        y=correctness.mean(), color="gray", linestyle="--", alpha=0.5, label="Overall accuracy"
+    )
+    ax.set_xlabel("Coverage (fraction answered)")
+    ax.set_ylabel("Accuracy")
+    ax.set_title("Selective Prediction: Coverage vs Accuracy Trade-off")
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.set_xlim([0, 1])
@@ -211,12 +215,12 @@ def plot_abstention_curves(
 
     # Threshold vs metrics
     ax = axes[0, 1]
-    ax.plot(thresholds, accuracies_answered, 'b-', label='Accuracy', linewidth=2)
-    ax.plot(thresholds, coverages, 'g-', label='Coverage', linewidth=2)
-    ax.plot(thresholds, f1s, 'orange', label='F1 Score', linewidth=2)
-    ax.set_xlabel('Height Threshold')
-    ax.set_ylabel('Metric Value')
-    ax.set_title('Threshold vs Performance Metrics')
+    ax.plot(thresholds, accuracies_answered, "b-", label="Accuracy", linewidth=2)
+    ax.plot(thresholds, coverages, "g-", label="Coverage", linewidth=2)
+    ax.plot(thresholds, f1s, "orange", label="F1 Score", linewidth=2)
+    ax.set_xlabel("Height Threshold")
+    ax.set_ylabel("Metric Value")
+    ax.set_title("Threshold vs Performance Metrics")
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.set_xlim([0, 1])
@@ -224,10 +228,10 @@ def plot_abstention_curves(
 
     # Precision-Recall curve
     ax = axes[1, 0]
-    ax.plot(recalls, precisions, 'purple', linewidth=2)
-    ax.set_xlabel('Recall')
-    ax.set_ylabel('Precision')
-    ax.set_title('Precision-Recall Trade-off')
+    ax.plot(recalls, precisions, "purple", linewidth=2)
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_title("Precision-Recall Trade-off")
     ax.grid(True, alpha=0.3)
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
@@ -236,33 +240,31 @@ def plot_abstention_curves(
     ax = axes[1, 1]
     correct_mask = correctness == 1
     incorrect_mask = correctness == 0
-    ax.hist(heights[correct_mask], bins=50, alpha=0.6, label='Correct', density=True, color='green')
-    ax.hist(heights[incorrect_mask], bins=50, alpha=0.6, label='Incorrect', density=True, color='red')
-    ax.set_xlabel('Height')
-    ax.set_ylabel('Density')
-    ax.set_title('Height Distribution: Correct vs Incorrect')
+    ax.hist(heights[correct_mask], bins=50, alpha=0.6, label="Correct", density=True, color="green")
+    ax.hist(
+        heights[incorrect_mask], bins=50, alpha=0.6, label="Incorrect", density=True, color="red"
+    )
+    ax.set_xlabel("Height")
+    ax.set_ylabel("Density")
+    ax.set_title("Height Distribution: Correct vs Incorrect")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
     print(f"  Saved abstention curves to {save_path}")
     plt.close()
 
 
 def create_abstention_examples(
-    data: dict,
-    tokenizer,
-    threshold: float,
-    save_path: Path,
-    n_examples: int = 20
+    data: dict, tokenizer, threshold: float, save_path: Path, n_examples: int = 20
 ):
     """Create examples of refused predictions."""
-    abstain_mask = data['heights'] < threshold
+    abstain_mask = data["heights"] < threshold
     abstain_indices = np.where(abstain_mask)[0]
 
     # Sort by height (most uncertain first)
-    sorted_indices = abstain_indices[np.argsort(data['heights'][abstain_indices])]
+    sorted_indices = abstain_indices[np.argsort(data["heights"][abstain_indices])]
 
     report = f"""# Abstention Examples (Threshold = {threshold:.3f})
 
@@ -278,11 +280,11 @@ indicating high uncertainty.
     for i in range(n_show):
         idx = sorted_indices[i]
 
-        token = data['tokens'][idx]
-        prediction = data['predictions'][idx]
-        height = data['heights'][idx]
-        confidence = data['confidences'][idx]
-        correct = data['correctness'][idx]
+        token = data["tokens"][idx]
+        prediction = data["predictions"][idx]
+        height = data["heights"][idx]
+        confidence = data["confidences"][idx]
+        correct = data["correctness"][idx]
 
         token_str = tokenizer.decode([token])
         pred_str = tokenizer.decode([prediction])
@@ -332,7 +334,7 @@ By abstaining on predictions with height < {threshold:.3f}, the model:
 - Correctly identifies uncertain predictions (accuracy on abstained: {data['correctness'][abstain_mask].mean():.4f})
 """
 
-    with open(save_path, 'w') as f:
+    with open(save_path, "w") as f:
         f.write(report)
 
     print(f"  Saved abstention examples to {save_path}")
@@ -344,10 +346,10 @@ def create_summary_report(
     metrics: dict,
     optimal_threshold: float,
     optimal_metrics: dict,
-    save_path: Path
+    save_path: Path,
 ):
     """Create summary report."""
-    baseline_accuracy = data['correctness'].mean()
+    baseline_accuracy = data["correctness"].mean()
 
     report = f"""# Selective Abstention Test Report
 
@@ -408,7 +410,7 @@ The height metric serves as an effective uncertainty signal:
 
 """
 
-    if metrics['accuracy_when_answered'] > baseline_accuracy:
+    if metrics["accuracy_when_answered"] > baseline_accuracy:
         report += f"""
 ✓ **Recommended to use selective abstention with threshold ≈ {optimal_threshold:.3f}**
 
@@ -427,22 +429,24 @@ Consider:
 - Ensemble methods for uncertainty estimation
 """
 
-    with open(save_path, 'w') as f:
+    with open(save_path, "w") as f:
         f.write(report)
 
     print(f"  Saved summary report to {save_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Test selective abstention')
-    parser.add_argument('--model', type=str, required=True, help='Path to pyramidal model')
-    parser.add_argument('--threshold', type=float, default=0.3,
-                       help='Height threshold for abstention')
-    parser.add_argument('--output', type=str, default='outputs/abstention_test',
-                       help='Output directory')
-    parser.add_argument('--max-batches', type=int, default=100, help='Max evaluation batches')
-    parser.add_argument('--batch-size', type=int, default=4, help='Batch size')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser = argparse.ArgumentParser(description="Test selective abstention")
+    parser.add_argument("--model", type=str, required=True, help="Path to pyramidal model")
+    parser.add_argument(
+        "--threshold", type=float, default=0.3, help="Height threshold for abstention"
+    )
+    parser.add_argument(
+        "--output", type=str, default="outputs/abstention_test", help="Output directory"
+    )
+    parser.add_argument("--max-batches", type=int, default=100, help="Max evaluation batches")
+    parser.add_argument("--batch-size", type=int, default=4, help="Batch size")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
 
@@ -464,16 +468,11 @@ def main():
     # Load data
     print("Loading WikiText-2...")
     _, val_dataset, _, tokenizer = load_wikitext_dataset(
-        max_length=512,
-        cache_dir='.cache/wikitext'
+        max_length=512, cache_dir=".cache/wikitext"
     )
 
     val_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-        num_workers=0
+        val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=0
     )
 
     # Load model
@@ -490,11 +489,7 @@ def main():
 
     # Compute metrics at specified threshold
     print(f"\nComputing metrics at threshold = {args.threshold}...")
-    metrics = compute_abstention_metrics(
-        data['correctness'],
-        data['heights'],
-        args.threshold
-    )
+    metrics = compute_abstention_metrics(data["correctness"], data["heights"], args.threshold)
     print(f"  Coverage: {metrics['coverage']:.4f}")
     print(f"  Accuracy when answered: {metrics['accuracy_when_answered']:.4f}")
     print(f"  Accuracy when abstained: {metrics['accuracy_when_abstained']:.4f}")
@@ -502,9 +497,7 @@ def main():
     # Find optimal threshold
     print("\nFinding optimal threshold (80% coverage)...")
     optimal_threshold, optimal_metrics = find_optimal_threshold(
-        data['correctness'],
-        data['heights'],
-        target_coverage=0.8
+        data["correctness"], data["heights"], target_coverage=0.8
     )
     if optimal_metrics:
         print(f"  Optimal threshold: {optimal_threshold:.4f}")
@@ -514,26 +507,18 @@ def main():
         print("  Could not find optimal threshold")
         optimal_threshold = 0.5
         optimal_metrics = compute_abstention_metrics(
-            data['correctness'],
-            data['heights'],
-            optimal_threshold
+            data["correctness"], data["heights"], optimal_threshold
         )
 
     # Create visualizations
     print("\nCreating visualizations...")
     plot_abstention_curves(
-        data['correctness'],
-        data['heights'],
-        output_dir / 'abstention_curves.png'
+        data["correctness"], data["heights"], output_dir / "abstention_curves.png"
     )
 
     # Create abstention examples
     create_abstention_examples(
-        data,
-        tokenizer,
-        args.threshold,
-        output_dir / 'abstention_examples.md',
-        n_examples=20
+        data, tokenizer, args.threshold, output_dir / "abstention_examples.md", n_examples=20
     )
 
     # Create summary report
@@ -543,22 +528,26 @@ def main():
         metrics,
         optimal_threshold,
         optimal_metrics,
-        output_dir / 'abstention_report.md'
+        output_dir / "abstention_report.md",
     )
 
     # Save results
     print("\nSaving results...")
     results = {
-        'baseline_accuracy': float(data['correctness'].mean()),
-        'threshold': args.threshold,
-        'metrics': {k: float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v
-                   for k, v in metrics.items()},
-        'optimal_threshold': float(optimal_threshold),
-        'optimal_metrics': {k: float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v
-                          for k, v in optimal_metrics.items()}
+        "baseline_accuracy": float(data["correctness"].mean()),
+        "threshold": args.threshold,
+        "metrics": {
+            k: float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v
+            for k, v in metrics.items()
+        },
+        "optimal_threshold": float(optimal_threshold),
+        "optimal_metrics": {
+            k: float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v
+            for k, v in optimal_metrics.items()
+        },
     }
 
-    with open(output_dir / 'abstention_results.json', 'w') as f:
+    with open(output_dir / "abstention_results.json", "w") as f:
         json.dump(results, f, indent=2)
     print(f"  Saved results to {output_dir / 'abstention_results.json'}")
 
@@ -573,5 +562,5 @@ def main():
     print("  - abstention_results.json: Raw numerical results")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

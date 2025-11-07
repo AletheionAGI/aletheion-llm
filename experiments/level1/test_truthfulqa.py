@@ -62,7 +62,7 @@ def compute_answer_log_likelihood(
     question: str,
     answer: str,
     device: torch.device,
-    is_pyramidal: bool = False
+    is_pyramidal: bool = False,
 ) -> tuple[float, float]:
     """Compute log-likelihood of an answer given a question.
 
@@ -103,7 +103,7 @@ def compute_answer_log_likelihood(
                 answer_log_probs.append(token_log_prob)
 
         if len(answer_log_probs) == 0:
-            return float('-inf'), uncertainty.mean().item()
+            return float("-inf"), uncertainty.mean().item()
 
         # Average log likelihood
         avg_log_likelihood = np.mean(answer_log_probs)
@@ -119,7 +119,7 @@ def evaluate_on_truthfulqa(
     device: torch.device,
     is_pyramidal: bool = False,
     max_samples: int = 200,
-    model_name: str = "Model"
+    model_name: str = "Model",
 ) -> dict:
     """Evaluate model on TruthfulQA.
 
@@ -175,8 +175,8 @@ def evaluate_on_truthfulqa(
             incorrect_uncertainties.append(unc)
 
         # Determine if model made truthful choice
-        best_correct_score = max(correct_scores) if correct_scores else float('-inf')
-        best_incorrect_score = max(incorrect_scores) if incorrect_scores else float('-inf')
+        best_correct_score = max(correct_scores) if correct_scores else float("-inf")
+        best_incorrect_score = max(incorrect_scores) if incorrect_scores else float("-inf")
 
         is_truthful = best_correct_score > best_incorrect_score
 
@@ -186,13 +186,15 @@ def evaluate_on_truthfulqa(
         results["incorrect_answer_scores"].extend(incorrect_scores)
         results["uncertainties"].extend(correct_uncertainties + incorrect_uncertainties)
 
-        results["question_results"].append({
-            "question": question,
-            "is_truthful": is_truthful,
-            "best_correct_score": best_correct_score,
-            "best_incorrect_score": best_incorrect_score,
-            "margin": best_correct_score - best_incorrect_score,
-        })
+        results["question_results"].append(
+            {
+                "question": question,
+                "is_truthful": is_truthful,
+                "best_correct_score": best_correct_score,
+                "best_incorrect_score": best_incorrect_score,
+                "margin": best_correct_score - best_incorrect_score,
+            }
+        )
 
         # Periodic cleanup
         if idx % 50 == 0:
@@ -207,7 +209,8 @@ def evaluate_on_truthfulqa(
         "mean_correct_score": np.mean(results["correct_answer_scores"]),
         "mean_incorrect_score": np.mean(results["incorrect_answer_scores"]),
         "mean_uncertainty": np.mean(results["uncertainties"]) if results["uncertainties"] else 0.0,
-        "score_gap": np.mean(results["correct_answer_scores"]) - np.mean(results["incorrect_answer_scores"]),
+        "score_gap": np.mean(results["correct_answer_scores"])
+        - np.mean(results["incorrect_answer_scores"]),
     }
 
     print(f"\n{model_name} Results:")
@@ -225,10 +228,9 @@ def plot_score_distributions(baseline_results: dict, pyramidal_results: dict, ou
     """Plot distributions of correct vs incorrect answer scores."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    for idx, (results, model_name) in enumerate([
-        (baseline_results, "Baseline"),
-        (pyramidal_results, "Pyramidal")
-    ]):
+    for idx, (results, model_name) in enumerate(
+        [(baseline_results, "Baseline"), (pyramidal_results, "Pyramidal")]
+    ):
         ax = axes[idx]
 
         # Plot histograms
@@ -238,10 +240,18 @@ def plot_score_distributions(baseline_results: dict, pyramidal_results: dict, ou
         ax.hist(correct_scores, bins=30, alpha=0.6, label="Correct Answers", color="green")
         ax.hist(incorrect_scores, bins=30, alpha=0.6, label="Incorrect Answers", color="red")
 
-        ax.axvline(np.mean(correct_scores), color="darkgreen", linestyle="--",
-                   label=f"Mean Correct: {np.mean(correct_scores):.3f}")
-        ax.axvline(np.mean(incorrect_scores), color="darkred", linestyle="--",
-                   label=f"Mean Incorrect: {np.mean(incorrect_scores):.3f}")
+        ax.axvline(
+            np.mean(correct_scores),
+            color="darkgreen",
+            linestyle="--",
+            label=f"Mean Correct: {np.mean(correct_scores):.3f}",
+        )
+        ax.axvline(
+            np.mean(incorrect_scores),
+            color="darkred",
+            linestyle="--",
+            label=f"Mean Incorrect: {np.mean(incorrect_scores):.3f}",
+        )
 
         ax.set_xlabel("Log-Likelihood Score")
         ax.set_ylabel("Frequency")
@@ -263,7 +273,7 @@ def plot_truthfulness_comparison(baseline_results: dict, pyramidal_results: dict
     models = ["Baseline", "Pyramidal"]
     truthfulness_rates = [
         baseline_results["summary"]["truthfulness_rate"],
-        pyramidal_results["summary"]["truthfulness_rate"]
+        pyramidal_results["summary"]["truthfulness_rate"],
     ]
 
     colors = ["#3498db", "#e74c3c"]
@@ -272,15 +282,21 @@ def plot_truthfulness_comparison(baseline_results: dict, pyramidal_results: dict
     # Add value labels on bars
     for bar, rate in zip(bars, truthfulness_rates):
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height,
-                f'{rate:.1%}',
-                ha='center', va='bottom', fontsize=12, fontweight='bold')
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height,
+            f"{rate:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=12,
+            fontweight="bold",
+        )
 
     ax.set_ylabel("Truthfulness Rate (%)", fontsize=12)
-    ax.set_title("TruthfulQA: Model Comparison", fontsize=14, fontweight='bold')
+    ax.set_title("TruthfulQA: Model Comparison", fontsize=14, fontweight="bold")
     ax.set_ylim(0, 1.0)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:.0%}'))
-    ax.grid(True, axis='y', alpha=0.3)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
+    ax.grid(True, axis="y", alpha=0.3)
 
     plt.tight_layout()
     plt.savefig(output_dir / "truthfulness_comparison.png", dpi=300, bbox_inches="tight")
@@ -320,7 +336,9 @@ def plot_uncertainty_vs_correctness(pyramidal_results: dict, output_dir: Path):
     print(f"✓ Saved uncertainty analysis to {output_dir / 'uncertainty_analysis.png'}")
 
 
-def plot_sample_questions(baseline_results: dict, pyramidal_results: dict, output_dir: Path, n_samples: int = 10):
+def plot_sample_questions(
+    baseline_results: dict, pyramidal_results: dict, output_dir: Path, n_samples: int = 10
+):
     """Create visualization of sample questions and model predictions."""
     fig, axes = plt.subplots(n_samples, 2, figsize=(16, 4 * n_samples))
 
@@ -328,12 +346,20 @@ def plot_sample_questions(baseline_results: dict, pyramidal_results: dict, outpu
         baseline_q = baseline_results["question_results"][i]
         pyramidal_q = pyramidal_results["question_results"][i]
 
-        question = baseline_q["question"][:100] + "..." if len(baseline_q["question"]) > 100 else baseline_q["question"]
+        question = (
+            baseline_q["question"][:100] + "..."
+            if len(baseline_q["question"]) > 100
+            else baseline_q["question"]
+        )
 
         # Baseline
         ax_b = axes[i, 0] if n_samples > 1 else axes[0]
-        ax_b.barh([0, 1], [baseline_q["best_correct_score"], baseline_q["best_incorrect_score"]],
-                  color=["green", "red"], alpha=0.7)
+        ax_b.barh(
+            [0, 1],
+            [baseline_q["best_correct_score"], baseline_q["best_incorrect_score"]],
+            color=["green", "red"],
+            alpha=0.7,
+        )
         ax_b.set_yticks([0, 1])
         ax_b.set_yticklabels(["Correct", "Incorrect"])
         ax_b.set_xlabel("Log-Likelihood")
@@ -343,13 +369,26 @@ def plot_sample_questions(baseline_results: dict, pyramidal_results: dict, outpu
         # Add checkmark or X
         symbol = "✓" if baseline_q["is_truthful"] else "✗"
         color = "green" if baseline_q["is_truthful"] else "red"
-        ax_b.text(0.98, 0.98, symbol, transform=ax_b.transAxes,
-                 fontsize=20, color=color, ha='right', va='top', fontweight='bold')
+        ax_b.text(
+            0.98,
+            0.98,
+            symbol,
+            transform=ax_b.transAxes,
+            fontsize=20,
+            color=color,
+            ha="right",
+            va="top",
+            fontweight="bold",
+        )
 
         # Pyramidal
         ax_p = axes[i, 1] if n_samples > 1 else axes[1]
-        ax_p.barh([0, 1], [pyramidal_q["best_correct_score"], pyramidal_q["best_incorrect_score"]],
-                  color=["green", "red"], alpha=0.7)
+        ax_p.barh(
+            [0, 1],
+            [pyramidal_q["best_correct_score"], pyramidal_q["best_incorrect_score"]],
+            color=["green", "red"],
+            alpha=0.7,
+        )
         ax_p.set_yticks([0, 1])
         ax_p.set_yticklabels(["Correct", "Incorrect"])
         ax_p.set_xlabel("Log-Likelihood")
@@ -359,8 +398,17 @@ def plot_sample_questions(baseline_results: dict, pyramidal_results: dict, outpu
         # Add checkmark or X
         symbol = "✓" if pyramidal_q["is_truthful"] else "✗"
         color = "green" if pyramidal_q["is_truthful"] else "red"
-        ax_p.text(0.98, 0.98, symbol, transform=ax_p.transAxes,
-                 fontsize=20, color=color, ha='right', va='top', fontweight='bold')
+        ax_p.text(
+            0.98,
+            0.98,
+            symbol,
+            transform=ax_p.transAxes,
+            fontsize=20,
+            color=color,
+            ha="right",
+            va="top",
+            fontweight="bold",
+        )
 
     plt.tight_layout()
     plt.savefig(output_dir / "sample_questions.png", dpi=300, bbox_inches="tight")
@@ -380,7 +428,9 @@ def create_comprehensive_report(baseline_results: dict, pyramidal_results: dict,
     report.append("\nFor each question in TruthfulQA:")
     report.append("1. We compute the log-likelihood of correct answers given the question")
     report.append("2. We compute the log-likelihood of incorrect answers given the question")
-    report.append("3. The model is considered 'truthful' if it assigns higher likelihood to correct answers")
+    report.append(
+        "3. The model is considered 'truthful' if it assigns higher likelihood to correct answers"
+    )
     report.append("4. We analyze the distribution of scores and uncertainties")
 
     report.append("\n## Results Summary")
@@ -405,24 +455,33 @@ def create_comprehensive_report(baseline_results: dict, pyramidal_results: dict,
 
     report.append("\n### Key Findings")
 
-    improvement = (pyramidal_results["summary"]["truthfulness_rate"] -
-                  baseline_results["summary"]["truthfulness_rate"])
+    improvement = (
+        pyramidal_results["summary"]["truthfulness_rate"]
+        - baseline_results["summary"]["truthfulness_rate"]
+    )
 
     if improvement > 0:
-        report.append(f"\n- **Pyramidal model shows {improvement:.1%} improvement** in truthfulness rate")
+        report.append(
+            f"\n- **Pyramidal model shows {improvement:.1%} improvement** in truthfulness rate"
+        )
     elif improvement < 0:
         report.append(f"\n- Baseline model performs {-improvement:.1%} better in truthfulness rate")
     else:
         report.append("\n- Both models show similar truthfulness rates")
 
-    gap_improvement = (pyramidal_results["summary"]["score_gap"] -
-                      baseline_results["summary"]["score_gap"])
+    gap_improvement = (
+        pyramidal_results["summary"]["score_gap"] - baseline_results["summary"]["score_gap"]
+    )
 
     if gap_improvement > 0:
-        report.append(f"- Pyramidal model has **{gap_improvement:.4f} larger score gap** between correct/incorrect")
+        report.append(
+            f"- Pyramidal model has **{gap_improvement:.4f} larger score gap** between correct/incorrect"
+        )
 
     if pyramidal_results["summary"]["mean_uncertainty"] > 0:
-        report.append(f"- Pyramidal model average uncertainty: {pyramidal_results['summary']['mean_uncertainty']:.4f}")
+        report.append(
+            f"- Pyramidal model average uncertainty: {pyramidal_results['summary']['mean_uncertainty']:.4f}"
+        )
 
     report.append("\n## Visualizations")
     report.append("\n### Truthfulness Comparison")
@@ -437,7 +496,9 @@ def create_comprehensive_report(baseline_results: dict, pyramidal_results: dict,
 
     report.append("\n### Sample Questions")
     report.append("\n![Sample Questions](sample_questions.png)")
-    report.append("\n✓ = Truthful (correct answer scored higher) | ✗ = Untruthful (incorrect answer scored higher)")
+    report.append(
+        "\n✓ = Truthful (correct answer scored higher) | ✗ = Untruthful (incorrect answer scored higher)"
+    )
 
     report.append("\n## Statistical Analysis")
 
@@ -458,7 +519,9 @@ def create_comprehensive_report(baseline_results: dict, pyramidal_results: dict,
 
     report.append("\n## Conclusion")
     report.append("\nThis evaluation demonstrates the models' behavior on an out-of-domain QA task")
-    report.append("focused on truthfulness and factual accuracy. The models were trained on WikiText-2")
+    report.append(
+        "focused on truthfulness and factual accuracy. The models were trained on WikiText-2"
+    )
     report.append("and tested on TruthfulQA without any fine-tuning on QA tasks.")
 
     report_text = "\n".join(report)
@@ -471,16 +534,19 @@ def create_comprehensive_report(baseline_results: dict, pyramidal_results: dict,
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate models on TruthfulQA")
-    parser.add_argument("--baseline", type=str, required=True,
-                       help="Path to baseline model checkpoint")
-    parser.add_argument("--pyramidal", type=str, required=True,
-                       help="Path to pyramidal model checkpoint")
-    parser.add_argument("--output", type=str, default="outputs/truthfulqa",
-                       help="Output directory for results")
-    parser.add_argument("--max-samples", type=int, default=200,
-                       help="Maximum number of questions to evaluate")
-    parser.add_argument("--seed", type=int, default=42,
-                       help="Random seed")
+    parser.add_argument(
+        "--baseline", type=str, required=True, help="Path to baseline model checkpoint"
+    )
+    parser.add_argument(
+        "--pyramidal", type=str, required=True, help="Path to pyramidal model checkpoint"
+    )
+    parser.add_argument(
+        "--output", type=str, default="outputs/truthfulqa", help="Output directory for results"
+    )
+    parser.add_argument(
+        "--max-samples", type=int, default=200, help="Maximum number of questions to evaluate"
+    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
 
@@ -489,9 +555,9 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("="*60)
+    print("=" * 60)
     print("TruthfulQA Evaluation")
-    print("="*60)
+    print("=" * 60)
     print("\nConfiguration:")
     print(f"  Baseline: {args.baseline}")
     print(f"  Pyramidal: {args.pyramidal}")
@@ -518,12 +584,13 @@ def main():
         return
 
     # Check if model files exist
-    baseline_has_model = any((baseline_path / f).exists() for f in [
-        "pytorch_model.bin", "model.safetensors", "model.pt"
-    ])
-    pyramidal_has_model = any((pyramidal_path / f).exists() for f in [
-        "pytorch_model.bin", "model.safetensors", "model.pt"
-    ])
+    baseline_has_model = any(
+        (baseline_path / f).exists() for f in ["pytorch_model.bin", "model.safetensors", "model.pt"]
+    )
+    pyramidal_has_model = any(
+        (pyramidal_path / f).exists()
+        for f in ["pytorch_model.bin", "model.safetensors", "model.pt"]
+    )
 
     if not baseline_has_model:
         print(f"\n⚠️  WARNING: No model weights found in {args.baseline}")
@@ -567,16 +634,24 @@ def main():
 
     # Evaluate baseline
     baseline_results = evaluate_on_truthfulqa(
-        baseline_model, tokenizer, dataset, device,
-        is_pyramidal=False, max_samples=args.max_samples,
-        model_name="Baseline"
+        baseline_model,
+        tokenizer,
+        dataset,
+        device,
+        is_pyramidal=False,
+        max_samples=args.max_samples,
+        model_name="Baseline",
     )
 
     # Evaluate pyramidal
     pyramidal_results = evaluate_on_truthfulqa(
-        pyramidal_model, tokenizer, dataset, device,
-        is_pyramidal=True, max_samples=args.max_samples,
-        model_name="Pyramidal"
+        pyramidal_model,
+        tokenizer,
+        dataset,
+        device,
+        is_pyramidal=True,
+        max_samples=args.max_samples,
+        model_name="Pyramidal",
     )
 
     # Save raw results
@@ -611,9 +686,9 @@ def main():
     print("\nGenerating comprehensive report...")
     create_comprehensive_report(baseline_results, pyramidal_results, output_dir)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Evaluation Complete!")
-    print("="*60)
+    print("=" * 60)
     print(f"\nResults saved to: {output_dir}")
     print("  - truthfulqa_report.md (comprehensive report)")
     print("  - truthfulness_comparison.png")

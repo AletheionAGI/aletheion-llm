@@ -111,7 +111,9 @@ def create_scheduler(
     raise ValueError(f"Unknown lr_schedule: {schedule}")
 
 
-def evaluate(model: BaselineTransformer, loader: DataLoader, device: torch.device, mixed_precision: bool) -> tuple[float, float]:
+def evaluate(
+    model: BaselineTransformer, loader: DataLoader, device: torch.device, mixed_precision: bool
+) -> tuple[float, float]:
     model.eval()
     total_loss = 0.0
     total_batches = 0
@@ -201,14 +203,19 @@ def main(config_path: str) -> None:
                     writer.add_scalar("train/loss", loss_value, global_step)
                     writer.add_scalar("train/lr", optimizer.param_groups[0]["lr"], global_step)
                     if use_wandb:
-                        wandb.log({"train/loss": loss_value, "train/lr": optimizer.param_groups[0]["lr"]}, step=global_step)
+                        wandb.log(
+                            {"train/loss": loss_value, "train/lr": optimizer.param_groups[0]["lr"]},
+                            step=global_step,
+                        )
 
                 if global_step % config["training"].get("eval_interval", 1000) == 0:
                     val_loss, val_ppl = evaluate(model, val_loader, device, mixed_precision)
                     writer.add_scalar("val/loss", val_loss, global_step)
                     writer.add_scalar("val/perplexity", val_ppl, global_step)
                     if use_wandb:
-                        wandb.log({"val/loss": val_loss, "val/perplexity": val_ppl}, step=global_step)
+                        wandb.log(
+                            {"val/loss": val_loss, "val/perplexity": val_ppl}, step=global_step
+                        )
 
                     if val_loss < best_val_loss:
                         best_val_loss = val_loss
@@ -226,7 +233,8 @@ def main(config_path: str) -> None:
 
                 if global_step % config["training"].get("save_interval", 5000) == 0:
                     checkpoint_path = (
-                        Path(config["logging"].get("save_dir", "./checkpoints")) / f"step_{global_step}.pt"
+                        Path(config["logging"].get("save_dir", "./checkpoints"))
+                        / f"step_{global_step}.pt"
                     )
                     torch.save(
                         {
