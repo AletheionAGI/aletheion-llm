@@ -18,21 +18,30 @@ Thank you for your interest in contributing to Aletheion! This guide will help y
 
 ## Code of Conduct
 
-We are committed to providing a welcoming and inclusive environment. Please:
+This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to contact@alethea.tech.
 
+Key principles:
 - Be respectful and considerate
 - Welcome newcomers and help them get started
 - Focus on constructive feedback
 - Respect differing viewpoints and experiences
 
+For full details, see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.8 or higher
-- PyTorch 2.0 or higher
-- Git
+- **Python 3.10 or higher** (3.11 or 3.12 recommended)
+- **PyTorch 2.0 or higher**
+- **Git** for version control
+- **pipx** (optional but recommended for installing pre-commit)
 - Basic understanding of transformers and language models
+
+**Recommended Tools**:
+- `make` for running convenience scripts
+- `pre-commit` for automated code quality checks
+- GPU with CUDA support (for training/experiments)
 
 ### Finding Something to Work On
 
@@ -63,11 +72,33 @@ git fetch upstream
 ### 3. Install Development Dependencies
 
 ```bash
-# Install the package in editable mode with development dependencies
+# Install the package in editable mode with all dependencies
+pip install -e ".[dev,docs]"
+
+# Or install just development dependencies
 pip install -e ".[dev]"
 ```
 
-### 4. Create a Branch
+### 4. Set Up Pre-Commit Hooks
+
+Pre-commit hooks automatically check code quality before commits:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# (Optional) Run hooks on all files to verify setup
+pre-commit run --all-files
+```
+
+This will automatically run:
+- Code formatting (Black, isort)
+- Linting (Ruff)
+- Type checking (mypy)
+- Security checks (bandit)
+- File checks (trailing whitespace, etc.)
+
+### 5. Create a Branch
 
 ```bash
 git checkout -b feature/your-feature-name
@@ -119,13 +150,14 @@ We follow standard Python conventions with some project-specific guidelines:
 ### General Guidelines
 
 - **PEP 8**: Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) style guide
-- **Line Length**: Maximum 88 characters (Black default)
-- **Type Hints**: Use type hints for function signatures
-- **Docstrings**: Use Google-style docstrings
+- **Line Length**: Maximum **100 characters** (configured in pyproject.toml)
+- **Type Hints**: Use type hints for function signatures when practical
+- **Docstrings**: Use Google-style docstrings for public APIs
+- **Conventional Commits**: Use [Conventional Commits](https://www.conventionalcommits.org/) format
 
 ### Code Formatting
 
-We use [Black](https://github.com/psf/black) for code formatting:
+We use [Black](https://github.com/psf/black) for code formatting (line-length=100):
 
 ```bash
 # Format your code
@@ -137,7 +169,7 @@ black --check .
 
 ### Import Sorting
 
-We use [isort](https://pycqa.github.io/isort/) for import sorting:
+We use [isort](https://pycqa.github.io/isort/) for import sorting (Black-compatible):
 
 ```bash
 # Sort imports
@@ -149,12 +181,46 @@ isort --check .
 
 ### Linting
 
-We use [flake8](https://flake8.pycqa.org/) for linting:
+We use [Ruff](https://docs.astral.sh/ruff/) for fast, comprehensive linting:
 
 ```bash
-# Run linter
-flake8 src/ tests/ examples/
+# Run linter (with auto-fix)
+ruff check --fix .
+
+# Check without fixing
+ruff check .
 ```
+
+Ruff replaces flake8, isort checking, and more with a single fast tool.
+
+### Type Checking
+
+We use [mypy](http://mypy-lang.org/) for static type checking:
+
+```bash
+# Run type checker
+mypy src/
+
+# Check specific file
+mypy src/aletheion/gates.py
+```
+
+### All-in-One Scripts
+
+Use our convenience scripts for common tasks:
+
+```bash
+# Format code (Black + isort)
+./scripts/format.sh
+
+# Run all linters
+./scripts/lint.sh
+
+# Run tests with coverage
+./scripts/test.sh
+```
+
+Or simply rely on **pre-commit hooks** which run automatically before each commit!
 
 ### Example Function
 
@@ -282,11 +348,35 @@ flake8 src/ tests/ examples/
 
 ### 2. Commit Your Changes
 
-Write clear, descriptive commit messages:
+We follow [Conventional Commits](https://www.conventionalcommits.org/) format for clear, structured commit messages:
+
+**Format**: `<type>(<scope>): <description>`
+
+**Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+- `perf`: Performance improvements
+- `ci`: CI/CD changes
+
+**Examples**:
 
 ```bash
-git add .
-git commit -m "Add epistemic uncertainty visualization
+# Feature with scope
+git commit -m "feat(gates): add temperature parameter to Q1/Q2 gates"
+
+# Bug fix
+git commit -m "fix(training): resolve VARO loss numerical instability"
+
+# Documentation
+git commit -m "docs: add calibration tutorial to README"
+
+# Multi-line with body
+git commit -m "feat(visualization): add uncertainty heatmap
 
 - Implement uncertainty heatmap visualization
 - Add support for multiple layers
@@ -294,6 +384,12 @@ git commit -m "Add epistemic uncertainty visualization
 - Add tests for visualization functions
 "
 ```
+
+**Tips**:
+- Use imperative mood ("add" not "added" or "adds")
+- Capitalize first letter after type/scope
+- No period at end of subject line
+- Wrap body at 72 characters
 
 ### 3. Push to Your Fork
 
@@ -433,16 +529,32 @@ If you have questions about contributing:
 
 1. Check existing [documentation](docs/)
 2. Search [issues](https://github.com/AletheionAGI/aletheion-llm/issues)
-3. Ask in a new issue
-4. Contact: [contact@alethea.tech](mailto:contact@alethea.tech)
+3. Review [SUPPORT.md](SUPPORT.md) for help resources
+4. Ask in a new issue
+5. Contact: [contact@alethea.tech](mailto:contact@alethea.tech)
+
+---
+
+## Additional Resources
+
+Before contributing, you may find these documents helpful:
+
+- **[ROADMAP.md](ROADMAP.md)** - Project roadmap and planned features
+- **[GOVERNANCE.md](GOVERNANCE.md)** - Project governance and decision-making
+- **[SECURITY.md](SECURITY.md)** - Security policy and reporting vulnerabilities
+- **[SUPPORT.md](SUPPORT.md)** - Getting help and support
+- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** - Community standards
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
 
 ---
 
 ## License
 
-By contributing to Aletheion, you agree that your contributions will be licensed under the same [AGPL-3.0 license](LICENSE-AGPL.md) as the project.
+By contributing to Aletheion LLM, you agree that your contributions will be licensed under the same [AGPL-3.0-or-later license](LICENSE) as the project.
 
-For commercial licensing inquiries, contact [contact@alethea.tech](mailto:contact@alethea.tech).
+**Important**: All contributors retain copyright to their contributions. By submitting a pull request, you grant the project maintainers a license to use your contribution under the project's license terms.
+
+For commercial licensing inquiries, contact [contact@alethea.tech](mailto:contact@alethea.tech) or see [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
 
 ---
 
