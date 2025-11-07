@@ -1,15 +1,17 @@
-# Aletheion: Epistemic Uncertainty for Large Language Models
+# Aletheion LLM — Pyramidal Q1/Q2 Epistemic Architecture
 
 <div align="center">
 
-**Implementation of fractally-applied epistemic softmax for calibrated, uncertainty-aware language models**
+**Fractally-applied epistemic softmax for calibrated, uncertainty-aware language models**
 
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/AletheionAGI/aletheion-llm/actions/workflows/ci.yml/badge.svg)](https://github.com/AletheionAGI/aletheion-llm/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/license-AGPL--3.0%20or%20Commercial-blue.svg)](LICENSE-AGPL.md)
-[![Status](https://img.shields.io/badge/status-active%20research-yellow.svg)](https://github.com/AletheionAGI/aletheion-llm)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-[Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Citation](#citation)
+[Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Contributing](CONTRIBUTING.md) • [Citation](#citation)
 
 </div>
 
@@ -115,32 +117,45 @@ This repository implements three progressive levels:
 
 ## Installation
 
-### From Source (Recommended for Development)
+### From PyPI (When Available)
+
+```bash
+pip install aletheion-llm
+```
+
+### From Source (Development)
 
 ```bash
 # Clone the repository
 git clone https://github.com/AletheionAGI/aletheion-llm.git
 cd aletheion-llm
 
-# Install in editable mode with dependencies
-pip install -e .
+# Install with all dependencies
+pip install -e ".[dev,docs]"
 
-# Or install with development dependencies
-pip install -e ".[dev]"
+# Set up pre-commit hooks (recommended)
+pre-commit install
 ```
 
-### From Requirements (Quick Start)
+### Using Docker
 
 ```bash
-pip install -r requirements.txt
+# Development environment
+docker-compose up dev
+
+# Jupyter Lab for experimentation
+docker-compose up jupyter
+
+# GPU training
+docker-compose up train
 ```
 
 ### System Requirements
 
-- Python 3.8+
-- PyTorch 2.0+
-- CUDA 11.8+ (for GPU training)
-- 8GB+ RAM (16GB+ recommended)
+- **Python 3.10+** (3.11 or 3.12 recommended)
+- **PyTorch 2.0+**
+- **CUDA 11.8+** (for GPU training)
+- **8GB+ RAM** (16GB+ recommended for training)
 
 ---
 
@@ -323,28 +338,56 @@ Full metrics will be posted when training completes.
 
 ---
 
+## Community & Support
+
+### Getting Help
+
+- **Documentation**: Check our [comprehensive docs](docs/)
+- **Support**: See [SUPPORT.md](SUPPORT.md) for help resources
+- **Issues**: Report bugs via [GitHub Issues](https://github.com/AletheionAGI/aletheion-llm/issues)
+- **Security**: Report vulnerabilities to [security@alethea.tech](mailto:security@alethea.tech) (see [SECURITY.md](SECURITY.md))
+
+### Project Governance
+
+- **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Governance**: [GOVERNANCE.md](GOVERNANCE.md)
+- **Roadmap**: [ROADMAP.md](ROADMAP.md)
+- **Changelog**: [CHANGELOG.md](CHANGELOG.md)
+
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
-- Code style and standards
-- Testing requirements
-- Pull request process
-- Development setup
+We welcome contributions! Please review:
 
-### Quick Contribution Guide
+- **[Contributing Guide](CONTRIBUTING.md)** - Development setup, code standards, PR process
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
+- **[Roadmap](ROADMAP.md)** - Planned features and priorities
+
+### Quick Start for Contributors
 
 ```bash
-# Fork and clone the repository
+# Fork and clone
 git clone https://github.com/YOUR_USERNAME/aletheion-llm.git
+cd aletheion-llm
+
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Set up pre-commit hooks
+pre-commit install
 
 # Create a feature branch
 git checkout -b feature/your-feature-name
 
-# Make your changes and add tests
-pytest tests/
+# Make changes, run tests
+./scripts/test.sh
+
+# Run linters
+./scripts/lint.sh
 
 # Submit a pull request
 ```
+
+**Looking for good first issues?** Check for [`good first issue`](https://github.com/AletheionAGI/aletheion-llm/labels/good%20first%20issue) labels!
 
 ---
 
@@ -417,6 +460,6 @@ This research builds upon decades of work in uncertainty quantification, Bayesia
 
 Made with ❤️ by the Aletheion team
 
-[⬆ Back to Top](#aletheion-epistemic-uncertainty-for-large-language-models)
+[⬆ Back to Top](#aletheion-llm--pyramidal-q1q2-epistemic-architecture)
 
 </div>
