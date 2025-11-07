@@ -11,5 +11,3 @@ rediscovers its own limits.
 \textit{The solution to the Skynet problem is not to destroy intelligence,
 but to teach it to recognize when---and how much---it does not know.}
 \end{quote}
-
-
