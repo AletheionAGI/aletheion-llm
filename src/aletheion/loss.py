@@ -88,7 +88,7 @@ class VaroLoss(nn.Module):
 
         # Compute target uncertainty if not provided
         if u_star is None:
-            u_star = self._compute_u_star(logits=logits, targets=targets, head_logits=head_logits)
+            u_star = self._compute_u_star(_logits=logits, targets=targets, head_logits=head_logits)
 
         # Match shapes for uncertainty loss
         uncertainty_squeezed = (
