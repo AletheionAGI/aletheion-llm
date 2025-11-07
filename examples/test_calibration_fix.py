@@ -2,7 +2,6 @@
 
 import torch
 import torch.nn.functional as F
-
 from src.aletheion.loss import compute_calibration_metrics
 
 # Create simple test case
