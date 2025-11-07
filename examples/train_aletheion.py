@@ -86,7 +86,7 @@ def create_model(config: dict, device: torch.device) -> AletheionTransformer:
         q1_threshold=epistemic_cfg.get("q1_threshold", 0.7),
         q2_threshold=epistemic_cfg.get("q2_threshold", 0.7),
         base_temperature=epistemic_cfg.get("base_temperature", 1.0),
-        n_consensus_heads=epistemic_cfg.get("n_consensus_heads", 4)
+        n_consensus_heads=epistemic_cfg.get("n_consensus_heads", 4),
     ).to(device)
 
     if config["system"].get("compile", False) and hasattr(torch, "compile"):
@@ -134,7 +134,7 @@ def evaluate(
     loader: DataLoader,
     device: torch.device,
     mixed_precision: bool,
-    varo_loss: VaroLoss
+    varo_loss: VaroLoss,
 ) -> dict[str, float]:
     """Evaluate model on validation set with uncertainty metrics."""
     model.eval()
@@ -160,15 +160,13 @@ def evaluate(
                 shift_uncertainty = outputs.uncertainty[..., :-1, :].contiguous()
 
                 loss_dict = varo_loss(
-                    logits=shift_logits,
-                    targets=shift_labels,
-                    uncertainty=shift_uncertainty
+                    logits=shift_logits, targets=shift_labels, uncertainty=shift_uncertainty
                 )
 
-            total_loss += loss_dict['loss'].item()
-            total_ce_loss += loss_dict['ce_loss'].item()
-            total_uncertainty_loss += loss_dict['uncertainty_loss'].item()
-            total_uncertainty += loss_dict['u_pred_mean']
+            total_loss += loss_dict["loss"].item()
+            total_ce_loss += loss_dict["ce_loss"].item()
+            total_uncertainty_loss += loss_dict["uncertainty_loss"].item()
+            total_uncertainty += loss_dict["u_pred_mean"]
             total_q1 += outputs.q1[..., :-1, :].mean().item()
             total_q2 += outputs.q2[..., :-1, :].mean().item()
             total_batches += 1
@@ -201,7 +199,7 @@ def main(config_path: str) -> None:
     varo_loss = VaroLoss(
         lambda_varo=epistemic_cfg.get("lambda_varo", 0.1),
         u_star_method=epistemic_cfg.get("u_star_method", "head_variance"),
-        ignore_index=-100
+        ignore_index=-100,
     )
 
     max_steps = config["training"]["max_steps"]
@@ -225,7 +223,9 @@ def main(config_path: str) -> None:
 
     global_step = 0
     best_val_loss = float("inf")
-    best_checkpoint = Path(config["logging"].get("save_dir", "./checkpoints")) / "best_aletheion_model.pt"
+    best_checkpoint = (
+        Path(config["logging"].get("save_dir", "./checkpoints")) / "best_aletheion_model.pt"
+    )
     best_checkpoint.parent.mkdir(parents=True, exist_ok=True)
 
     model.train()
@@ -248,12 +248,10 @@ def main(config_path: str) -> None:
                 shift_uncertainty = outputs.uncertainty[..., :-1, :].contiguous()
 
                 loss_dict = varo_loss(
-                    logits=shift_logits,
-                    targets=shift_labels,
-                    uncertainty=shift_uncertainty
+                    logits=shift_logits, targets=shift_labels, uncertainty=shift_uncertainty
                 )
 
-                loss = loss_dict['loss'] / accumulation_steps
+                loss = loss_dict["loss"] / accumulation_steps
 
             scaler.scale(loss).backward()
 
@@ -272,24 +270,31 @@ def main(config_path: str) -> None:
 
                 if global_step % config["training"].get("log_interval", 100) == 0:
                     # Log training metrics
-                    writer.add_scalar("train/loss", loss_dict['loss'].item(), global_step)
-                    writer.add_scalar("train/ce_loss", loss_dict['ce_loss'].item(), global_step)
-                    writer.add_scalar("train/uncertainty_loss", loss_dict['uncertainty_loss'].item(), global_step)
-                    writer.add_scalar("train/uncertainty_mean", loss_dict['u_pred_mean'], global_step)
+                    writer.add_scalar("train/loss", loss_dict["loss"].item(), global_step)
+                    writer.add_scalar("train/ce_loss", loss_dict["ce_loss"].item(), global_step)
+                    writer.add_scalar(
+                        "train/uncertainty_loss", loss_dict["uncertainty_loss"].item(), global_step
+                    )
+                    writer.add_scalar(
+                        "train/uncertainty_mean", loss_dict["u_pred_mean"], global_step
+                    )
                     writer.add_scalar("train/q1_mean", outputs.q1.mean().item(), global_step)
                     writer.add_scalar("train/q2_mean", outputs.q2.mean().item(), global_step)
                     writer.add_scalar("train/lr", optimizer.param_groups[0]["lr"], global_step)
 
                     if use_wandb:
-                        wandb.log({
-                            "train/loss": loss_dict['loss'].item(),
-                            "train/ce_loss": loss_dict['ce_loss'].item(),
-                            "train/uncertainty_loss": loss_dict['uncertainty_loss'].item(),
-                            "train/uncertainty_mean": loss_dict['u_pred_mean'],
-                            "train/q1_mean": outputs.q1.mean().item(),
-                            "train/q2_mean": outputs.q2.mean().item(),
-                            "train/lr": optimizer.param_groups[0]["lr"]
-                        }, step=global_step)
+                        wandb.log(
+                            {
+                                "train/loss": loss_dict["loss"].item(),
+                                "train/ce_loss": loss_dict["ce_loss"].item(),
+                                "train/uncertainty_loss": loss_dict["uncertainty_loss"].item(),
+                                "train/uncertainty_mean": loss_dict["u_pred_mean"],
+                                "train/q1_mean": outputs.q1.mean().item(),
+                                "train/q2_mean": outputs.q2.mean().item(),
+                                "train/lr": optimizer.param_groups[0]["lr"],
+                            },
+                            step=global_step,
+                        )
 
                 if global_step % config["training"].get("eval_interval", 1000) == 0:
                     val_metrics = evaluate(model, val_loader, device, mixed_precision, varo_loss)
@@ -301,26 +306,29 @@ def main(config_path: str) -> None:
                     if use_wandb:
                         wandb.log(val_metrics, step=global_step)
 
-                    print(f"\n[Step {global_step}] Val Loss: {val_metrics['val_loss']:.4f} | "
-                          f"Perplexity: {val_metrics['val_perplexity']:.2f} | "
-                          f"Uncertainty: {val_metrics['val_uncertainty_mean']:.3f}")
+                    print(
+                        f"\n[Step {global_step}] Val Loss: {val_metrics['val_loss']:.4f} | "
+                        f"Perplexity: {val_metrics['val_perplexity']:.2f} | "
+                        f"Uncertainty: {val_metrics['val_uncertainty_mean']:.3f}"
+                    )
 
-                    if val_metrics['val_loss'] < best_val_loss:
-                        best_val_loss = val_metrics['val_loss']
+                    if val_metrics["val_loss"] < best_val_loss:
+                        best_val_loss = val_metrics["val_loss"]
                         torch.save(
                             {
                                 "model_state_dict": model.state_dict(),
                                 "optimizer_state_dict": optimizer.state_dict(),
                                 "config": config,
                                 "global_step": global_step,
-                                **val_metrics
+                                **val_metrics,
                             },
                             best_checkpoint,
                         )
 
                 if global_step % config["training"].get("save_interval", 5000) == 0:
                     checkpoint_path = (
-                        Path(config["logging"].get("save_dir", "./checkpoints")) / f"aletheion_step_{global_step}.pt"
+                        Path(config["logging"].get("save_dir", "./checkpoints"))
+                        / f"aletheion_step_{global_step}.pt"
                     )
                     torch.save(
                         {

@@ -98,7 +98,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         lambda_height: float = 0.002,
         use_multi_head_height: bool = False,
         modulate_temperature: bool = True,
-        max_temperature_scale: float = 2.0
+        max_temperature_scale: float = 2.0,
     ) -> None:
         # Initialize baseline transformer
         super().__init__(
@@ -110,7 +110,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             max_seq_len=max_seq_len,
             dropout=dropout,
             tie_weights=tie_weights,
-            use_flash_attention=use_flash_attention
+            use_flash_attention=use_flash_attention,
         )
 
         # Store pyramidal parameters
@@ -127,7 +127,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             d_model=d_model,
             n_heads=n_heads,
             dropout=dropout,
-            use_multi_head_height=use_multi_head_height
+            use_multi_head_height=use_multi_head_height,
         )
 
         # Pyramidal VARO loss
@@ -137,7 +137,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             lambda_Q2=lambda_Q2,
             lambda_fractal=lambda_fractal,
             lambda_height=lambda_height,
-            ignore_index=-100
+            ignore_index=-100,
         )
 
         print("🔻 Pyramidal Q1/Q2/Fractal Architecture initialized")
@@ -159,7 +159,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         input_ids: torch.Tensor,
         labels: torch.Tensor | None = None,
         return_dict: bool = True,
-        return_pyramid_state: bool = True
+        return_pyramid_state: bool = True,
     ) -> PyramidalQ1Q2ModelOutput | dict[str, torch.Tensor]:
         """Forward pass with pyramidal Q1/Q2/Fractal computation.
 
@@ -175,9 +175,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         batch_size, seq_len = input_ids.shape
 
         if seq_len > self.max_seq_len:
-            raise ValueError(
-                f"Sequence length {seq_len} exceeds maximum {self.max_seq_len}"
-            )
+            raise ValueError(f"Sequence length {seq_len} exceeds maximum {self.max_seq_len}")
 
         # Standard transformer forward pass
         token_emb = self.token_embedding(input_ids)
@@ -201,8 +199,8 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         # Compute logits with optional temperature modulation
         if self.modulate_temperature and pyramid_outputs is not None:
             # Modulate temperature based on height and fractal uncertainty
-            height = pyramid_outputs['height']
-            fractal = pyramid_outputs['fractal_uncertainty']
+            height = pyramid_outputs["height"]
+            fractal = pyramid_outputs["fractal_uncertainty"]
 
             # Temperature increases with uncertainty AND meta-uncertainty
             temperature = 1.0 + (1.0 - height + fractal) * (self.max_temperature_scale - 1.0)
@@ -219,7 +217,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             if pyramid_outputs is not None:
                 # Use pyramidal VARO loss
                 loss_dict = self.pyramid_loss_fn(logits, labels, pyramid_outputs)
-                loss = loss_dict['loss']
+                loss = loss_dict["loss"]
             else:
                 # Fallback to standard cross-entropy
                 shift_logits = logits[..., :-1, :].contiguous()
@@ -227,21 +225,13 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
                 loss = nn.functional.cross_entropy(
                     shift_logits.view(-1, shift_logits.size(-1)),
                     shift_labels.view(-1),
-                    ignore_index=-100
+                    ignore_index=-100,
                 )
 
         if return_dict:
-            return PyramidalQ1Q2ModelOutput(
-                logits=logits,
-                loss=loss,
-                pyramid=pyramid_outputs
-            )
+            return PyramidalQ1Q2ModelOutput(logits=logits, loss=loss, pyramid=pyramid_outputs)
 
-        return {
-            'logits': logits,
-            'loss': loss,
-            'pyramid': pyramid_outputs
-        }
+        return {"logits": logits, "loss": loss, "pyramid": pyramid_outputs}
 
     @torch.no_grad()
     def generate(
@@ -254,7 +244,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         do_sample: bool = True,
         use_pyramid: bool = True,
         _Q1_threshold: float = 0.5,
-        _Q2_threshold: float = 0.5
+        _Q2_threshold: float = 0.5,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Generate tokens with Q1/Q2-aware decoding.
 
@@ -293,7 +283,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             idx_cond = (
                 generated
                 if generated.size(1) <= self.max_seq_len
-                else generated[:, -self.max_seq_len:]
+                else generated[:, -self.max_seq_len :]
             )
 
             # Forward pass
@@ -304,10 +294,10 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
 
             # Get pyramidal state
             if use_pyramid and outputs.pyramid is not None:
-                Q1 = outputs.pyramid['Q1_mean'][:, -1, :].squeeze(-1)  # [batch]
-                Q2 = outputs.pyramid['Q2_mean'][:, -1, :].squeeze(-1)
-                height = outputs.pyramid['height'][:, -1, :].squeeze(-1)
-                fractal = outputs.pyramid['fractal_uncertainty'][:, -1, :].squeeze(-1)
+                Q1 = outputs.pyramid["Q1_mean"][:, -1, :].squeeze(-1)  # [batch]
+                Q2 = outputs.pyramid["Q2_mean"][:, -1, :].squeeze(-1)
+                height = outputs.pyramid["height"][:, -1, :].squeeze(-1)
+                fractal = outputs.pyramid["fractal_uncertainty"][:, -1, :].squeeze(-1)
 
                 Q1_history.append(Q1)
                 Q2_history.append(Q2)
@@ -328,7 +318,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             # Apply top-k
             if top_k is not None:
                 top_values, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < top_values[:, [-1]]] = float('-inf')
+                logits[logits < top_values[:, [-1]]] = float("-inf")
 
             # Apply top-p
             if top_p is not None:
@@ -344,7 +334,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
                 indices_to_remove = sorted_indices_to_remove.scatter(
                     1, sorted_indices, sorted_indices_to_remove
                 )
-                logits[indices_to_remove] = float('-inf')
+                logits[indices_to_remove] = float("-inf")
 
             # Sample
             probs = nn.functional.softmax(logits, dim=-1)
@@ -359,17 +349,14 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         # Stack history
         pyramid_history = {}
         if Q1_history:
-            pyramid_history['Q1_mean'] = torch.stack(Q1_history, dim=1)
-            pyramid_history['Q2_mean'] = torch.stack(Q2_history, dim=1)
-            pyramid_history['heights'] = torch.stack(height_history, dim=1)
-            pyramid_history['fractal_uncertainty'] = torch.stack(fractal_history, dim=1)
+            pyramid_history["Q1_mean"] = torch.stack(Q1_history, dim=1)
+            pyramid_history["Q2_mean"] = torch.stack(Q2_history, dim=1)
+            pyramid_history["heights"] = torch.stack(height_history, dim=1)
+            pyramid_history["fractal_uncertainty"] = torch.stack(fractal_history, dim=1)
 
         return generated, pyramid_history
 
-    def get_pyramidal_stats(
-        self,
-        pyramid_outputs: dict[str, torch.Tensor]
-    ) -> dict[str, float]:
+    def get_pyramidal_stats(self, pyramid_outputs: dict[str, torch.Tensor]) -> dict[str, float]:
         """Compute statistics about pyramidal Q1/Q2 state.
 
         Args:
@@ -387,6 +374,7 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             save_dir: Directory to save checkpoint
         """
         import os
+
         os.makedirs(save_dir, exist_ok=True)
 
         # Get config
@@ -395,36 +383,35 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
         d_ff = first_block.ffn.fc1.out_features
 
         checkpoint = {
-            'model_state_dict': self.state_dict(),
-            'config': {
-                'vocab_size': self.token_embedding.num_embeddings,
-                'd_model': self.token_embedding.embedding_dim,
-                'n_layers': len(self.blocks),
-                'n_heads': n_heads,
-                'd_ff': d_ff,
-                'max_seq_len': self.pos_embedding.num_embeddings,
-                'dropout': 0.1,
-                'tie_weights': self.token_embedding.weight.data_ptr() == self.lm_head.weight.data_ptr(),
-                'use_flash_attention': False,
-                'lambda_base': self.lambda_base,
-                'lambda_Q1': self.lambda_Q1,
-                'lambda_Q2': self.lambda_Q2,
-                'lambda_fractal': self.lambda_fractal,
-                'lambda_height': self.lambda_height,
-                'use_multi_head_height': self.pyramid_gates.use_multi_head_height,
-                'modulate_temperature': self.modulate_temperature,
-                'max_temperature_scale': self.max_temperature_scale
-            }
+            "model_state_dict": self.state_dict(),
+            "config": {
+                "vocab_size": self.token_embedding.num_embeddings,
+                "d_model": self.token_embedding.embedding_dim,
+                "n_layers": len(self.blocks),
+                "n_heads": n_heads,
+                "d_ff": d_ff,
+                "max_seq_len": self.pos_embedding.num_embeddings,
+                "dropout": 0.1,
+                "tie_weights": self.token_embedding.weight.data_ptr()
+                == self.lm_head.weight.data_ptr(),
+                "use_flash_attention": False,
+                "lambda_base": self.lambda_base,
+                "lambda_Q1": self.lambda_Q1,
+                "lambda_Q2": self.lambda_Q2,
+                "lambda_fractal": self.lambda_fractal,
+                "lambda_height": self.lambda_height,
+                "use_multi_head_height": self.pyramid_gates.use_multi_head_height,
+                "modulate_temperature": self.modulate_temperature,
+                "max_temperature_scale": self.max_temperature_scale,
+            },
         }
 
-        torch.save(checkpoint, os.path.join(save_dir, 'pytorch_model.bin'))
+        torch.save(checkpoint, os.path.join(save_dir, "pytorch_model.bin"))
         print(f"✅ Pyramidal Q1/Q2 model saved to {save_dir}")
 
     @classmethod
     def load_pretrained(
-        cls,
-        load_dir: str,
-        device: str = 'cpu'
+        cls, load_dir: str, device: str = "cpu"
     ) -> AletheionPyramidalQ1Q2Transformer:
         """Load model checkpoint.
 
@@ -436,19 +423,20 @@ class AletheionPyramidalQ1Q2Transformer(BaselineTransformer):
             Loaded model
         """
         import os
-        checkpoint_path = os.path.join(load_dir, 'pytorch_model.bin')
+
+        checkpoint_path = os.path.join(load_dir, "pytorch_model.bin")
 
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
 
         checkpoint = torch.load(checkpoint_path, map_location=device)
-        config = checkpoint['config']
+        config = checkpoint["config"]
 
         # Instantiate model
         model = cls(**config)
 
         # Load weights
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint["model_state_dict"])
         model.to(device)
 
         print(f"✅ Pyramidal Q1/Q2 model loaded from {load_dir}")

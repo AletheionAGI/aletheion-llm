@@ -1,4 +1,5 @@
 """Test script to verify calibration metric fixes."""
+
 import torch
 import torch.nn.functional as F
 from src.aletheion.loss import compute_calibration_metrics
@@ -11,11 +12,13 @@ batch_size = 3
 num_classes = 4
 
 # Create predictions (logits -> probs)
-logits = torch.tensor([
-    [2.0, 1.0, 0.5, 0.1],  # Confident in class 0
-    [0.5, 2.5, 0.3, 0.2],  # Confident in class 1
-    [0.1, 0.2, 0.3, 1.5],  # Confident in class 3
-])
+logits = torch.tensor(
+    [
+        [2.0, 1.0, 0.5, 0.1],  # Confident in class 0
+        [0.5, 2.5, 0.3, 0.2],  # Confident in class 1
+        [0.1, 0.2, 0.3, 1.5],  # Confident in class 3
+    ]
+)
 probs = F.softmax(logits, dim=-1)
 
 # True labels

@@ -55,7 +55,7 @@ class CustomTextDataset(Dataset):
         self.max_length = max_length
 
         # Read text file
-        with open(text_file, encoding='utf-8') as f:
+        with open(text_file, encoding="utf-8") as f:
             text = f.read()
 
         # Split into chunks
@@ -63,7 +63,7 @@ class CustomTextDataset(Dataset):
         tokens = tokenizer.encode(text)
 
         for i in range(0, len(tokens) - max_length, max_length):
-            chunk = tokens[i:i + max_length]
+            chunk = tokens[i : i + max_length]
             if len(chunk) == max_length:
                 self.examples.append(chunk)
 
@@ -73,8 +73,8 @@ class CustomTextDataset(Dataset):
     def __getitem__(self, idx):
         tokens = self.examples[idx]
         return {
-            'input_ids': torch.tensor(tokens, dtype=torch.long),
-            'labels': torch.tensor(tokens, dtype=torch.long)
+            "input_ids": torch.tensor(tokens, dtype=torch.long),
+            "labels": torch.tensor(tokens, dtype=torch.long),
         }
 
 
@@ -88,20 +88,16 @@ def collate_fn(batch):
 
 
 def load_test_dataset(
-    dataset_name: str,
-    tokenizer,
-    max_length: int = 512,
-    custom_text_file: str = None
+    dataset_name: str, tokenizer, max_length: int = 512, custom_text_file: str = None
 ):
     """Load test dataset."""
-    if dataset_name == 'wikitext2':
+    if dataset_name == "wikitext2":
         _, _, test_dataset, _ = load_wikitext_dataset(
-            max_length=max_length,
-            cache_dir='.cache/wikitext'
+            max_length=max_length, cache_dir=".cache/wikitext"
         )
         return test_dataset
 
-    elif dataset_name == 'custom':
+    elif dataset_name == "custom":
         if custom_text_file is None:
             raise ValueError("Must provide --custom-text-file for custom dataset")
         return CustomTextDataset(custom_text_file, tokenizer, max_length)
@@ -116,7 +112,7 @@ def evaluate_model_ood(
     loader: DataLoader,
     device: torch.device,
     is_pyramidal: bool = False,
-    max_batches: int = 100
+    max_batches: int = 100,
 ) -> dict:
     """Evaluate model on OOD data."""
     model.eval()
@@ -158,7 +154,7 @@ def evaluate_model_ood(
         entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1)
 
         # Compute correctness
-        valid_mask = (shift_labels != -100)
+        valid_mask = shift_labels != -100
         if valid_mask.any():
             correct = (predictions == shift_labels).float()
 
@@ -170,7 +166,7 @@ def evaluate_model_ood(
 
             # Pyramidal-specific metrics
             if is_pyramidal:
-                height = outputs.pyramid['height'][..., :-1, :].squeeze(-1)
+                height = outputs.pyramid["height"][..., :-1, :].squeeze(-1)
                 all_heights.extend(height[valid_mask].cpu().numpy())
                 uncertainty = 1.0 - height
                 all_uncertainties.extend(uncertainty[valid_mask].cpu().numpy())
@@ -198,52 +194,45 @@ def evaluate_model_ood(
     dummy_uncertainty = torch.zeros(len(all_targets_cat), 1)
 
     cal_metrics = compute_calibration_metrics(
-        all_probs_cat,
-        all_targets_cat,
-        dummy_uncertainty,
-        n_bins=10
+        all_probs_cat, all_targets_cat, dummy_uncertainty, n_bins=10
     )
 
     results = {
-        'perplexity': perplexity,
-        'loss': avg_loss,
-        'ece': cal_metrics['ece'],
-        'brier_score': cal_metrics['brier_score'],
-        'accuracy': np.mean(all_correctness),
-        'mean_confidence': np.mean(all_confidences),
-        'mean_entropy': np.mean(all_entropies),
-        'confidences': np.array(all_confidences),
-        'correctness': np.array(all_correctness),
-        'entropies': np.array(all_entropies)
+        "perplexity": perplexity,
+        "loss": avg_loss,
+        "ece": cal_metrics["ece"],
+        "brier_score": cal_metrics["brier_score"],
+        "accuracy": np.mean(all_correctness),
+        "mean_confidence": np.mean(all_confidences),
+        "mean_entropy": np.mean(all_entropies),
+        "confidences": np.array(all_confidences),
+        "correctness": np.array(all_correctness),
+        "entropies": np.array(all_entropies),
     }
 
     if is_pyramidal:
-        results['mean_height'] = np.mean(all_heights)
-        results['mean_uncertainty'] = np.mean(all_uncertainties)
-        results['heights'] = np.array(all_heights)
-        results['uncertainties'] = np.array(all_uncertainties)
+        results["mean_height"] = np.mean(all_heights)
+        results["mean_uncertainty"] = np.mean(all_uncertainties)
+        results["heights"] = np.array(all_heights)
+        results["uncertainties"] = np.array(all_uncertainties)
 
     return results
 
 
 def plot_ood_calibration(
-    in_domain_results: dict,
-    ood_results: dict,
-    save_path: Path,
-    model_name: str = "Model"
+    in_domain_results: dict, ood_results: dict, save_path: Path, model_name: str = "Model"
 ):
     """Plot calibration comparison for in-domain vs OOD."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-    for idx, (results, name) in enumerate([
-        (in_domain_results, 'In-Domain'),
-        (ood_results, 'Out-of-Domain')
-    ]):
+    for idx, (results, name) in enumerate(
+        [(in_domain_results, "In-Domain"), (ood_results, "Out-of-Domain")]
+    ):
         ax = axes[idx]
 
         # Compute calibration curve
-        confidences = results['confidences']
-        correctness = results['correctness']
+        confidences = results["confidences"]
+        correctness = results["correctness"]
 
         n_bins = 10
         bin_boundaries = np.linspace(0, 1, n_bins + 1)
@@ -266,46 +255,48 @@ def plot_ood_calibration(
                 counts.append(0)
 
         # Plot reliability diagram
-        ax.plot([0, 1], [0, 1], 'k--', label='Perfect calibration', alpha=0.5)
-        ax.plot(avg_confidences, accuracies, 'o-', label=f'{name}\nECE={results["ece"]:.4f}', linewidth=2)
+        ax.plot([0, 1], [0, 1], "k--", label="Perfect calibration", alpha=0.5)
+        ax.plot(
+            avg_confidences,
+            accuracies,
+            "o-",
+            label=f'{name}\nECE={results["ece"]:.4f}',
+            linewidth=2,
+        )
 
         # Add bars for counts
         ax2 = ax.twinx()
-        ax2.bar(avg_confidences, counts, alpha=0.2, width=0.08, color='gray')
-        ax2.set_ylabel('Count', alpha=0.5)
+        ax2.bar(avg_confidences, counts, alpha=0.2, width=0.08, color="gray")
+        ax2.set_ylabel("Count", alpha=0.5)
 
-        ax.set_xlabel('Confidence')
-        ax.set_ylabel('Accuracy')
-        ax.set_title(f'{model_name} - {name}')
+        ax.set_xlabel("Confidence")
+        ax.set_ylabel("Accuracy")
+        ax.set_title(f"{model_name} - {name}")
         ax.legend()
         ax.grid(True, alpha=0.3)
         ax.set_xlim([0, 1])
         ax.set_ylim([0, 1])
 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
     print(f"  Saved OOD calibration plots to {save_path}")
     plt.close()
 
 
-def plot_uncertainty_distribution(
-    in_domain_results: dict,
-    ood_results: dict,
-    save_path: Path
-):
+def plot_uncertainty_distribution(in_domain_results: dict, ood_results: dict, save_path: Path):
     """Plot uncertainty distribution for pyramidal model."""
-    if 'uncertainties' not in in_domain_results or 'uncertainties' not in ood_results:
+    if "uncertainties" not in in_domain_results or "uncertainties" not in ood_results:
         return
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     # Uncertainty histogram
     ax = axes[0]
-    ax.hist(in_domain_results['uncertainties'], bins=50, alpha=0.6, label='In-Domain', density=True)
-    ax.hist(ood_results['uncertainties'], bins=50, alpha=0.6, label='Out-of-Domain', density=True)
-    ax.set_xlabel('Uncertainty (1 - Height)')
-    ax.set_ylabel('Density')
-    ax.set_title('Uncertainty Distribution')
+    ax.hist(in_domain_results["uncertainties"], bins=50, alpha=0.6, label="In-Domain", density=True)
+    ax.hist(ood_results["uncertainties"], bins=50, alpha=0.6, label="Out-of-Domain", density=True)
+    ax.set_xlabel("Uncertainty (1 - Height)")
+    ax.set_ylabel("Density")
+    ax.set_title("Uncertainty Distribution")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -313,55 +304,55 @@ def plot_uncertainty_distribution(
     ax = axes[1]
 
     # In-domain
-    in_correct = in_domain_results['correctness'] == 1
-    in_incorrect = in_domain_results['correctness'] == 0
+    in_correct = in_domain_results["correctness"] == 1
+    in_incorrect = in_domain_results["correctness"] == 0
     ax.scatter(
-        in_domain_results['heights'][in_correct],
+        in_domain_results["heights"][in_correct],
         np.ones(in_correct.sum()),
         alpha=0.1,
         s=1,
-        label='In-Domain Correct',
-        color='green'
+        label="In-Domain Correct",
+        color="green",
     )
     ax.scatter(
-        in_domain_results['heights'][in_incorrect],
+        in_domain_results["heights"][in_incorrect],
         np.zeros(in_incorrect.sum()),
         alpha=0.1,
         s=1,
-        label='In-Domain Incorrect',
-        color='red'
+        label="In-Domain Incorrect",
+        color="red",
     )
 
     # OOD
-    ood_correct = ood_results['correctness'] == 1
-    ood_incorrect = ood_results['correctness'] == 0
+    ood_correct = ood_results["correctness"] == 1
+    ood_incorrect = ood_results["correctness"] == 0
     ax.scatter(
-        ood_results['heights'][ood_correct],
+        ood_results["heights"][ood_correct],
         np.ones(ood_correct.sum()) + 0.1,
         alpha=0.1,
         s=1,
-        label='OOD Correct',
-        color='blue',
-        marker='x'
+        label="OOD Correct",
+        color="blue",
+        marker="x",
     )
     ax.scatter(
-        ood_results['heights'][ood_incorrect],
+        ood_results["heights"][ood_incorrect],
         np.zeros(ood_incorrect.sum()) - 0.1,
         alpha=0.1,
         s=1,
-        label='OOD Incorrect',
-        color='orange',
-        marker='x'
+        label="OOD Incorrect",
+        color="orange",
+        marker="x",
     )
 
-    ax.set_xlabel('Height')
-    ax.set_ylabel('Correctness')
-    ax.set_title('Height vs Correctness')
+    ax.set_xlabel("Height")
+    ax.set_ylabel("Correctness")
+    ax.set_title("Height vs Correctness")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
     print(f"  Saved uncertainty plots to {save_path}")
     plt.close()
 
@@ -372,7 +363,7 @@ def create_ood_report(
     save_path: Path,
     model_name: str,
     dataset_name: str,
-    is_pyramidal: bool
+    is_pyramidal: bool,
 ):
     """Create OOD evaluation report."""
     report = f"""# Out-of-Domain Evaluation Report
@@ -414,8 +405,14 @@ def create_ood_report(
 """
 
     # Compute degradation
-    ppl_degradation = (ood_results['perplexity'] - in_domain_results['perplexity']) / in_domain_results['perplexity'] * 100
-    ece_degradation = (ood_results['ece'] - in_domain_results['ece']) / in_domain_results['ece'] * 100
+    ppl_degradation = (
+        (ood_results["perplexity"] - in_domain_results["perplexity"])
+        / in_domain_results["perplexity"]
+        * 100
+    )
+    ece_degradation = (
+        (ood_results["ece"] - in_domain_results["ece"]) / in_domain_results["ece"] * 100
+    )
 
     report += f"""
 ## Domain Shift Analysis
@@ -466,28 +463,36 @@ def create_ood_report(
     else:
         report += "✗ **Calibration degrades significantly under domain shift.**\n\n"
 
-    if is_pyramidal and ood_results['mean_uncertainty'] > in_domain_results['mean_uncertainty']:
+    if is_pyramidal and ood_results["mean_uncertainty"] > in_domain_results["mean_uncertainty"]:
         report += "✓ **Pyramidal model appropriately increases uncertainty on OOD data.**\n\n"
 
-    with open(save_path, 'w') as f:
+    with open(save_path, "w") as f:
         f.write(report)
 
     print(f"  Saved OOD report to {save_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Test model on out-of-domain data')
-    parser.add_argument('--model', type=str, required=True, help='Path to model')
-    parser.add_argument('--model-type', type=str, default='pyramidal',
-                       choices=['baseline', 'pyramidal'], help='Model type')
-    parser.add_argument('--test-dataset', type=str, default='wikitext2',
-                       help='Test dataset name')
-    parser.add_argument('--custom-text-file', type=str, default=None,
-                       help='Path to custom text file (for custom dataset)')
-    parser.add_argument('--output', type=str, default='outputs/ood_test', help='Output directory')
-    parser.add_argument('--max-batches', type=int, default=100, help='Max evaluation batches')
-    parser.add_argument('--batch-size', type=int, default=4, help='Batch size')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser = argparse.ArgumentParser(description="Test model on out-of-domain data")
+    parser.add_argument("--model", type=str, required=True, help="Path to model")
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="pyramidal",
+        choices=["baseline", "pyramidal"],
+        help="Model type",
+    )
+    parser.add_argument("--test-dataset", type=str, default="wikitext2", help="Test dataset name")
+    parser.add_argument(
+        "--custom-text-file",
+        type=str,
+        default=None,
+        help="Path to custom text file (for custom dataset)",
+    )
+    parser.add_argument("--output", type=str, default="outputs/ood_test", help="Output directory")
+    parser.add_argument("--max-batches", type=int, default=100, help="Max evaluation batches")
+    parser.add_argument("--batch-size", type=int, default=4, help="Batch size")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
 
@@ -497,7 +502,7 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    is_pyramidal = args.model_type == 'pyramidal'
+    is_pyramidal = args.model_type == "pyramidal"
 
     print("=" * 80)
     print("OUT-OF-DOMAIN CALIBRATION TEST")
@@ -511,10 +516,7 @@ def main():
 
     # Load tokenizer
     print("Loading tokenizer...")
-    _, _, _, tokenizer = load_wikitext_dataset(
-        max_length=512,
-        cache_dir='.cache/wikitext'
-    )
+    _, _, _, tokenizer = load_wikitext_dataset(max_length=512, cache_dir=".cache/wikitext")
 
     # Load model
     print(f"\nLoading {args.model_type} model...")
@@ -526,32 +528,18 @@ def main():
 
     # Load in-domain data (WikiText-2 validation)
     print("\nLoading in-domain data (WikiText-2)...")
-    _, val_dataset, _, _ = load_wikitext_dataset(
-        max_length=512,
-        cache_dir='.cache/wikitext'
-    )
+    _, val_dataset, _, _ = load_wikitext_dataset(max_length=512, cache_dir=".cache/wikitext")
     in_domain_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-        num_workers=0
+        val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=0
     )
 
     # Load OOD data
     print(f"\nLoading out-of-domain data ({args.test_dataset})...")
     ood_dataset = load_test_dataset(
-        args.test_dataset,
-        tokenizer,
-        max_length=512,
-        custom_text_file=args.custom_text_file
+        args.test_dataset, tokenizer, max_length=512, custom_text_file=args.custom_text_file
     )
     ood_loader = DataLoader(
-        ood_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-        num_workers=0
+        ood_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=0
     )
 
     # Evaluate in-domain
@@ -566,9 +554,7 @@ def main():
 
     # Evaluate OOD
     print(f"\nEvaluating on out-of-domain data ({args.test_dataset})...")
-    ood_results = evaluate_model_ood(
-        model, ood_loader, device, is_pyramidal, args.max_batches
-    )
+    ood_results = evaluate_model_ood(model, ood_loader, device, is_pyramidal, args.max_batches)
     print(f"  Perplexity: {ood_results['perplexity']:.2f}")
     print(f"  ECE: {ood_results['ece']:.4f}")
     if is_pyramidal:
@@ -578,34 +564,34 @@ def main():
     print("\nSaving results...")
 
     results_data = {
-        'in_domain': {
-            'perplexity': float(in_domain_results['perplexity']),
-            'loss': float(in_domain_results['loss']),
-            'ece': float(in_domain_results['ece']),
-            'brier_score': float(in_domain_results['brier_score']),
-            'accuracy': float(in_domain_results['accuracy']),
-            'mean_confidence': float(in_domain_results['mean_confidence']),
-            'mean_entropy': float(in_domain_results['mean_entropy'])
+        "in_domain": {
+            "perplexity": float(in_domain_results["perplexity"]),
+            "loss": float(in_domain_results["loss"]),
+            "ece": float(in_domain_results["ece"]),
+            "brier_score": float(in_domain_results["brier_score"]),
+            "accuracy": float(in_domain_results["accuracy"]),
+            "mean_confidence": float(in_domain_results["mean_confidence"]),
+            "mean_entropy": float(in_domain_results["mean_entropy"]),
         },
-        'out_of_domain': {
-            'dataset': args.test_dataset,
-            'perplexity': float(ood_results['perplexity']),
-            'loss': float(ood_results['loss']),
-            'ece': float(ood_results['ece']),
-            'brier_score': float(ood_results['brier_score']),
-            'accuracy': float(ood_results['accuracy']),
-            'mean_confidence': float(ood_results['mean_confidence']),
-            'mean_entropy': float(ood_results['mean_entropy'])
-        }
+        "out_of_domain": {
+            "dataset": args.test_dataset,
+            "perplexity": float(ood_results["perplexity"]),
+            "loss": float(ood_results["loss"]),
+            "ece": float(ood_results["ece"]),
+            "brier_score": float(ood_results["brier_score"]),
+            "accuracy": float(ood_results["accuracy"]),
+            "mean_confidence": float(ood_results["mean_confidence"]),
+            "mean_entropy": float(ood_results["mean_entropy"]),
+        },
     }
 
     if is_pyramidal:
-        results_data['in_domain']['mean_height'] = float(in_domain_results['mean_height'])
-        results_data['in_domain']['mean_uncertainty'] = float(in_domain_results['mean_uncertainty'])
-        results_data['out_of_domain']['mean_height'] = float(ood_results['mean_height'])
-        results_data['out_of_domain']['mean_uncertainty'] = float(ood_results['mean_uncertainty'])
+        results_data["in_domain"]["mean_height"] = float(in_domain_results["mean_height"])
+        results_data["in_domain"]["mean_uncertainty"] = float(in_domain_results["mean_uncertainty"])
+        results_data["out_of_domain"]["mean_height"] = float(ood_results["mean_height"])
+        results_data["out_of_domain"]["mean_uncertainty"] = float(ood_results["mean_uncertainty"])
 
-    with open(output_dir / 'ood_results.json', 'w') as f:
+    with open(output_dir / "ood_results.json", "w") as f:
         json.dump(results_data, f, indent=2)
     print(f"  Saved results to {output_dir / 'ood_results.json'}")
 
@@ -613,26 +599,24 @@ def main():
     plot_ood_calibration(
         in_domain_results,
         ood_results,
-        output_dir / 'ood_calibration.png',
-        model_name=args.model_type.capitalize()
+        output_dir / "ood_calibration.png",
+        model_name=args.model_type.capitalize(),
     )
 
     # Plot uncertainty (pyramidal only)
     if is_pyramidal:
         plot_uncertainty_distribution(
-            in_domain_results,
-            ood_results,
-            output_dir / 'ood_uncertainty.png'
+            in_domain_results, ood_results, output_dir / "ood_uncertainty.png"
         )
 
     # Create report
     create_ood_report(
         in_domain_results,
         ood_results,
-        output_dir / 'ood_report.md',
+        output_dir / "ood_report.md",
         args.model_type.capitalize(),
         args.test_dataset,
-        is_pyramidal
+        is_pyramidal,
     )
 
     print("\n" + "=" * 80)
@@ -641,5 +625,5 @@ def main():
     print(f"\nResults saved to: {output_dir}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

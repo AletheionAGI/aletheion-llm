@@ -39,7 +39,7 @@ def small_dataset():
     train_ds, val_ds, test_ds, tokenizer = load_wikitext_dataset(
         tokenizer_name="gpt2",
         dataset_config="wikitext-2-raw-v1",
-        max_length=128  # Shorter sequences for faster testing
+        max_length=128,  # Shorter sequences for faster testing
     )
 
     # Get vocab size from tokenizer
@@ -68,24 +68,19 @@ class TestAletheionIntegration:
             q1_threshold=0.7,
             q2_threshold=0.7,
             base_temperature=1.0,
-            n_consensus_heads=2
+            n_consensus_heads=2,
         ).to(device)
 
         assert model is not None
-        assert hasattr(model, 'q1_gate')
-        assert hasattr(model, 'q2_gate')
+        assert hasattr(model, "q1_gate")
+        assert hasattr(model, "q2_gate")
 
     def test_forward_pass(self, device):
         """Test forward pass through Aletheion model."""
         set_seed(42)
 
         model = AletheionTransformer(
-            vocab_size=1000,
-            d_model=256,
-            n_layers=2,
-            n_heads=4,
-            d_ff=1024,
-            max_seq_len=128
+            vocab_size=1000, d_model=256, n_layers=2, n_heads=4, d_ff=1024, max_seq_len=128
         ).to(device)
 
         # Create dummy input
@@ -121,20 +116,15 @@ class TestAletheionIntegration:
             n_heads=4,
             d_ff=1024,
             max_seq_len=128,
-            dropout=0.1
+            dropout=0.1,
         ).to(device)
 
         # Create optimizer and loss
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
-        varo_loss = VaroLoss(lambda_varo=0.1, u_star_method='head_variance')
+        varo_loss = VaroLoss(lambda_varo=0.1, u_star_method="head_variance")
 
         # Create dataloader
-        train_loader = DataLoader(
-            train_subset,
-            batch_size=2,
-            shuffle=True,
-            collate_fn=collate_fn
-        )
+        train_loader = DataLoader(train_subset, batch_size=2, shuffle=True, collate_fn=collate_fn)
 
         # Train for 5 steps
         model.train()
@@ -158,12 +148,10 @@ class TestAletheionIntegration:
             shift_uncertainty = outputs.uncertainty[..., :-1, :].contiguous()
 
             loss_dict = varo_loss(
-                logits=shift_logits,
-                targets=shift_labels,
-                uncertainty=shift_uncertainty
+                logits=shift_logits, targets=shift_labels, uncertainty=shift_uncertainty
             )
 
-            loss = loss_dict['loss']
+            loss = loss_dict["loss"]
             losses.append(loss.item())
 
             # Backward pass
@@ -183,12 +171,7 @@ class TestAletheionIntegration:
 
         # Create model
         model = AletheionTransformer(
-            vocab_size=1000,
-            d_model=256,
-            n_layers=2,
-            n_heads=4,
-            d_ff=1024,
-            max_seq_len=128
+            vocab_size=1000, d_model=256, n_layers=2, n_heads=4, d_ff=1024, max_seq_len=128
         ).to(device)
 
         model.eval()  # ADICIONAR ESTA LINHA
@@ -214,22 +197,19 @@ class TestAletheionIntegration:
                 output2 = model2(input_ids, return_uncertainty=True)
 
             # Compare outputs
-            assert torch.allclose(output1.logits, output2.logits, atol=1e-5), \
-                "Loaded model produces different logits"
-            assert torch.allclose(output1.uncertainty, output2.uncertainty, atol=1e-5), \
-                "Loaded model produces different uncertainty"
+            assert torch.allclose(
+                output1.logits, output2.logits, atol=1e-5
+            ), "Loaded model produces different logits"
+            assert torch.allclose(
+                output1.uncertainty, output2.uncertainty, atol=1e-5
+            ), "Loaded model produces different uncertainty"
 
     def test_generation_with_uncertainty(self, device):
         """Test generation with uncertainty-aware decoding."""
         set_seed(42)
 
         model = AletheionTransformer(
-            vocab_size=1000,
-            d_model=256,
-            n_layers=2,
-            n_heads=4,
-            d_ff=1024,
-            max_seq_len=128
+            vocab_size=1000, d_model=256, n_layers=2, n_heads=4, d_ff=1024, max_seq_len=128
         ).to(device)
 
         # Generate tokens
@@ -240,7 +220,7 @@ class TestAletheionIntegration:
             max_new_tokens=10,
             temperature=1.0,
             use_epistemic=True,
-            uncertainty_threshold=0.8
+            uncertainty_threshold=0.8,
         )
 
         # Check output shapes
@@ -253,12 +233,7 @@ class TestAletheionIntegration:
     def test_uncertainty_stats(self, device):
         """Test uncertainty statistics computation."""
         model = AletheionTransformer(
-            vocab_size=1000,
-            d_model=256,
-            n_layers=2,
-            n_heads=4,
-            d_ff=1024,
-            max_seq_len=128
+            vocab_size=1000, d_model=256, n_layers=2, n_heads=4, d_ff=1024, max_seq_len=128
         ).to(device)
 
         input_ids = torch.randint(0, 1000, (4, 32), device=device)
@@ -267,21 +242,21 @@ class TestAletheionIntegration:
         stats = model.get_uncertainty_stats(outputs.uncertainty)
 
         # Check that stats are computed
-        assert 'uncertainty_mean' in stats
-        assert 'uncertainty_std' in stats
-        assert 'uncertainty_min' in stats
-        assert 'uncertainty_max' in stats
+        assert "uncertainty_mean" in stats
+        assert "uncertainty_std" in stats
+        assert "uncertainty_min" in stats
+        assert "uncertainty_max" in stats
 
         # Check that stats are in valid range
-        assert 0.0 <= stats['uncertainty_mean'] <= 1.0
-        assert 0.0 <= stats['uncertainty_min'] <= 1.0
-        assert 0.0 <= stats['uncertainty_max'] <= 1.0
+        assert 0.0 <= stats["uncertainty_mean"] <= 1.0
+        assert 0.0 <= stats["uncertainty_min"] <= 1.0
+        assert 0.0 <= stats["uncertainty_max"] <= 1.0
 
     def test_varo_loss_components(self, device):
         """Test that VARO loss components are computed correctly."""
         set_seed(42)
 
-        varo_loss = VaroLoss(lambda_varo=0.1, u_star_method='head_variance')
+        varo_loss = VaroLoss(lambda_varo=0.1, u_star_method="head_variance")
 
         # Create dummy data
         batch_size, seq_len, vocab_size = 4, 32, 1000
@@ -290,25 +265,19 @@ class TestAletheionIntegration:
         uncertainty = torch.rand(batch_size, seq_len, 1, device=device)
 
         # Compute loss
-        loss_dict = varo_loss(
-            logits=logits,
-            targets=targets,
-            uncertainty=uncertainty
-        )
+        loss_dict = varo_loss(logits=logits, targets=targets, uncertainty=uncertainty)
 
         # Check all components are present
-        assert 'loss' in loss_dict
-        assert 'ce_loss' in loss_dict
-        assert 'uncertainty_loss' in loss_dict
-        assert 'u_star_mean' in loss_dict
-        assert 'u_pred_mean' in loss_dict
+        assert "loss" in loss_dict
+        assert "ce_loss" in loss_dict
+        assert "uncertainty_loss" in loss_dict
+        assert "u_star_mean" in loss_dict
+        assert "u_pred_mean" in loss_dict
 
         # Check that total loss = CE + λ * uncertainty_loss (approximately)
-        expected_total = loss_dict['ce_loss'] + 0.1 * loss_dict['uncertainty_loss']
+        expected_total = loss_dict["ce_loss"] + 0.1 * loss_dict["uncertainty_loss"]
         assert torch.isclose(
-            loss_dict['loss'],
-            torch.tensor(expected_total, device=device),
-            atol=1e-5
+            loss_dict["loss"], torch.tensor(expected_total, device=device), atol=1e-5
         )
 
     def test_eval_mode(self, device):
@@ -316,12 +285,7 @@ class TestAletheionIntegration:
         set_seed(42)
 
         model = AletheionTransformer(
-            vocab_size=1000,
-            d_model=256,
-            n_layers=2,
-            n_heads=4,
-            d_ff=1024,
-            max_seq_len=128
+            vocab_size=1000, d_model=256, n_layers=2, n_heads=4, d_ff=1024, max_seq_len=128
         ).to(device)
 
         input_ids = torch.randint(0, 1000, (2, 16), device=device)

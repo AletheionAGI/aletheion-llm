@@ -14,6 +14,7 @@ def test_imports():
 
     try:
         import torch
+
         print(f"✅ PyTorch {torch.__version__}")
     except ImportError as e:
         print(f"❌ PyTorch import failed: {e}")
@@ -21,6 +22,7 @@ def test_imports():
 
     try:
         from transformers import GPT2Tokenizer as _GPT2Tokenizer  # noqa: F401
+
         print("✅ Transformers (GPT2Tokenizer)")
     except ImportError as e:
         print(f"❌ Transformers import failed: {e}")
@@ -28,6 +30,7 @@ def test_imports():
 
     try:
         import gradio as gr
+
         print(f"✅ Gradio {gr.__version__}")
     except ImportError as e:
         print(f"❌ Gradio import failed: {e}")
@@ -35,6 +38,7 @@ def test_imports():
 
     try:
         import numpy as np
+
         print(f"✅ NumPy {np.__version__}")
     except ImportError as e:
         print(f"❌ NumPy import failed: {e}")
@@ -97,6 +101,7 @@ def test_aletheion_imports():
 
     try:
         from aletheion.pyramidal_model import AletheionPyramidalTransformer as _APT  # noqa: F401
+
         print("✅ AletheionPyramidalTransformer")
     except ImportError as e:
         print(f"❌ AletheionPyramidalTransformer import failed: {e}")
@@ -104,6 +109,7 @@ def test_aletheion_imports():
 
     try:
         from aletheion.gates import PyramidalEpistemicGates as _PEG  # noqa: F401
+
         print("✅ PyramidalEpistemicGates")
     except ImportError as e:
         print(f"❌ PyramidalEpistemicGates import failed: {e}")
@@ -111,6 +117,7 @@ def test_aletheion_imports():
 
     try:
         from model import BaselineTransformer as _BT  # noqa: F401
+
         print("✅ BaselineTransformer")
     except ImportError as e:
         print(f"❌ BaselineTransformer import failed: {e}")
@@ -145,6 +152,7 @@ def test_model_initialization():
     except Exception as e:
         print(f"❌ Model initialization failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -156,7 +164,7 @@ def test_tokenizer():
     try:
         from transformers import GPT2Tokenizer
 
-        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
         test_text = "Hello, world!"
         tokens = tokenizer.encode(test_text)
         decoded = tokenizer.decode(tokens)
@@ -178,6 +186,7 @@ def test_config():
 
     try:
         import json
+
         with open("model/config.json") as f:
             config = json.load(f)
 
@@ -214,6 +223,7 @@ def main():
         except Exception as e:
             print(f"\n❌ {name} test crashed: {e}")
             import traceback
+
             traceback.print_exc()
             results.append((name, False))
 

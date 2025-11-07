@@ -26,20 +26,28 @@ def main(args: argparse.Namespace) -> None:
     val_paths = [Path(p) for p in args.validation]
     test_paths = [Path(p) for p in args.test]
 
-    dataset_dict = datasets.DatasetDict({
-        "train": datasets.Dataset.from_dict({"text": [read_text_files(train_paths)]}),
-        "validation": datasets.Dataset.from_dict({"text": [read_text_files(val_paths)]}),
-        "test": datasets.Dataset.from_dict({"text": [read_text_files(test_paths)]}),
-    })
+    dataset_dict = datasets.DatasetDict(
+        {
+            "train": datasets.Dataset.from_dict({"text": [read_text_files(train_paths)]}),
+            "validation": datasets.Dataset.from_dict({"text": [read_text_files(val_paths)]}),
+            "test": datasets.Dataset.from_dict({"text": [read_text_files(test_paths)]}),
+        }
+    )
 
     dataset_dict.save_to_disk(str(output_dir))
     print(f"✅ Saved dataset to {output_dir}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prepare a Hugging Face dataset from raw text files")
+    parser = argparse.ArgumentParser(
+        description="Prepare a Hugging Face dataset from raw text files"
+    )
     parser.add_argument("--train", nargs="+", required=True, help="Paths to training text files")
-    parser.add_argument("--validation", nargs="+", required=True, help="Paths to validation text files")
+    parser.add_argument(
+        "--validation", nargs="+", required=True, help="Paths to validation text files"
+    )
     parser.add_argument("--test", nargs="+", required=True, help="Paths to test text files")
-    parser.add_argument("--output-dir", type=str, required=True, help="Output directory for the dataset")
+    parser.add_argument(
+        "--output-dir", type=str, required=True, help="Output directory for the dataset"
+    )
     main(parser.parse_args())

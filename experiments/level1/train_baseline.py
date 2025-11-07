@@ -14,6 +14,7 @@ Usage:
     python experiments/level1/train_baseline.py --steps 100 --dry-run
     python experiments/level1/train_baseline.py --steps 2000 --output-dir outputs/baseline
 """
+
 import sys
 from pathlib import Path
 
@@ -70,15 +71,15 @@ def create_baseline_model(
     """
     config = GPT2Config(
         vocab_size=vocab_size,
-        n_positions=512,      # max_seq_len
-        n_embd=512,          # d_model
-        n_layer=6,           # n_layers
-        n_head=8,            # n_heads
-        n_inner=2048,        # d_ff (feedforward)
-        resid_pdrop=0.1,     # dropout
+        n_positions=512,  # max_seq_len
+        n_embd=512,  # d_model
+        n_layer=6,  # n_layers
+        n_head=8,  # n_heads
+        n_inner=2048,  # d_ff (feedforward)
+        resid_pdrop=0.1,  # dropout
         embd_pdrop=0.1,
         attn_pdrop=0.1,
-        activation_function='gelu_new',
+        activation_function="gelu_new",
     )
 
     model = GPT2LMHeadModel(config).to(device)
@@ -137,7 +138,11 @@ def train_step(
 
     metrics = {
         "loss": loss.item() * accumulation_steps,  # Report unscaled loss
-        "perplexity": math.exp(loss.item() * accumulation_steps) if loss.item() * accumulation_steps < 20 else float('inf'),
+        "perplexity": (
+            math.exp(loss.item() * accumulation_steps)
+            if loss.item() * accumulation_steps < 20
+            else float("inf")
+        ),
     }
 
     # Backward pass with optional scaling
@@ -171,7 +176,7 @@ def evaluate_model(
     loader: DataLoader,
     device: torch.device,
     compute_calibration: bool = True,
-    max_eval_batches: int = 100
+    max_eval_batches: int = 100,
 ) -> dict[str, float]:
     """Evaluate baseline model and compute metrics using online statistics."""
     model.eval()
@@ -208,7 +213,7 @@ def evaluate_model(
             # Get probabilities
             probs = F.softmax(shift_logits, dim=-1)
 
-            valid_mask = (shift_labels != -100)
+            valid_mask = shift_labels != -100
             if valid_mask.any():
                 # Sample randomly to stay under limit
                 n_valid = valid_mask.sum().item()
@@ -216,7 +221,9 @@ def evaluate_model(
 
                 if n_to_sample > 0:
                     valid_indices = torch.where(valid_mask.view(-1))[0]
-                    sampled_indices = valid_indices[torch.randperm(len(valid_indices))[:n_to_sample]]
+                    sampled_indices = valid_indices[
+                        torch.randperm(len(valid_indices))[:n_to_sample]
+                    ]
 
                     probs_flat = probs.view(-1, probs.size(-1))
                     labels_flat = shift_labels.view(-1)
@@ -256,18 +263,23 @@ def evaluate_model(
         dummy_uncertainty = torch.zeros(len(all_targets_cat), 1)
 
         cal_metrics = compute_calibration_metrics(
+            all_probs_cat, all_targets_cat, dummy_uncertainty, n_bins=10
+        )
+        metrics.update(
+            {
+                "ece": cal_metrics["ece"],
+                "brier_score": cal_metrics["brier_score"],
+            }
+        )
+
+        # Cleanup
+        del (
             all_probs_cat,
             all_targets_cat,
             dummy_uncertainty,
-            n_bins=10
+            calibration_probs,
+            calibration_targets,
         )
-        metrics.update({
-            "ece": cal_metrics['ece'],
-            "brier_score": cal_metrics['brier_score'],
-        })
-
-        # Cleanup
-        del all_probs_cat, all_targets_cat, dummy_uncertainty, calibration_probs, calibration_targets
 
     model.train()
     return metrics
@@ -278,77 +290,104 @@ def plot_training_curves(history: dict[str, list], save_dir: Path):
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
     # Loss curves
-    axes[0, 0].plot(history['train_loss'], label='Train Loss', alpha=0.7)
-    if 'eval_loss' in history and history['eval_loss']:
-        eval_steps = np.linspace(0, len(history['train_loss']), len(history['eval_loss']))
-        axes[0, 0].plot(eval_steps, history['eval_loss'], label='Eval Loss', marker='o')
-    axes[0, 0].set_xlabel('Step')
-    axes[0, 0].set_ylabel('Loss')
-    axes[0, 0].set_title('Loss Curves (Baseline GPT-2)')
+    axes[0, 0].plot(history["train_loss"], label="Train Loss", alpha=0.7)
+    if "eval_loss" in history and history["eval_loss"]:
+        eval_steps = np.linspace(0, len(history["train_loss"]), len(history["eval_loss"]))
+        axes[0, 0].plot(eval_steps, history["eval_loss"], label="Eval Loss", marker="o")
+    axes[0, 0].set_xlabel("Step")
+    axes[0, 0].set_ylabel("Loss")
+    axes[0, 0].set_title("Loss Curves (Baseline GPT-2)")
     axes[0, 0].legend()
     axes[0, 0].grid(True, alpha=0.3)
 
     # Perplexity
-    if 'eval_perplexity' in history and history['eval_perplexity']:
-        eval_steps = np.linspace(0, len(history['train_loss']), len(history['eval_perplexity']))
-        axes[0, 1].plot(eval_steps, history['eval_perplexity'], marker='o', color='purple')
-        axes[0, 1].set_xlabel('Step')
-        axes[0, 1].set_ylabel('Perplexity')
-        axes[0, 1].set_title('Evaluation Perplexity')
+    if "eval_perplexity" in history and history["eval_perplexity"]:
+        eval_steps = np.linspace(0, len(history["train_loss"]), len(history["eval_perplexity"]))
+        axes[0, 1].plot(eval_steps, history["eval_perplexity"], marker="o", color="purple")
+        axes[0, 1].set_xlabel("Step")
+        axes[0, 1].set_ylabel("Perplexity")
+        axes[0, 1].set_title("Evaluation Perplexity")
         axes[0, 1].grid(True, alpha=0.3)
 
     # ECE (Expected Calibration Error)
-    if 'eval_ece' in history and history['eval_ece']:
-        eval_steps = np.linspace(0, len(history['train_loss']), len(history['eval_ece']))
-        axes[1, 0].plot(eval_steps, history['eval_ece'], marker='o', color='orange')
-        axes[1, 0].set_xlabel('Step')
-        axes[1, 0].set_ylabel('ECE')
-        axes[1, 0].set_title('Expected Calibration Error')
+    if "eval_ece" in history and history["eval_ece"]:
+        eval_steps = np.linspace(0, len(history["train_loss"]), len(history["eval_ece"]))
+        axes[1, 0].plot(eval_steps, history["eval_ece"], marker="o", color="orange")
+        axes[1, 0].set_xlabel("Step")
+        axes[1, 0].set_ylabel("ECE")
+        axes[1, 0].set_title("Expected Calibration Error")
         axes[1, 0].grid(True, alpha=0.3)
-        axes[1, 0].axhline(y=0.1, color='red', linestyle='--', alpha=0.5, label='Poor calibration')
+        axes[1, 0].axhline(y=0.1, color="red", linestyle="--", alpha=0.5, label="Poor calibration")
         axes[1, 0].legend()
 
     # Brier Score
-    if 'eval_brier' in history and history['eval_brier']:
-        eval_steps = np.linspace(0, len(history['train_loss']), len(history['eval_brier']))
-        axes[1, 1].plot(eval_steps, history['eval_brier'], marker='o', color='green')
-        axes[1, 1].set_xlabel('Step')
-        axes[1, 1].set_ylabel('Brier Score')
-        axes[1, 1].set_title('Brier Score (Lower is Better)')
+    if "eval_brier" in history and history["eval_brier"]:
+        eval_steps = np.linspace(0, len(history["train_loss"]), len(history["eval_brier"]))
+        axes[1, 1].plot(eval_steps, history["eval_brier"], marker="o", color="green")
+        axes[1, 1].set_xlabel("Step")
+        axes[1, 1].set_ylabel("Brier Score")
+        axes[1, 1].set_title("Brier Score (Lower is Better)")
         axes[1, 1].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(save_dir / 'training_curves.png', dpi=300, bbox_inches='tight')
+    plt.savefig(save_dir / "training_curves.png", dpi=300, bbox_inches="tight")
     print(f"📊 Training curves saved to {save_dir / 'training_curves.png'}")
     plt.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train baseline GPT-2 model (no epistemic gates)')
+    parser = argparse.ArgumentParser(description="Train baseline GPT-2 model (no epistemic gates)")
 
     # Training duration - support both steps and epochs
     train_group = parser.add_mutually_exclusive_group()
-    train_group.add_argument('--steps', type=int, default=None, help='Number of training steps')
-    train_group.add_argument('--num-epochs', type=int, default=None, help='Number of training epochs')
+    train_group.add_argument("--steps", type=int, default=None, help="Number of training steps")
+    train_group.add_argument(
+        "--num-epochs", type=int, default=None, help="Number of training epochs"
+    )
 
-    parser.add_argument('--batch-size', type=int, default=4, help='Micro batch size (per gradient accumulation step)')
-    parser.add_argument('--gradient-accumulation-steps', type=int, default=1,
-                       help='Number of gradient accumulation steps (effective batch = batch_size * accum_steps)')
-    parser.add_argument('--gradient-checkpointing', action='store_true',
-                       help='Enable gradient checkpointing to save memory (~40% reduction)')
-    parser.add_argument('--fp16', action='store_true',
-                       help='Enable mixed precision training (fp16) to save memory (~50% reduction)')
-    parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
-    parser.add_argument('--eval-interval', type=int, default=500, help='Evaluation interval')
-    parser.add_argument('--save-interval', type=int, default=2000, help='Checkpoint save interval')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--dry-run', action='store_true', help='Quick test run')
-    parser.add_argument('--resume-from', type=str, default=None,
-                       help='Resume training from checkpoint directory (e.g., outputs/baseline/checkpoint-2000)')
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=4,
+        help="Micro batch size (per gradient accumulation step)",
+    )
+    parser.add_argument(
+        "--gradient-accumulation-steps",
+        type=int,
+        default=1,
+        help="Number of gradient accumulation steps (effective batch = batch_size * accum_steps)",
+    )
+    parser.add_argument(
+        "--gradient-checkpointing",
+        action="store_true",
+        help="Enable gradient checkpointing to save memory (~40% reduction)",
+    )
+    parser.add_argument(
+        "--fp16",
+        action="store_true",
+        help="Enable mixed precision training (fp16) to save memory (~50% reduction)",
+    )
+    parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
+    parser.add_argument("--eval-interval", type=int, default=500, help="Evaluation interval")
+    parser.add_argument("--save-interval", type=int, default=2000, help="Checkpoint save interval")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--dry-run", action="store_true", help="Quick test run")
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        default=None,
+        help="Resume training from checkpoint directory (e.g., outputs/baseline/checkpoint-2000)",
+    )
 
     # Output directory - support both --output and --output-dir
-    parser.add_argument('--output', '--output-dir', dest='output_dir', type=str,
-                       default='outputs/baseline', help='Output directory')
+    parser.add_argument(
+        "--output",
+        "--output-dir",
+        dest="output_dir",
+        type=str,
+        default="outputs/baseline",
+        help="Output directory",
+    )
 
     args = parser.parse_args()
 
@@ -365,7 +404,7 @@ def main():
 
     # Save config
     config = vars(args)
-    with open(output_dir / 'config.json', 'w') as f:
+    with open(output_dir / "config.json", "w") as f:
         json.dump(config, f, indent=2)
 
     effective_batch_size = args.batch_size * args.gradient_accumulation_steps
@@ -376,7 +415,9 @@ def main():
     elif args.steps is not None:
         print(f"   - Steps: {args.steps}")
     print("   - Model: GPT-2 (no epistemic gates)")
-    print(f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
+    print(
+        f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)"
+    )
     if args.gradient_checkpointing:
         print("   - Gradient checkpointing: enabled")
     if args.fp16:
@@ -389,47 +430,46 @@ def main():
     # Load data
     print("\n📚 Loading WikiText-2...")
     train_dataset, val_dataset, test_dataset, tokenizer = load_wikitext_dataset(
-        max_length=512,
-        cache_dir='.cache/wikitext'
+        max_length=512, cache_dir=".cache/wikitext"
     )
 
     # Convert num_epochs to steps if specified
     if args.num_epochs is not None:
         steps_per_epoch = len(train_dataset) // args.batch_size
         args.steps = args.num_epochs * steps_per_epoch
-        print(f"   Converting {args.num_epochs} epochs to {args.steps} steps ({steps_per_epoch} steps/epoch)")
+        print(
+            f"   Converting {args.num_epochs} epochs to {args.steps} steps ({steps_per_epoch} steps/epoch)"
+        )
 
     # Adjust intervals for dry-run if needed
     if args.dry_run:
         args.eval_interval = min(args.eval_interval, args.steps // 4)
         args.save_interval = min(args.save_interval, args.steps)
-        print(f"   Dry-run mode: adjusted intervals (eval={args.eval_interval}, save={args.save_interval})")
+        print(
+            f"   Dry-run mode: adjusted intervals (eval={args.eval_interval}, save={args.save_interval})"
+        )
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
         collate_fn=collate_fn,
-        num_workers=0
+        num_workers=0,
     )
 
     val_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-        num_workers=0
+        val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=0
     )
 
     # Create or load model
     start_step = 0
     history = {
-        'train_loss': [],
-        'train_perplexity': [],
-        'eval_loss': [],
-        'eval_perplexity': [],
-        'eval_ece': [],
-        'eval_brier': [],
+        "train_loss": [],
+        "train_perplexity": [],
+        "eval_loss": [],
+        "eval_perplexity": [],
+        "eval_ece": [],
+        "eval_brier": [],
     }
 
     if args.resume_from:
@@ -442,7 +482,7 @@ def main():
             print("   ✓ Gradient checkpointing enabled")
 
         # Load history if available
-        history_path = Path(args.resume_from).parent / 'history.json'
+        history_path = Path(args.resume_from).parent / "history.json"
         if history_path.exists():
             with open(history_path) as f:
                 history = json.load(f)
@@ -450,8 +490,8 @@ def main():
 
         # Extract step number from checkpoint name
         checkpoint_name = Path(args.resume_from).name
-        if checkpoint_name.startswith('checkpoint-'):
-            start_step = int(checkpoint_name.split('-')[1])
+        if checkpoint_name.startswith("checkpoint-"):
+            start_step = int(checkpoint_name.split("-")[1])
             print(f"   ✓ Resuming from step {start_step}")
 
         n_params = sum(p.numel() for p in model.parameters())
@@ -495,27 +535,32 @@ def main():
                 batch = next(train_iter)
 
             # Train step (with gradient accumulation)
-            is_accumulation_step = (accum_step < args.gradient_accumulation_steps - 1)
+            is_accumulation_step = accum_step < args.gradient_accumulation_steps - 1
             metrics = train_step(
-                model, batch, optimizer, device,
+                model,
+                batch,
+                optimizer,
+                device,
                 accumulation_steps=args.gradient_accumulation_steps,
                 is_accumulation_step=is_accumulation_step,
                 scaler=scaler,
-                use_amp=use_amp
+                use_amp=use_amp,
             )
 
-            accumulated_loss += metrics['loss'] / args.gradient_accumulation_steps
-            accumulated_perplexity += metrics['perplexity'] / args.gradient_accumulation_steps
+            accumulated_loss += metrics["loss"] / args.gradient_accumulation_steps
+            accumulated_perplexity += metrics["perplexity"] / args.gradient_accumulation_steps
 
         # Log metrics (after full accumulation)
-        history['train_loss'].append(accumulated_loss)
-        history['train_perplexity'].append(accumulated_perplexity)
+        history["train_loss"].append(accumulated_loss)
+        history["train_perplexity"].append(accumulated_perplexity)
 
         # Update progress bar
-        pbar.set_postfix({
-            'loss': f"{accumulated_loss:.4f}",
-            'ppl': f"{accumulated_perplexity:.2f}",
-        })
+        pbar.set_postfix(
+            {
+                "loss": f"{accumulated_loss:.4f}",
+                "ppl": f"{accumulated_perplexity:.2f}",
+            }
+        )
         pbar.update(1)
 
         step += 1
@@ -529,26 +574,26 @@ def main():
         # Evaluation
         if step % args.eval_interval == 0:
             eval_metrics = evaluate_model(model, val_loader, device, max_eval_batches=100)
-            history['eval_loss'].append(eval_metrics['eval_loss'])
-            history['eval_perplexity'].append(eval_metrics['eval_perplexity'])
+            history["eval_loss"].append(eval_metrics["eval_loss"])
+            history["eval_perplexity"].append(eval_metrics["eval_perplexity"])
 
-            if 'ece' in eval_metrics:
-                history['eval_ece'].append(eval_metrics['ece'])
-            if 'brier_score' in eval_metrics:
-                history['eval_brier'].append(eval_metrics['brier_score'])
+            if "ece" in eval_metrics:
+                history["eval_ece"].append(eval_metrics["ece"])
+            if "brier_score" in eval_metrics:
+                history["eval_brier"].append(eval_metrics["brier_score"])
 
             print(f"\n📊 Step {step} Evaluation ({eval_metrics['eval_batches']} batches):")
             print(f"   - Loss: {eval_metrics['eval_loss']:.4f}")
             print(f"   - Perplexity: {eval_metrics['eval_perplexity']:.2f}")
-            if 'ece' in eval_metrics:
+            if "ece" in eval_metrics:
                 print(f"   - ECE: {eval_metrics['ece']:.4f}")
-            if 'brier_score' in eval_metrics:
+            if "brier_score" in eval_metrics:
                 print(f"   - Brier Score: {eval_metrics['brier_score']:.4f}")
             log_memory(step)
 
         # Save checkpoint
         if step % args.save_interval == 0:
-            checkpoint_dir = output_dir / f'checkpoint-{step}'
+            checkpoint_dir = output_dir / f"checkpoint-{step}"
             checkpoint_dir.mkdir(exist_ok=True)
             model.save_pretrained(str(checkpoint_dir))
 
@@ -567,19 +612,21 @@ def main():
 
     print("\n✅ Training complete!")
     print(f"   - Final loss: {final_metrics['eval_loss']:.4f}")
-    print(f"   - Final perplexity: {final_metrics['eval_perplexity']:.2f} ({final_metrics['eval_batches']} batches)")
-    if 'ece' in final_metrics:
+    print(
+        f"   - Final perplexity: {final_metrics['eval_perplexity']:.2f} ({final_metrics['eval_batches']} batches)"
+    )
+    if "ece" in final_metrics:
         print(f"   - Final ECE: {final_metrics['ece']:.4f}")
-    if 'brier_score' in final_metrics:
+    if "brier_score" in final_metrics:
         print(f"   - Final Brier Score: {final_metrics['brier_score']:.4f}")
 
     # Save final model
-    final_dir = output_dir / 'final'
+    final_dir = output_dir / "final"
     final_dir.mkdir(exist_ok=True)
     model.save_pretrained(str(final_dir))
 
     # Save history
-    with open(output_dir / 'history.json', 'w') as f:
+    with open(output_dir / "history.json", "w") as f:
         json.dump(history, f, indent=2)
 
     # Plot curves
@@ -588,5 +635,5 @@ def main():
     print(f"\n💾 All outputs saved to {output_dir}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

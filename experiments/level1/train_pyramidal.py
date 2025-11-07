@@ -12,6 +12,7 @@ Usage:
     python experiments/level1/train_pyramidal.py --steps 100 --dry-run
     python experiments/level1/train_pyramidal.py --steps 10000 --lambda-base 0.01 --lambda-height 0.02
 """
+
 import sys
 from pathlib import Path
 
@@ -58,9 +59,9 @@ def create_pyramidal_model(
     device: torch.device,
     lambda_base: float = 0.01,
     lambda_height: float = 0.02,
-    height_method: str = 'error_based',
+    height_method: str = "error_based",
     use_multi_head_height: bool = False,
-    modulate_temperature: bool = True
+    modulate_temperature: bool = True,
 ) -> AletheionPyramidalTransformer:
     """Create pyramidal transformer."""
     return AletheionPyramidalTransformer(
@@ -77,7 +78,7 @@ def create_pyramidal_model(
         lambda_height=lambda_height,
         height_method=height_method,
         use_multi_head_height=use_multi_head_height,
-        modulate_temperature=modulate_temperature
+        modulate_temperature=modulate_temperature,
     ).to(device)
 
 
@@ -89,8 +90,8 @@ def train_step(
     pyramid_loss: PyramidalVAROLoss,
     accumulation_steps: int = 1,
     is_accumulation_step: bool = False,
-    scaler = None,
-    use_amp: bool = False
+    scaler=None,
+    use_amp: bool = False,
 ) -> dict[str, float]:
     """Perform one training step with optional gradient accumulation and mixed precision.
 
@@ -131,11 +132,9 @@ def train_step(
                 shift_pyramid[key] = value[..., :-1, :].contiguous()
 
             loss_dict = pyramid_loss(
-                logits=shift_logits,
-                targets=shift_labels,
-                pyramid_outputs=shift_pyramid
+                logits=shift_logits, targets=shift_labels, pyramid_outputs=shift_pyramid
             )
-            loss = loss_dict['loss'] / accumulation_steps
+            loss = loss_dict["loss"] / accumulation_steps
     else:
         outputs = model(input_ids, labels=labels, return_pyramid_state=True)
 
@@ -149,36 +148,40 @@ def train_step(
             shift_pyramid[key] = value[..., :-1, :].contiguous()
 
         loss_dict = pyramid_loss(
-            logits=shift_logits,
-            targets=shift_labels,
-            pyramid_outputs=shift_pyramid
+            logits=shift_logits, targets=shift_labels, pyramid_outputs=shift_pyramid
         )
-        loss = loss_dict['loss'] / accumulation_steps
+        loss = loss_dict["loss"] / accumulation_steps
 
     # Collect metrics (unscaled)
-    metrics.update({
-        "loss": loss.item() * accumulation_steps,
-        "ce_loss": loss_dict['ce_loss'],
-        "base_loss": loss_dict['base_loss'],
-        "height_loss": loss_dict['height_loss'],
-        "mean_height": loss_dict['mean_height'],
-        "target_height": loss_dict['target_height_mean'],
-        "base_stability": loss_dict['base_stability_mean'],
-        "Q1_mean": loss_dict['Q1_mean'],
-        "Q2_mean": loss_dict['Q2_mean'],
-        "lambda_base": loss_dict['lambda_base'],
-        "lambda_height": loss_dict['lambda_height'],
-    })
+    metrics.update(
+        {
+            "loss": loss.item() * accumulation_steps,
+            "ce_loss": loss_dict["ce_loss"],
+            "base_loss": loss_dict["base_loss"],
+            "height_loss": loss_dict["height_loss"],
+            "mean_height": loss_dict["mean_height"],
+            "target_height": loss_dict["target_height_mean"],
+            "base_stability": loss_dict["base_stability_mean"],
+            "Q1_mean": loss_dict["Q1_mean"],
+            "Q2_mean": loss_dict["Q2_mean"],
+            "lambda_base": loss_dict["lambda_base"],
+            "lambda_height": loss_dict["lambda_height"],
+        }
+    )
 
     # Individual force weights
     if outputs.pyramid is not None:
         # Shift the mask to align with shifted pyramid outputs [..., :-1, :]
-        valid_mask = (labels[..., 1:] != -100)
-        metrics["w_memory"] = outputs.pyramid['w_memory'][..., :-1, :][valid_mask].mean().item()
-        metrics["w_pain"] = outputs.pyramid['w_pain'][..., :-1, :][valid_mask].mean().item()
-        metrics["w_choice"] = outputs.pyramid['w_choice'][..., :-1, :][valid_mask].mean().item()
-        metrics["w_exploration"] = outputs.pyramid['w_exploration'][..., :-1, :][valid_mask].mean().item()
-        metrics["uncertainty"] = outputs.pyramid['uncertainty'][..., :-1, :][valid_mask].mean().item()
+        valid_mask = labels[..., 1:] != -100
+        metrics["w_memory"] = outputs.pyramid["w_memory"][..., :-1, :][valid_mask].mean().item()
+        metrics["w_pain"] = outputs.pyramid["w_pain"][..., :-1, :][valid_mask].mean().item()
+        metrics["w_choice"] = outputs.pyramid["w_choice"][..., :-1, :][valid_mask].mean().item()
+        metrics["w_exploration"] = (
+            outputs.pyramid["w_exploration"][..., :-1, :][valid_mask].mean().item()
+        )
+        metrics["uncertainty"] = (
+            outputs.pyramid["uncertainty"][..., :-1, :][valid_mask].mean().item()
+        )
 
     # Backward pass with optional scaling
     if use_amp and scaler is not None:
@@ -211,7 +214,7 @@ def evaluate_model(
     loader: DataLoader,
     device: torch.device,
     compute_calibration: bool = True,
-    max_eval_batches: int = 100  # CRITICAL: Limit evaluation to prevent OOM
+    max_eval_batches: int = 100,  # CRITICAL: Limit evaluation to prevent OOM
 ) -> dict[str, float]:
     """Evaluate model and compute metrics using online statistics.
 
@@ -228,8 +231,8 @@ def evaluate_model(
     height_count = 0
     height_mean = 0.0
     height_m2 = 0.0  # For variance computation
-    height_min = float('inf')
-    height_max = float('-inf')
+    height_min = float("inf")
+    height_max = float("-inf")
 
     uncertainty_sum = 0.0
     base_stability_sum = 0.0
@@ -259,10 +262,10 @@ def evaluate_model(
 
         # Collect pyramidal metrics INCREMENTALLY (no tensor accumulation)
         if outputs.pyramid is not None:
-            valid_mask = (labels != -100)
+            valid_mask = labels != -100
 
             # Online mean/variance for height (Welford's algorithm)
-            height_valid = outputs.pyramid['height'][valid_mask].float()
+            height_valid = outputs.pyramid["height"][valid_mask].float()
             for h in height_valid:
                 height_count += 1
                 delta = h.item() - height_mean
@@ -276,12 +279,12 @@ def evaluate_model(
 
             # Accumulate sums for other metrics (much cheaper than storing tensors)
             n_valid = valid_mask.sum().item()
-            uncertainty_sum += outputs.pyramid['uncertainty'][valid_mask].sum().item()
-            base_stability_sum += outputs.pyramid['base_stability'][valid_mask].sum().item()
-            w_memory_sum += outputs.pyramid['w_memory'][valid_mask].sum().item()
-            w_pain_sum += outputs.pyramid['w_pain'][valid_mask].sum().item()
-            w_choice_sum += outputs.pyramid['w_choice'][valid_mask].sum().item()
-            w_exploration_sum += outputs.pyramid['w_exploration'][valid_mask].sum().item()
+            uncertainty_sum += outputs.pyramid["uncertainty"][valid_mask].sum().item()
+            base_stability_sum += outputs.pyramid["base_stability"][valid_mask].sum().item()
+            w_memory_sum += outputs.pyramid["w_memory"][valid_mask].sum().item()
+            w_pain_sum += outputs.pyramid["w_pain"][valid_mask].sum().item()
+            w_choice_sum += outputs.pyramid["w_choice"][valid_mask].sum().item()
+            w_exploration_sum += outputs.pyramid["w_exploration"][valid_mask].sum().item()
 
         # Sample for calibration (only if under limit)
         if compute_calibration and len(calibration_targets) < max_calibration_samples:
@@ -291,7 +294,7 @@ def evaluate_model(
             # Get top prediction probabilities only (not full vocab distribution)
             probs = F.softmax(shift_logits, dim=-1)
 
-            valid_mask = (shift_labels != -100)
+            valid_mask = shift_labels != -100
             if valid_mask.any():
                 # Sample randomly to stay under limit
                 n_valid = valid_mask.sum().item()
@@ -299,7 +302,9 @@ def evaluate_model(
 
                 if n_to_sample > 0:
                     valid_indices = torch.where(valid_mask.view(-1))[0]
-                    sampled_indices = valid_indices[torch.randperm(len(valid_indices))[:n_to_sample]]
+                    sampled_indices = valid_indices[
+                        torch.randperm(len(valid_indices))[:n_to_sample]
+                    ]
 
                     probs_flat = probs.view(-1, probs.size(-1))
                     labels_flat = shift_labels.view(-1)
@@ -334,18 +339,20 @@ def evaluate_model(
     if height_count > 0:
         height_std = (height_m2 / height_count) ** 0.5 if height_count > 1 else 0.0
 
-        metrics.update({
-            "height_mean": height_mean,
-            "height_std": height_std,
-            "height_min": height_min,
-            "height_max": height_max,
-            "uncertainty_mean": uncertainty_sum / height_count,
-            "base_stability_mean": base_stability_sum / height_count,
-            "w_memory_mean": w_memory_sum / height_count,
-            "w_pain_mean": w_pain_sum / height_count,
-            "w_choice_mean": w_choice_sum / height_count,
-            "w_exploration_mean": w_exploration_sum / height_count,
-        })
+        metrics.update(
+            {
+                "height_mean": height_mean,
+                "height_std": height_std,
+                "height_min": height_min,
+                "height_max": height_max,
+                "uncertainty_mean": uncertainty_sum / height_count,
+                "base_stability_mean": base_stability_sum / height_count,
+                "w_memory_mean": w_memory_sum / height_count,
+                "w_pain_mean": w_pain_sum / height_count,
+                "w_choice_mean": w_choice_sum / height_count,
+                "w_exploration_mean": w_exploration_sum / height_count,
+            }
+        )
 
     # Calibration metrics (only on sampled data)
     if compute_calibration and calibration_probs and calibration_targets:
@@ -356,18 +363,23 @@ def evaluate_model(
         dummy_uncertainty = torch.zeros(len(all_targets_cat), 1)
 
         cal_metrics = compute_calibration_metrics(
+            all_probs_cat, all_targets_cat, dummy_uncertainty, n_bins=10
+        )
+        metrics.update(
+            {
+                "ece": cal_metrics["ece"],
+                "brier_score": cal_metrics["brier_score"],
+            }
+        )
+
+        # Clean up calibration data
+        del (
             all_probs_cat,
             all_targets_cat,
             dummy_uncertainty,
-            n_bins=10
+            calibration_probs,
+            calibration_targets,
         )
-        metrics.update({
-            "ece": cal_metrics['ece'],
-            "brier_score": cal_metrics['brier_score'],
-        })
-
-        # Clean up calibration data
-        del all_probs_cat, all_targets_cat, dummy_uncertainty, calibration_probs, calibration_targets
 
     # Return model to training mode
     model.train()
@@ -380,108 +392,153 @@ def plot_training_curves(history: dict[str, list], save_dir: Path):
     fig, axes = plt.subplots(3, 2, figsize=(15, 12))
 
     # Loss curves
-    axes[0, 0].plot(history['train_loss'], label='Train Loss', alpha=0.7)
-    if 'eval_loss' in history and history['eval_loss']:
-        eval_steps = np.linspace(0, len(history['train_loss']), len(history['eval_loss']))
-        axes[0, 0].plot(eval_steps, history['eval_loss'], label='Eval Loss', marker='o')
-    axes[0, 0].set_xlabel('Step')
-    axes[0, 0].set_ylabel('Loss')
-    axes[0, 0].set_title('Loss Curves')
+    axes[0, 0].plot(history["train_loss"], label="Train Loss", alpha=0.7)
+    if "eval_loss" in history and history["eval_loss"]:
+        eval_steps = np.linspace(0, len(history["train_loss"]), len(history["eval_loss"]))
+        axes[0, 0].plot(eval_steps, history["eval_loss"], label="Eval Loss", marker="o")
+    axes[0, 0].set_xlabel("Step")
+    axes[0, 0].set_ylabel("Loss")
+    axes[0, 0].set_title("Loss Curves")
     axes[0, 0].legend()
     axes[0, 0].grid(True, alpha=0.3)
 
     # Height progression
-    axes[0, 1].plot(history['mean_height'], label='Mean Height', color='blue', alpha=0.7)
-    axes[0, 1].plot(history['target_height'], label='Target Height', color='green', alpha=0.7)
-    axes[0, 1].axhline(y=0.5, color='gray', linestyle='--', alpha=0.5, label='Mid-pyramid')
-    axes[0, 1].axhline(y=0.95, color='red', linestyle='--', alpha=0.5, label='Collapse threshold')
-    axes[0, 1].set_xlabel('Step')
-    axes[0, 1].set_ylabel('Height')
-    axes[0, 1].set_title('Height Progression (Watch for Collapse!)')
+    axes[0, 1].plot(history["mean_height"], label="Mean Height", color="blue", alpha=0.7)
+    axes[0, 1].plot(history["target_height"], label="Target Height", color="green", alpha=0.7)
+    axes[0, 1].axhline(y=0.5, color="gray", linestyle="--", alpha=0.5, label="Mid-pyramid")
+    axes[0, 1].axhline(y=0.95, color="red", linestyle="--", alpha=0.5, label="Collapse threshold")
+    axes[0, 1].set_xlabel("Step")
+    axes[0, 1].set_ylabel("Height")
+    axes[0, 1].set_title("Height Progression (Watch for Collapse!)")
     axes[0, 1].legend()
     axes[0, 1].grid(True, alpha=0.3)
     axes[0, 1].set_ylim([0, 1])
 
     # Base stability
-    axes[1, 0].plot(history['base_stability'], label='Base Stability', color='purple')
-    axes[1, 0].axhline(y=0.7, color='green', linestyle='--', alpha=0.5, label='Target >0.7')
-    axes[1, 0].set_xlabel('Step')
-    axes[1, 0].set_ylabel('Stability')
-    axes[1, 0].set_title('Base Stability')
+    axes[1, 0].plot(history["base_stability"], label="Base Stability", color="purple")
+    axes[1, 0].axhline(y=0.7, color="green", linestyle="--", alpha=0.5, label="Target >0.7")
+    axes[1, 0].set_xlabel("Step")
+    axes[1, 0].set_ylabel("Stability")
+    axes[1, 0].set_title("Base Stability")
     axes[1, 0].legend()
     axes[1, 0].grid(True, alpha=0.3)
 
     # Force weights
-    axes[1, 1].plot(history['w_memory'], label='Memory', alpha=0.7)
-    axes[1, 1].plot(history['w_pain'], label='Pain', alpha=0.7)
-    axes[1, 1].plot(history['w_choice'], label='Choice', alpha=0.7)
-    axes[1, 1].plot(history['w_exploration'], label='Exploration', alpha=0.7)
-    axes[1, 1].axhline(y=0.25, color='gray', linestyle='--', alpha=0.5, label='Balanced (0.25)')
-    axes[1, 1].set_xlabel('Step')
-    axes[1, 1].set_ylabel('Weight')
-    axes[1, 1].set_title('Force Weights (4 Vertices)')
+    axes[1, 1].plot(history["w_memory"], label="Memory", alpha=0.7)
+    axes[1, 1].plot(history["w_pain"], label="Pain", alpha=0.7)
+    axes[1, 1].plot(history["w_choice"], label="Choice", alpha=0.7)
+    axes[1, 1].plot(history["w_exploration"], label="Exploration", alpha=0.7)
+    axes[1, 1].axhline(y=0.25, color="gray", linestyle="--", alpha=0.5, label="Balanced (0.25)")
+    axes[1, 1].set_xlabel("Step")
+    axes[1, 1].set_ylabel("Weight")
+    axes[1, 1].set_title("Force Weights (4 Vertices)")
     axes[1, 1].legend()
     axes[1, 1].grid(True, alpha=0.3)
 
     # Loss components
-    axes[2, 0].plot(history['ce_loss'], label='CE Loss', alpha=0.7)
-    axes[2, 0].plot(history['base_loss'], label=f'Base Loss (λ={history["lambda_base"][-1]:.3f})', alpha=0.7)
-    axes[2, 0].plot(history['height_loss'], label=f'Height Loss (λ={history["lambda_height"][-1]:.3f})', alpha=0.7)
-    axes[2, 0].set_xlabel('Step')
-    axes[2, 0].set_ylabel('Loss')
-    axes[2, 0].set_title('Loss Components')
+    axes[2, 0].plot(history["ce_loss"], label="CE Loss", alpha=0.7)
+    axes[2, 0].plot(
+        history["base_loss"], label=f'Base Loss (λ={history["lambda_base"][-1]:.3f})', alpha=0.7
+    )
+    axes[2, 0].plot(
+        history["height_loss"],
+        label=f'Height Loss (λ={history["lambda_height"][-1]:.3f})',
+        alpha=0.7,
+    )
+    axes[2, 0].set_xlabel("Step")
+    axes[2, 0].set_ylabel("Loss")
+    axes[2, 0].set_title("Loss Components")
     axes[2, 0].legend()
     axes[2, 0].grid(True, alpha=0.3)
-    axes[2, 0].set_yscale('log')
+    axes[2, 0].set_yscale("log")
 
     # Uncertainty
-    axes[2, 1].plot(history['uncertainty'], label='Mean Uncertainty', color='orange')
-    axes[2, 1].set_xlabel('Step')
-    axes[2, 1].set_ylabel('Uncertainty')
-    axes[2, 1].set_title('Epistemic Uncertainty')
+    axes[2, 1].plot(history["uncertainty"], label="Mean Uncertainty", color="orange")
+    axes[2, 1].set_xlabel("Step")
+    axes[2, 1].set_ylabel("Uncertainty")
+    axes[2, 1].set_title("Epistemic Uncertainty")
     axes[2, 1].legend()
     axes[2, 1].grid(True, alpha=0.3)
     axes[2, 1].set_ylim([0, 1])
 
     plt.tight_layout()
-    plt.savefig(save_dir / 'training_curves.png', dpi=300, bbox_inches='tight')
+    plt.savefig(save_dir / "training_curves.png", dpi=300, bbox_inches="tight")
     print(f"📊 Training curves saved to {save_dir / 'training_curves.png'}")
     plt.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train Pyramidal Epistemology model')
+    parser = argparse.ArgumentParser(description="Train Pyramidal Epistemology model")
 
     # Training duration - support both steps and epochs
     train_group = parser.add_mutually_exclusive_group()
-    train_group.add_argument('--steps', type=int, default=None, help='Number of training steps')
-    train_group.add_argument('--num-epochs', type=int, default=None, help='Number of training epochs')
+    train_group.add_argument("--steps", type=int, default=None, help="Number of training steps")
+    train_group.add_argument(
+        "--num-epochs", type=int, default=None, help="Number of training epochs"
+    )
 
-    parser.add_argument('--batch-size', type=int, default=4, help='Micro batch size (per gradient accumulation step)')
-    parser.add_argument('--gradient-accumulation-steps', type=int, default=1,
-                       help='Number of gradient accumulation steps (effective batch = batch_size * accum_steps)')
-    parser.add_argument('--gradient-checkpointing', action='store_true',
-                       help='Enable gradient checkpointing to save memory (~40% reduction)')
-    parser.add_argument('--fp16', action='store_true',
-                       help='Enable mixed precision training (fp16) to save memory (~50% reduction)')
-    parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
-    parser.add_argument('--lambda-base', type=float, default=0.005, help='Base stability weight (reduced from 0.01)')
-    parser.add_argument('--lambda-height', type=float, default=0.02, help='Height calibration weight')
-    parser.add_argument('--height-method', type=str, default='error_based',
-                       choices=['error_based', 'entropy_based', 'loss_based'],
-                       help='Method for computing target height')
-    parser.add_argument('--multi-head-height', action='store_true', help='Use multi-head height consensus')
-    parser.add_argument('--no-temp-modulation', action='store_true', help='Disable temperature modulation')
-    parser.add_argument('--eval-interval', type=int, default=500, help='Evaluation interval')
-    parser.add_argument('--save-interval', type=int, default=2000, help='Checkpoint save interval')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--dry-run', action='store_true', help='Quick test run')
-    parser.add_argument('--resume-from', type=str, default=None,
-                       help='Resume training from checkpoint directory (e.g., outputs/pyramidal/checkpoint-2000)')
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=4,
+        help="Micro batch size (per gradient accumulation step)",
+    )
+    parser.add_argument(
+        "--gradient-accumulation-steps",
+        type=int,
+        default=1,
+        help="Number of gradient accumulation steps (effective batch = batch_size * accum_steps)",
+    )
+    parser.add_argument(
+        "--gradient-checkpointing",
+        action="store_true",
+        help="Enable gradient checkpointing to save memory (~40% reduction)",
+    )
+    parser.add_argument(
+        "--fp16",
+        action="store_true",
+        help="Enable mixed precision training (fp16) to save memory (~50% reduction)",
+    )
+    parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
+    parser.add_argument(
+        "--lambda-base", type=float, default=0.005, help="Base stability weight (reduced from 0.01)"
+    )
+    parser.add_argument(
+        "--lambda-height", type=float, default=0.02, help="Height calibration weight"
+    )
+    parser.add_argument(
+        "--height-method",
+        type=str,
+        default="error_based",
+        choices=["error_based", "entropy_based", "loss_based"],
+        help="Method for computing target height",
+    )
+    parser.add_argument(
+        "--multi-head-height", action="store_true", help="Use multi-head height consensus"
+    )
+    parser.add_argument(
+        "--no-temp-modulation", action="store_true", help="Disable temperature modulation"
+    )
+    parser.add_argument("--eval-interval", type=int, default=500, help="Evaluation interval")
+    parser.add_argument("--save-interval", type=int, default=2000, help="Checkpoint save interval")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--dry-run", action="store_true", help="Quick test run")
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        default=None,
+        help="Resume training from checkpoint directory (e.g., outputs/pyramidal/checkpoint-2000)",
+    )
 
     # Output directory - support both --output and --output-dir
-    parser.add_argument('--output', '--output-dir', dest='output_dir', type=str,
-                       default='outputs/pyramidal', help='Output directory')
+    parser.add_argument(
+        "--output",
+        "--output-dir",
+        dest="output_dir",
+        type=str,
+        default="outputs/pyramidal",
+        help="Output directory",
+    )
 
     args = parser.parse_args()
 
@@ -498,7 +555,7 @@ def main():
 
     # Save config
     config = vars(args)
-    with open(output_dir / 'config.json', 'w') as f:
+    with open(output_dir / "config.json", "w") as f:
         json.dump(config, f, indent=2)
 
     effective_batch_size = args.batch_size * args.gradient_accumulation_steps
@@ -508,7 +565,9 @@ def main():
         print(f"   - Epochs: {args.num_epochs}")
     elif args.steps is not None:
         print(f"   - Steps: {args.steps}")
-    print(f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)")
+    print(
+        f"   - Batch size: {args.batch_size} (effective: {effective_batch_size} with {args.gradient_accumulation_steps}x accumulation)"
+    )
     if args.gradient_checkpointing:
         print("   - Gradient checkpointing: enabled")
     if args.fp16:
@@ -524,59 +583,58 @@ def main():
     # Load data
     print("\n📚 Loading WikiText-2...")
     train_dataset, val_dataset, test_dataset, tokenizer = load_wikitext_dataset(
-        max_length=512,
-        cache_dir='.cache/wikitext'
+        max_length=512, cache_dir=".cache/wikitext"
     )
 
     # Convert num_epochs to steps if specified
     if args.num_epochs is not None:
         steps_per_epoch = len(train_dataset) // args.batch_size
         args.steps = args.num_epochs * steps_per_epoch
-        print(f"   Converting {args.num_epochs} epochs to {args.steps} steps ({steps_per_epoch} steps/epoch)")
+        print(
+            f"   Converting {args.num_epochs} epochs to {args.steps} steps ({steps_per_epoch} steps/epoch)"
+        )
 
     # Adjust intervals for dry-run if needed
     if args.dry_run:
         args.eval_interval = min(args.eval_interval, args.steps // 4)
         args.save_interval = min(args.save_interval, args.steps)
-        print(f"   Dry-run mode: adjusted intervals (eval={args.eval_interval}, save={args.save_interval})")
+        print(
+            f"   Dry-run mode: adjusted intervals (eval={args.eval_interval}, save={args.save_interval})"
+        )
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
         collate_fn=collate_fn,
-        num_workers=0
+        num_workers=0,
     )
 
     val_loader = DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-        num_workers=0
+        val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=0
     )
 
     # Create or load model
     start_step = 0
     history = {
-        'train_loss': [],
-        'ce_loss': [],
-        'base_loss': [],
-        'height_loss': [],
-        'mean_height': [],
-        'target_height': [],
-        'base_stability': [],
-        'Q1_mean': [],
-        'Q2_mean': [],
-        'w_memory': [],
-        'w_pain': [],
-        'w_choice': [],
-        'w_exploration': [],
-        'uncertainty': [],
-        'lambda_base': [],
-        'lambda_height': [],
-        'eval_loss': [],
-        'eval_perplexity': []
+        "train_loss": [],
+        "ce_loss": [],
+        "base_loss": [],
+        "height_loss": [],
+        "mean_height": [],
+        "target_height": [],
+        "base_stability": [],
+        "Q1_mean": [],
+        "Q2_mean": [],
+        "w_memory": [],
+        "w_pain": [],
+        "w_choice": [],
+        "w_exploration": [],
+        "uncertainty": [],
+        "lambda_base": [],
+        "lambda_height": [],
+        "eval_loss": [],
+        "eval_perplexity": [],
     }
 
     if args.resume_from:
@@ -584,12 +642,12 @@ def main():
         model = AletheionPyramidalTransformer.from_pretrained(args.resume_from).to(device)
 
         # Enable gradient checkpointing if requested
-        if args.gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+        if args.gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
             model.gradient_checkpointing_enable()
             print("   ✓ Gradient checkpointing enabled")
 
         # Load history if available
-        history_path = Path(args.resume_from).parent / 'history.json'
+        history_path = Path(args.resume_from).parent / "history.json"
         if history_path.exists():
             with open(history_path) as f:
                 history = json.load(f)
@@ -597,8 +655,8 @@ def main():
 
         # Extract step number from checkpoint name
         checkpoint_name = Path(args.resume_from).name
-        if checkpoint_name.startswith('checkpoint-'):
-            start_step = int(checkpoint_name.split('-')[1])
+        if checkpoint_name.startswith("checkpoint-"):
+            start_step = int(checkpoint_name.split("-")[1])
             print(f"   ✓ Resuming from step {start_step}")
 
         n_params = sum(p.numel() for p in model.parameters())
@@ -612,11 +670,11 @@ def main():
             lambda_height=args.lambda_height,
             height_method=args.height_method,
             use_multi_head_height=args.multi_head_height,
-            modulate_temperature=not args.no_temp_modulation
+            modulate_temperature=not args.no_temp_modulation,
         )
 
         # Enable gradient checkpointing if requested
-        if args.gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+        if args.gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
             model.gradient_checkpointing_enable()
             print("   ✓ Gradient checkpointing enabled (saves ~40% memory)")
 
@@ -627,7 +685,7 @@ def main():
     pyramid_loss = PyramidalVAROLoss(
         lambda_base=args.lambda_base,
         lambda_height=args.lambda_height,
-        height_method=args.height_method
+        height_method=args.height_method,
     )
 
     # Optimizer
@@ -635,6 +693,7 @@ def main():
 
     # Mixed precision scaler
     from torch.cuda.amp import GradScaler
+
     scaler = GradScaler() if args.fp16 and torch.cuda.is_available() else None
     use_amp = args.fp16 and torch.cuda.is_available()
     if use_amp:
@@ -661,13 +720,17 @@ def main():
                 batch = next(train_iter)
 
             # Train step (with gradient accumulation)
-            is_accumulation_step = (accum_step < args.gradient_accumulation_steps - 1)
+            is_accumulation_step = accum_step < args.gradient_accumulation_steps - 1
             metrics = train_step(
-                model, batch, optimizer, device, pyramid_loss,
+                model,
+                batch,
+                optimizer,
+                device,
+                pyramid_loss,
                 accumulation_steps=args.gradient_accumulation_steps,
                 is_accumulation_step=is_accumulation_step,
                 scaler=scaler,
-                use_amp=use_amp
+                use_amp=use_amp,
             )
 
             # Accumulate metrics
@@ -683,17 +746,19 @@ def main():
         for key in history:
             if key in metrics:
                 history[key].append(metrics[key])
-            elif key.startswith('eval_'):
+            elif key.startswith("eval_"):
                 pass  # Skip eval metrics during training
             else:
                 history[key].append(0.0)
 
         # Update progress bar
-        pbar.set_postfix({
-            'loss': f"{metrics['loss']:.4f}",
-            'height': f"{metrics['mean_height']:.3f}",
-            'base_stab': f"{metrics['base_stability']:.3f}"
-        })
+        pbar.set_postfix(
+            {
+                "loss": f"{metrics['loss']:.4f}",
+                "height": f"{metrics['mean_height']:.3f}",
+                "base_stab": f"{metrics['base_stability']:.3f}",
+            }
+        )
         pbar.update(1)
 
         step += 1
@@ -711,20 +776,22 @@ def main():
         # Evaluation
         if step % args.eval_interval == 0:
             eval_metrics = evaluate_model(model, val_loader, device, max_eval_batches=100)
-            history['eval_loss'].append(eval_metrics['eval_loss'])
-            history['eval_perplexity'].append(eval_metrics['eval_perplexity'])
+            history["eval_loss"].append(eval_metrics["eval_loss"])
+            history["eval_perplexity"].append(eval_metrics["eval_perplexity"])
 
             print(f"\n📊 Step {step} Evaluation ({eval_metrics['eval_batches']} batches):")
             print(f"   - Perplexity: {eval_metrics['eval_perplexity']:.2f}")
-            print(f"   - Height: {eval_metrics.get('height_mean', 0):.3f} ± {eval_metrics.get('height_std', 0):.3f}")
+            print(
+                f"   - Height: {eval_metrics.get('height_mean', 0):.3f} ± {eval_metrics.get('height_std', 0):.3f}"
+            )
             print(f"   - Base stability: {eval_metrics.get('base_stability_mean', 0):.3f}")
-            if 'ece' in eval_metrics:
+            if "ece" in eval_metrics:
                 print(f"   - ECE: {eval_metrics['ece']:.4f}")
             log_memory(step)
 
         # Save checkpoint
         if step % args.save_interval == 0:
-            checkpoint_dir = output_dir / f'checkpoint-{step}'
+            checkpoint_dir = output_dir / f"checkpoint-{step}"
             model.save_pretrained(str(checkpoint_dir))
 
     pbar.close()
@@ -741,17 +808,21 @@ def main():
     final_metrics = evaluate_model(model, val_loader, device, max_eval_batches=100)
 
     print("\n✅ Training complete!")
-    print(f"   - Final perplexity: {final_metrics['eval_perplexity']:.2f} ({final_metrics['eval_batches']} batches)")
-    print(f"   - Final height: {final_metrics.get('height_mean', 0):.3f} ± {final_metrics.get('height_std', 0):.3f}")
+    print(
+        f"   - Final perplexity: {final_metrics['eval_perplexity']:.2f} ({final_metrics['eval_batches']} batches)"
+    )
+    print(
+        f"   - Final height: {final_metrics.get('height_mean', 0):.3f} ± {final_metrics.get('height_std', 0):.3f}"
+    )
     print(f"   - Final base stability: {final_metrics.get('base_stability_mean', 0):.3f}")
-    if 'ece' in final_metrics:
+    if "ece" in final_metrics:
         print(f"   - Final ECE: {final_metrics['ece']:.4f}")
 
     # Save final model
-    model.save_pretrained(str(output_dir / 'final'))
+    model.save_pretrained(str(output_dir / "final"))
 
     # Save history
-    with open(output_dir / 'history.json', 'w') as f:
+    with open(output_dir / "history.json", "w") as f:
         json.dump(history, f, indent=2)
 
     # Plot curves
@@ -760,5 +831,5 @@ def main():
     print(f"\n💾 All outputs saved to {output_dir}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

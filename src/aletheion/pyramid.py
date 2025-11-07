@@ -43,7 +43,7 @@ class PyramidalEpistemicGates(nn.Module):
         d_model: int,
         n_heads: int = 8,
         dropout: float = 0.1,
-        use_multi_head_height: bool = False
+        use_multi_head_height: bool = False,
     ) -> None:
         super().__init__()
         self.d_model = d_model
@@ -66,9 +66,7 @@ class PyramidalEpistemicGates(nn.Module):
 
         # Optional: Multi-head height for consensus
         if use_multi_head_height:
-            self.height_heads = nn.ModuleList([
-                nn.Linear(d_model, 1) for _ in range(n_heads)
-            ])
+            self.height_heads = nn.ModuleList([nn.Linear(d_model, 1) for _ in range(n_heads)])
 
         self.dropout = nn.Dropout(dropout)
 
@@ -124,12 +122,11 @@ class PyramidalEpistemicGates(nn.Module):
         # The height_combiner learns to produce heights that correlate with prediction quality (Q1)
         # and confidence calibration (Q2) through the training loss
 
-        if self.use_multi_head_height and hasattr(self, 'height_heads'):
+        if self.use_multi_head_height and hasattr(self, "height_heads"):
             # Multi-head height consensus
-            head_heights = torch.stack([
-                torch.sigmoid(head(hidden_dropped))
-                for head in self.height_heads
-            ], dim=-1)  # [batch, seq_len, 1, n_heads]
+            head_heights = torch.stack(
+                [torch.sigmoid(head(hidden_dropped)) for head in self.height_heads], dim=-1
+            )  # [batch, seq_len, 1, n_heads]
 
             # Compute mean and variance across heads
             height_mean = head_heights.mean(dim=-1, keepdim=True)  # [batch, seq_len, 1, 1]
@@ -144,18 +141,16 @@ class PyramidalEpistemicGates(nn.Module):
             # - hidden_std: activation variance (proxy for uncertainty)
             # - base_stability: force balance (high when forces are balanced)
             hidden_mean = hidden_dropped.mean(dim=-1, keepdim=True)  # [batch, seq_len, 1]
-            hidden_std = hidden_dropped.std(dim=-1, keepdim=True)    # [batch, seq_len, 1]
+            hidden_std = hidden_dropped.std(dim=-1, keepdim=True)  # [batch, seq_len, 1]
 
             # Normalize features to [0, 1] range for better stability
             hidden_mean_norm = torch.sigmoid(hidden_mean)
             hidden_std_norm = torch.sigmoid(hidden_std)
 
             # Combine features: [hidden_mean, hidden_std, base_stability]
-            height_inputs = torch.cat([
-                hidden_mean_norm,
-                hidden_std_norm,
-                base_stability
-            ], dim=-1)  # [batch, seq_len, 3]
+            height_inputs = torch.cat(
+                [hidden_mean_norm, hidden_std_norm, base_stability], dim=-1
+            )  # [batch, seq_len, 3]
 
             # Height combiner: learns to map features → epistemic quality
             # Initialized with bias=-2.0 → sigmoid(-2)≈0.12 (starts near base)
@@ -172,22 +167,19 @@ class PyramidalEpistemicGates(nn.Module):
         confidence = height * base_stability
 
         return {
-            'base_weights': base_weights,
-            'w_memory': w_memory,
-            'w_pain': w_pain,
-            'w_choice': w_choice,
-            'w_exploration': w_exploration,
-            'height': height,
-            'uncertainty': uncertainty,
-            'confidence': confidence,
-            'base_stability': base_stability,
-            'base_variance': base_variance
+            "base_weights": base_weights,
+            "w_memory": w_memory,
+            "w_pain": w_pain,
+            "w_choice": w_choice,
+            "w_exploration": w_exploration,
+            "height": height,
+            "uncertainty": uncertainty,
+            "confidence": confidence,
+            "base_stability": base_stability,
+            "base_variance": base_variance,
         }
 
-    def get_pyramid_position(
-        self,
-        hidden_states: torch.Tensor
-    ) -> dict[str, torch.Tensor]:
+    def get_pyramid_position(self, hidden_states: torch.Tensor) -> dict[str, torch.Tensor]:
         """Get the AI's position in the pyramid.
 
         Returns detailed geometric information about the epistemic state.
@@ -201,8 +193,8 @@ class PyramidalEpistemicGates(nn.Module):
         outputs = self.forward(hidden_states)
 
         # Compute additional geometric metrics
-        base_weights = outputs['base_weights']
-        height = outputs['height']
+        base_weights = outputs["base_weights"]
+        height = outputs["height"]
 
         # Distance from apex (epistemic gap)
         apex_distance = 1.0 - height
@@ -219,9 +211,9 @@ class PyramidalEpistemicGates(nn.Module):
 
         return {
             **outputs,
-            'apex_distance': apex_distance,
-            'base_entropy': base_entropy_normalized,
-            'epistemic_quality': quality
+            "apex_distance": apex_distance,
+            "base_entropy": base_entropy_normalized,
+            "epistemic_quality": quality,
         }
 
 
@@ -236,20 +228,12 @@ class PyramidalTemperatureModulator(nn.Module):
         max_temperature_scale: Maximum temperature multiplier when at base (height=0)
     """
 
-    def __init__(
-        self,
-        base_temperature: float = 1.0,
-        max_temperature_scale: float = 2.0
-    ) -> None:
+    def __init__(self, base_temperature: float = 1.0, max_temperature_scale: float = 2.0) -> None:
         super().__init__()
         self.base_temperature = base_temperature
         self.max_temperature_scale = max_temperature_scale
 
-    def forward(
-        self,
-        logits: torch.Tensor,
-        height: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, logits: torch.Tensor, height: torch.Tensor) -> torch.Tensor:
         """Apply height-modulated temperature to logits.
 
         Args:
@@ -276,8 +260,7 @@ class PyramidalTemperatureModulator(nn.Module):
 
 
 def compute_pyramidal_metrics(
-    pyramid_outputs: dict[str, torch.Tensor],
-    valid_mask: torch.Tensor | None = None
+    pyramid_outputs: dict[str, torch.Tensor], valid_mask: torch.Tensor | None = None
 ) -> dict[str, float]:
     """Compute aggregate metrics from pyramidal outputs.
 
@@ -289,9 +272,11 @@ def compute_pyramidal_metrics(
         Dictionary with aggregate metrics
     """
     if valid_mask is None:
-        valid_mask = torch.ones_like(pyramid_outputs['height'], dtype=torch.bool)
+        valid_mask = torch.ones_like(pyramid_outputs["height"], dtype=torch.bool)
 
-    valid_mask = valid_mask.squeeze(-1) if valid_mask.dim() > pyramid_outputs['height'].dim() else valid_mask
+    valid_mask = (
+        valid_mask.squeeze(-1) if valid_mask.dim() > pyramid_outputs["height"].dim() else valid_mask
+    )
 
     def masked_mean(tensor: torch.Tensor) -> float:
         """Compute mean over valid tokens."""
@@ -305,27 +290,27 @@ def compute_pyramidal_metrics(
 
     metrics = {
         # Height metrics
-        'height_mean': masked_mean(pyramid_outputs['height']),
-        'height_std': masked_std(pyramid_outputs['height']),
-        'height_min': pyramid_outputs['height'][valid_mask].min().item() if valid_mask.any() else 0.0,
-        'height_max': pyramid_outputs['height'][valid_mask].max().item() if valid_mask.any() else 0.0,
-
+        "height_mean": masked_mean(pyramid_outputs["height"]),
+        "height_std": masked_std(pyramid_outputs["height"]),
+        "height_min": (
+            pyramid_outputs["height"][valid_mask].min().item() if valid_mask.any() else 0.0
+        ),
+        "height_max": (
+            pyramid_outputs["height"][valid_mask].max().item() if valid_mask.any() else 0.0
+        ),
         # Uncertainty metrics
-        'uncertainty_mean': masked_mean(pyramid_outputs['uncertainty']),
-        'uncertainty_std': masked_std(pyramid_outputs['uncertainty']),
-
+        "uncertainty_mean": masked_mean(pyramid_outputs["uncertainty"]),
+        "uncertainty_std": masked_std(pyramid_outputs["uncertainty"]),
         # Base stability
-        'base_stability_mean': masked_mean(pyramid_outputs['base_stability']),
-        'base_variance_mean': masked_mean(pyramid_outputs['base_variance']),
-
+        "base_stability_mean": masked_mean(pyramid_outputs["base_stability"]),
+        "base_variance_mean": masked_mean(pyramid_outputs["base_variance"]),
         # Individual forces
-        'w_memory_mean': masked_mean(pyramid_outputs['w_memory']),
-        'w_pain_mean': masked_mean(pyramid_outputs['w_pain']),
-        'w_choice_mean': masked_mean(pyramid_outputs['w_choice']),
-        'w_exploration_mean': masked_mean(pyramid_outputs['w_exploration']),
-
+        "w_memory_mean": masked_mean(pyramid_outputs["w_memory"]),
+        "w_pain_mean": masked_mean(pyramid_outputs["w_pain"]),
+        "w_choice_mean": masked_mean(pyramid_outputs["w_choice"]),
+        "w_exploration_mean": masked_mean(pyramid_outputs["w_exploration"]),
         # Confidence
-        'confidence_mean': masked_mean(pyramid_outputs['confidence']),
+        "confidence_mean": masked_mean(pyramid_outputs["confidence"]),
     }
 
     return metrics

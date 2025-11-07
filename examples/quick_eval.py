@@ -1,7 +1,8 @@
 """MEMORY-EFFICIENT evaluation - computes ECE incrementally."""
+
 import sys
 
-sys.path.insert(0, '/home/sapo/aletheion-llm')
+sys.path.insert(0, "/home/sapo/aletheion-llm")
 
 import torch
 import torch.nn.functional as F
@@ -14,14 +15,16 @@ from tqdm import tqdm
 
 
 def collate_fn(batch):
-    input_ids = [item['input_ids'] for item in batch]
-    labels = [item['labels'] for item in batch]
+    input_ids = [item["input_ids"] for item in batch]
+    labels = [item["labels"] for item in batch]
     input_ids_padded = pad_sequence(input_ids, batch_first=True, padding_value=0)
     labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)
-    return {'input_ids': input_ids_padded, 'labels': labels_padded}
+    return {"input_ids": input_ids_padded, "labels": labels_padded}
+
 
 class IncrementalECE:
     """Compute ECE without storing all predictions."""
+
     def __init__(self, n_bins=10):
         self.n_bins = n_bins
         self.bin_boundaries = torch.linspace(0, 1, n_bins + 1)
@@ -35,7 +38,9 @@ class IncrementalECE:
         accuracies = predictions.eq(targets).float()
 
         for i in range(self.n_bins):
-            in_bin = (confidences > self.bin_boundaries[i]) & (confidences <= self.bin_boundaries[i+1])
+            in_bin = (confidences > self.bin_boundaries[i]) & (
+                confidences <= self.bin_boundaries[i + 1]
+            )
             self.bin_counts[i] += in_bin.sum().item()
             self.bin_correct[i] += accuracies[in_bin].sum().item()
             self.bin_conf_sum[i] += confidences[in_bin].sum().item()
@@ -53,6 +58,7 @@ class IncrementalECE:
                 ece += abs(conf - acc) * prop
 
         return ece.item()
+
 
 def evaluate(model, loader, device):
     """Memory-efficient evaluation."""
@@ -99,17 +105,15 @@ def evaluate(model, loader, device):
     return {
         "loss": total_loss / len(loader),
         "ece": ece_calculator.compute(),
-        "accuracy": total_correct / total_samples if total_samples > 0 else 0.0
+        "accuracy": total_correct / total_samples if total_samples > 0 else 0.0,
     }
+
 
 print("🔍 Loading...")
 device = get_device()
 
 # seq_len=128, batch=1
-train_ds, val_ds, _, tokenizer = load_wikitext_dataset(
-    tokenizer_name="gpt2",
-    max_length=128
-)
+train_ds, val_ds, _, tokenizer = load_wikitext_dataset(tokenizer_name="gpt2", max_length=128)
 
 val_loader = DataLoader(val_ds, batch_size=1, collate_fn=collate_fn)
 print(f"📊 Evaluating {len(val_ds)} samples (FULL DATASET)")
@@ -117,46 +121,57 @@ print(f"📊 Evaluating {len(val_ds)} samples (FULL DATASET)")
 # Load baseline
 baseline = BaselineTransformer(
     vocab_size=tokenizer.vocab_size,
-    d_model=512, n_heads=8, n_layers=6, d_ff=2048,
-    max_seq_len=512, dropout=0.1
+    d_model=512,
+    n_heads=8,
+    n_layers=6,
+    d_ff=2048,
+    max_seq_len=512,
+    dropout=0.1,
 ).to(device)
 
-ckpt = torch.load('checkpoints/baseline_final.pt', map_location=device)
-baseline.load_state_dict(ckpt['model_state_dict'])
+ckpt = torch.load("checkpoints/baseline_final.pt", map_location=device)
+baseline.load_state_dict(ckpt["model_state_dict"])
 print("✅ Baseline loaded")
 
 # Load aletheion
 aletheion = AletheionTransformer(
     vocab_size=tokenizer.vocab_size,
-    d_model=512, n_heads=8, n_layers=6, d_ff=2048,
-    max_seq_len=512, dropout=0.1,
-    q1_threshold=0.7, q2_threshold=0.7
+    d_model=512,
+    n_heads=8,
+    n_layers=6,
+    d_ff=2048,
+    max_seq_len=512,
+    dropout=0.1,
+    q1_threshold=0.7,
+    q2_threshold=0.7,
 ).to(device)
 
-ckpt = torch.load('checkpoints/aletheion_final.pt', map_location=device)
-aletheion.load_state_dict(ckpt['model_state_dict'])
+ckpt = torch.load("checkpoints/aletheion_final.pt", map_location=device)
+aletheion.load_state_dict(ckpt["model_state_dict"])
 print("✅ Aletheion loaded")
 
 # Evaluate
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("BASELINE")
-print("="*60)
+print("=" * 60)
 baseline_metrics = evaluate(baseline, val_loader, device)
 print(f"   ECE: {baseline_metrics['ece']:.4f}")
 print(f"   Acc: {baseline_metrics['accuracy']:.4f}")
 print(f"   Loss: {baseline_metrics['loss']:.4f}")
 
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("ALETHEION")
-print("="*60)
+print("=" * 60)
 aletheion_metrics = evaluate(aletheion, val_loader, device)
 print(f"   ECE: {aletheion_metrics['ece']:.4f}")
 print(f"   Acc: {aletheion_metrics['accuracy']:.4f}")
 print(f"   Loss: {aletheion_metrics['loss']:.4f}")
 
-print("\n" + "="*60)
-ece_change = (baseline_metrics['ece'] - aletheion_metrics['ece']) / baseline_metrics['ece'] * 100
-loss_change = (baseline_metrics['loss'] - aletheion_metrics['loss']) / baseline_metrics['loss'] * 100
+print("\n" + "=" * 60)
+ece_change = (baseline_metrics["ece"] - aletheion_metrics["ece"]) / baseline_metrics["ece"] * 100
+loss_change = (
+    (baseline_metrics["loss"] - aletheion_metrics["loss"]) / baseline_metrics["loss"] * 100
+)
 
 print(f"\n🎯 ECE CHANGE: {ece_change:+.1f}%")
 print(f"🎯 LOSS CHANGE: {loss_change:+.1f}%")

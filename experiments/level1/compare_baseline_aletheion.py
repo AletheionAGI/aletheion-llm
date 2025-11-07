@@ -12,6 +12,7 @@ Usage:
     python experiments/level1/compare_baseline_aletheion.py --steps 100 --dry-run
     python experiments/level1/compare_baseline_aletheion.py --steps 10000
 """
+
 import sys
 from pathlib import Path
 
@@ -55,7 +56,7 @@ def create_baseline_model(vocab_size: int, device: torch.device) -> BaselineTran
         max_seq_len=512,
         dropout=0.1,
         tie_weights=True,
-        use_flash_attention=False
+        use_flash_attention=False,
     ).to(device)
 
 
@@ -74,7 +75,7 @@ def create_aletheion_model(vocab_size: int, device: torch.device) -> AletheionTr
         q1_threshold=0.7,
         q2_threshold=0.7,
         base_temperature=1.0,
-        n_consensus_heads=4
+        n_consensus_heads=4,
     ).to(device)
 
 
@@ -116,7 +117,11 @@ def train_step(
     metrics: dict[str, float] = {}
 
     # Compute loss
-    if isinstance(model, AletheionTransformer) and varo_loss is not None and outputs.uncertainty is not None:
+    if (
+        isinstance(model, AletheionTransformer)
+        and varo_loss is not None
+        and outputs.uncertainty is not None
+    ):
         shift_logits = outputs.logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
         shift_uncertainty = outputs.uncertainty[..., :-1, :].contiguous()
@@ -126,19 +131,19 @@ def train_step(
             varo_loss.lambda_varo = varo_weight
 
         loss_dict = varo_loss(
-            logits=shift_logits,
-            targets=shift_labels,
-            uncertainty=shift_uncertainty
+            logits=shift_logits, targets=shift_labels, uncertainty=shift_uncertainty
         )
-        loss = loss_dict['loss']
-        metrics.update({
-            "loss": loss.item(),
-            "ce_loss": loss_dict['ce_loss'].item(),
-            "uncertainty_loss": loss_dict['uncertainty_loss'].item(),
-            "u_star_mean": loss_dict['u_star_mean'].item(),
-            "u_pred_mean": loss_dict['u_pred_mean'].item(),
-            "varo_weight": varo_loss.lambda_varo,
-        })
+        loss = loss_dict["loss"]
+        metrics.update(
+            {
+                "loss": loss.item(),
+                "ce_loss": loss_dict["ce_loss"].item(),
+                "uncertainty_loss": loss_dict["uncertainty_loss"].item(),
+                "u_star_mean": loss_dict["u_star_mean"].item(),
+                "u_pred_mean": loss_dict["u_pred_mean"].item(),
+                "varo_weight": varo_loss.lambda_varo,
+            }
+        )
 
         if outputs.q1 is not None:
             metrics["q1_mean"] = outputs.q1.mean().item()
@@ -161,12 +166,11 @@ def train_step(
     return metrics
 
 
-
 def evaluate_model(
     model: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
-    compute_calibration: bool = True
+    compute_calibration: bool = True,
 ) -> dict[str, float]:
     """Evaluate model and compute metrics."""
     model.eval()
@@ -183,11 +187,7 @@ def evaluate_model(
             labels = batch["labels"].to(device)
 
             try:
-                outputs = model(
-                    input_ids,
-                    labels=labels,
-                    return_uncertainty=True
-                )
+                outputs = model(input_ids, labels=labels, return_uncertainty=True)
             except TypeError:
                 # FIX: Baseline model forward does not accept return_uncertainty flag
                 outputs = model(input_ids, labels=labels)
@@ -214,10 +214,7 @@ def evaluate_model(
     avg_loss = total_loss / max(1, total_batches)
     perplexity = torch.exp(torch.tensor(avg_loss)).item()
 
-    metrics = {
-        "loss": avg_loss,
-        "perplexity": perplexity
-    }
+    metrics = {"loss": avg_loss, "perplexity": perplexity}
 
     # Compute calibration metrics
     if compute_calibration and all_probs:
@@ -231,10 +228,7 @@ def evaluate_model(
             all_uncertainties = torch.zeros(all_targets.size(0), 1)
 
         calib_metrics = compute_calibration_metrics(
-            probs=all_probs,
-            targets=all_targets,
-            uncertainty=all_uncertainties,
-            n_bins=10
+            probs=all_probs, targets=all_targets, uncertainty=all_uncertainties, n_bins=10
         )
         metrics.update(calib_metrics)
 
@@ -246,20 +240,18 @@ def evaluate_model(
 
 
 def plot_reliability_diagram(
-    _baseline_metrics: dict,
-    _aletheion_metrics: dict,
-    save_path: Path
+    _baseline_metrics: dict, _aletheion_metrics: dict, save_path: Path
 ) -> None:
     """Plot reliability diagram comparing both models."""
     # This is a placeholder - would need to collect binned data during evaluation
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
     # Perfect calibration line
-    ax.plot([0, 1], [0, 1], 'k--', label='Perfect calibration')
+    ax.plot([0, 1], [0, 1], "k--", label="Perfect calibration")
 
-    ax.set_xlabel('Confidence')
-    ax.set_ylabel('Accuracy')
-    ax.set_title('Reliability Diagram')
+    ax.set_xlabel("Confidence")
+    ax.set_ylabel("Accuracy")
+    ax.set_title("Reliability Diagram")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -284,27 +276,19 @@ def main(args):
 
     # Load dataset
     print("\n📚 Loading WikiText-2 dataset...")
-    train_ds, val_ds, test_ds, tokenizer= load_wikitext_dataset(
-        tokenizer_name="gpt2",
-        dataset_config="wikitext-2-raw-v1",
-        max_length=512
+    train_ds, val_ds, test_ds, tokenizer = load_wikitext_dataset(
+        tokenizer_name="gpt2", dataset_config="wikitext-2-raw-v1", max_length=512
     )
     vocab_size = tokenizer.vocab_size  # Atributo correto do tokenizer GPT-2
     print(f"📊 Vocab size: {vocab_size}")
     print(f"📊 Tokenizer: {tokenizer}")
 
     train_loader = DataLoader(
-        train_ds,
-        batch_size=args.batch_size,
-        shuffle=True,
-        collate_fn=collate_fn
+        train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn
     )
 
     val_loader = DataLoader(
-        val_ds,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate_fn
+        val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn
     )
 
     print(f"   - Training samples: {len(train_ds)}")
@@ -329,7 +313,7 @@ def main(args):
     aletheion_opt = torch.optim.AdamW(aletheion_model.parameters(), lr=3e-4, weight_decay=0.1)
 
     # Create VARO loss
-    varo_loss = VaroLoss(lambda_varo=0.1, u_star_method='head_variance')
+    varo_loss = VaroLoss(lambda_varo=0.1, u_star_method="head_variance")
 
     # Training
     print(f"\n🚀 Training for {args.steps} steps...")
@@ -450,23 +434,25 @@ def main(args):
 
     # Compute improvements
     print("\n📈 Improvements:")
-    if 'ece' in baseline_metrics and 'ece' in aletheion_metrics:
-        ece_improvement = (baseline_metrics['ece'] - aletheion_metrics['ece']) / baseline_metrics['ece'] * 100
+    if "ece" in baseline_metrics and "ece" in aletheion_metrics:
+        ece_improvement = (
+            (baseline_metrics["ece"] - aletheion_metrics["ece"]) / baseline_metrics["ece"] * 100
+        )
         print(f"  ECE reduction: {ece_improvement:+.1f}%")
 
-    if 'brier_score' in baseline_metrics and 'brier_score' in aletheion_metrics:
-        brier_improvement = (baseline_metrics['brier_score'] - aletheion_metrics['brier_score']) / baseline_metrics['brier_score'] * 100
+    if "brier_score" in baseline_metrics and "brier_score" in aletheion_metrics:
+        brier_improvement = (
+            (baseline_metrics["brier_score"] - aletheion_metrics["brier_score"])
+            / baseline_metrics["brier_score"]
+            * 100
+        )
         print(f"  Brier score reduction: {brier_improvement:+.1f}%")
 
     # Save results
     results = {
         "baseline": baseline_metrics,
         "aletheion": aletheion_metrics,
-        "config": {
-            "steps": args.steps,
-            "batch_size": args.batch_size,
-            "seed": 42
-        }
+        "config": {"steps": args.steps, "batch_size": args.batch_size, "seed": 42},
     }
 
     results_file = results_dir / f"comparison_steps{args.steps}.pt"
@@ -478,7 +464,7 @@ def main(args):
         plot_reliability_diagram(
             baseline_metrics,
             aletheion_metrics,
-            results_dir / f"reliability_diagram_steps{args.steps}.png"
+            results_dir / f"reliability_diagram_steps{args.steps}.png",
         )
 
     print("\n✅ Comparison complete!")

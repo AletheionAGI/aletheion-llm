@@ -54,7 +54,7 @@ class PyramidalEpistemicGatesWithQ1Q2(nn.Module):
         d_model: int,
         n_heads: int = 8,
         dropout: float = 0.1,
-        use_multi_head_height: bool = False
+        use_multi_head_height: bool = False,
     ) -> None:
         super().__init__()
         self.d_model = d_model
@@ -162,11 +162,14 @@ class PyramidalEpistemicGatesWithQ1Q2(nn.Module):
         # === 4. HEIGHT: Derived from Q1, Q2, base_stability ===
         # High height when: low Q1 + low Q2 + high base_stability
         # This creates natural attractor toward Truth apex
-        height_inputs = torch.cat([
-            1.0 - Q1_mean,      # Invert: low aleatoric → high height
-            1.0 - Q2_mean,      # Invert: low epistemic → high height
-            base_stability      # High stability → high height
-        ], dim=-1)
+        height_inputs = torch.cat(
+            [
+                1.0 - Q1_mean,  # Invert: low aleatoric → high height
+                1.0 - Q2_mean,  # Invert: low epistemic → high height
+                base_stability,  # High stability → high height
+            ],
+            dim=-1,
+        )
 
         height_logits = self.height_combiner(height_inputs)
         height = torch.sigmoid(height_logits)  # [B, T, 1] ∈ [0,1]
@@ -186,32 +189,27 @@ class PyramidalEpistemicGatesWithQ1Q2(nn.Module):
 
         return {
             # Base
-            'base_weights': base_weights,
-            'w_memory': w_memory,
-            'w_pain': w_pain,
-            'w_choice': w_choice,
-            'w_exploration': w_exploration,
-            'base_stability': base_stability,
-            'base_variance': base_variance,
-
+            "base_weights": base_weights,
+            "w_memory": w_memory,
+            "w_pain": w_pain,
+            "w_choice": w_choice,
+            "w_exploration": w_exploration,
+            "base_stability": base_stability,
+            "base_variance": base_variance,
             # Q1 (Aleatoric)
-            'Q1_mean': Q1_mean,
-            'Q1_var': Q1_var,
-
+            "Q1_mean": Q1_mean,
+            "Q1_var": Q1_var,
             # Q2 (Epistemic)
-            'Q2_mean': Q2_mean,
-            'Q2_var': Q2_var,
-
+            "Q2_mean": Q2_mean,
+            "Q2_var": Q2_var,
             # Height (Derived)
-            'height': height,
-            'uncertainty': 1.0 - height,
-
+            "height": height,
+            "uncertainty": 1.0 - height,
             # Fractal
-            'fractal_uncertainty': fractal_uncertainty,
-            'total_uncertainty': total_uncertainty,
-
+            "fractal_uncertainty": fractal_uncertainty,
+            "total_uncertainty": total_uncertainty,
             # Confidence
-            'confidence': confidence
+            "confidence": confidence,
         }
 
 
@@ -229,12 +227,7 @@ class EpistemicMultiHeadAttention(nn.Module):
         dropout: Dropout probability
     """
 
-    def __init__(
-        self,
-        d_model: int,
-        n_heads: int = 8,
-        dropout: float = 0.1
-    ) -> None:
+    def __init__(self, d_model: int, n_heads: int = 8, dropout: float = 0.1) -> None:
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
@@ -253,11 +246,7 @@ class EpistemicMultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        Q1_gate: nn.Module,
-        Q2_gate: nn.Module,
-        tau_thresh: float = 0.3
+        self, x: torch.Tensor, Q1_gate: nn.Module, Q2_gate: nn.Module, tau_thresh: float = 0.3
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass with epistemic softmax.
 
@@ -294,11 +283,7 @@ class EpistemicMultiHeadAttention(nn.Module):
         c = torch.clamp(q1 * q2, min=1e-8, max=1.0)
 
         # Temperature modulation
-        tau = torch.where(
-            c < tau_thresh,
-            1.0 / c,
-            torch.ones_like(c)
-        )
+        tau = torch.where(c < tau_thresh, 1.0 / c, torch.ones_like(c))
         tau = tau.view(B, 1, 1, 1)  # Broadcast to [B, n_heads, T, T]
 
         # Gated softmax
@@ -350,7 +335,7 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         lambda_Q2: float = 0.002,
         lambda_fractal: float = 0.0005,
         lambda_height: float = 0.002,
-        ignore_index: int = -100
+        ignore_index: int = -100,
     ) -> None:
         super().__init__()
         self.lambda_base = lambda_base
@@ -360,11 +345,7 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         self.lambda_height = lambda_height
         self.ignore_index = ignore_index
 
-    def compute_target_Q1(
-        self,
-        logits: torch.Tensor,
-        targets: torch.Tensor
-    ) -> torch.Tensor:
+    def compute_target_Q1(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """Compute target Q1 (aleatoric uncertainty).
 
         Q1 should be HIGH when:
@@ -411,11 +392,7 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
 
         return target_Q1
 
-    def compute_target_Q2(
-        self,
-        logits: torch.Tensor,
-        targets: torch.Tensor
-    ) -> torch.Tensor:
+    def compute_target_Q2(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """Compute target Q2 (epistemic uncertainty).
 
         Q2 should be HIGH when:
@@ -470,10 +447,7 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         return target_Q2
 
     def forward(
-        self,
-        logits: torch.Tensor,
-        targets: torch.Tensor,
-        pyramid_outputs: dict[str, torch.Tensor]
+        self, logits: torch.Tensor, targets: torch.Tensor, pyramid_outputs: dict[str, torch.Tensor]
     ) -> dict[str, torch.Tensor]:
         """Compute total pyramidal VARO loss with Q1/Q2/Fractal.
 
@@ -487,20 +461,18 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
         """
         # Standard cross-entropy
         ce_loss = F.cross_entropy(
-            logits.view(-1, logits.size(-1)),
-            targets.view(-1),
-            ignore_index=self.ignore_index
+            logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=self.ignore_index
         )
 
         # Extract pyramid state
-        base_weights = pyramid_outputs['base_weights']
-        Q1_mean = pyramid_outputs['Q1_mean']
-        Q2_mean = pyramid_outputs['Q2_mean']
+        base_weights = pyramid_outputs["base_weights"]
+        Q1_mean = pyramid_outputs["Q1_mean"]
+        Q2_mean = pyramid_outputs["Q2_mean"]
         # Q1_var and Q2_var are not currently used in loss computation
         # Q1_var = pyramid_outputs['Q1_var']
         # Q2_var = pyramid_outputs['Q2_var']
-        height = pyramid_outputs['height']
-        fractal_uncertainty = pyramid_outputs['fractal_uncertainty']
+        height = pyramid_outputs["height"]
+        fractal_uncertainty = pyramid_outputs["fractal_uncertainty"]
 
         # Valid mask (ignore padding)
         valid_mask = (targets != self.ignore_index).unsqueeze(-1)  # [B, T, 1]
@@ -511,40 +483,36 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
 
         # === 2. Q1 CALIBRATION LOSS ===
         target_Q1 = self.compute_target_Q1(logits, targets)
-        Q1_loss = F.mse_loss(
-            Q1_mean * valid_mask,
-            target_Q1 * valid_mask,
-            reduction='sum'
-        ) / (valid_mask.sum() + 1e-8)
+        Q1_loss = F.mse_loss(Q1_mean * valid_mask, target_Q1 * valid_mask, reduction="sum") / (
+            valid_mask.sum() + 1e-8
+        )
 
         # === 3. Q2 CALIBRATION LOSS ===
         target_Q2 = self.compute_target_Q2(logits, targets)
-        Q2_loss = F.mse_loss(
-            Q2_mean * valid_mask,
-            target_Q2 * valid_mask,
-            reduction='sum'
-        ) / (valid_mask.sum() + 1e-8)
+        Q2_loss = F.mse_loss(Q2_mean * valid_mask, target_Q2 * valid_mask, reduction="sum") / (
+            valid_mask.sum() + 1e-8
+        )
 
         # === 4. FRACTAL REGULARIZATION ===
         # Penalize excessive meta-uncertainty
-        fractal_loss = (fractal_uncertainty ** 2 * valid_mask).sum() / (valid_mask.sum() + 1e-8)
+        fractal_loss = (fractal_uncertainty**2 * valid_mask).sum() / (valid_mask.sum() + 1e-8)
 
         # === 5. HEIGHT CALIBRATION ===
         # Height should reflect inverse of total uncertainty
         target_height = 1.0 - (Q1_mean + Q2_mean) / 2.0
         height_loss = F.mse_loss(
-            height * valid_mask,
-            target_height * valid_mask,
-            reduction='sum'
+            height * valid_mask, target_height * valid_mask, reduction="sum"
         ) / (valid_mask.sum() + 1e-8)
 
         # === TOTAL LOSS ===
-        total_loss = ce_loss \
-                   + self.lambda_base * base_loss \
-                   + self.lambda_Q1 * Q1_loss \
-                   + self.lambda_Q2 * Q2_loss \
-                   + self.lambda_fractal * fractal_loss \
-                   + self.lambda_height * height_loss
+        total_loss = (
+            ce_loss
+            + self.lambda_base * base_loss
+            + self.lambda_Q1 * Q1_loss
+            + self.lambda_Q2 * Q2_loss
+            + self.lambda_fractal * fractal_loss
+            + self.lambda_height * height_loss
+        )
 
         # Compute metrics for logging
         num_valid = valid_mask.sum() + 1e-8
@@ -559,72 +527,68 @@ class PyramidalVAROLossWithQ1Q2(nn.Module):
             targets_flat = targets.view(-1)  # [B*T]
 
             # Filter out padding tokens
-            valid_indices = (targets_flat != self.ignore_index)
+            valid_indices = targets_flat != self.ignore_index
             if valid_indices.sum() > 0:
                 probs_valid = probs_flat[valid_indices]
                 targets_valid = targets_flat[valid_indices]
 
                 # Use total_uncertainty as the uncertainty measure
-                total_uncertainty_flat = pyramid_outputs['total_uncertainty'].view(-1, 1)
+                total_uncertainty_flat = pyramid_outputs["total_uncertainty"].view(-1, 1)
                 uncertainty_valid = total_uncertainty_flat[valid_indices]
 
                 # Compute ECE and Brier score
                 calibration_metrics = compute_calibration_metrics(
-                    probs_valid,
-                    targets_valid,
-                    uncertainty_valid,
-                    n_bins=10
+                    probs_valid, targets_valid, uncertainty_valid, n_bins=10
                 )
-                ece = calibration_metrics['ece']
-                brier = calibration_metrics['brier_score']
-                uncertainty_error_corr = calibration_metrics['uncertainty_error_corr']
+                ece = calibration_metrics["ece"]
+                brier = calibration_metrics["brier_score"]
+                uncertainty_error_corr = calibration_metrics["uncertainty_error_corr"]
             else:
                 ece = 0.0
                 brier = 0.0
                 uncertainty_error_corr = 0.0
 
         return {
-            'loss': total_loss,
-            'ce_loss': ce_loss.item(),
-            'base_loss': base_loss.item(),
-            'Q1_loss': Q1_loss.item(),
-            'Q2_loss': Q2_loss.item(),
-            'fractal_loss': fractal_loss.item(),
-            'height_loss': height_loss.item(),
-
+            "loss": total_loss,
+            "ce_loss": ce_loss.item(),
+            "base_loss": base_loss.item(),
+            "Q1_loss": Q1_loss.item(),
+            "Q2_loss": Q2_loss.item(),
+            "fractal_loss": fractal_loss.item(),
+            "height_loss": height_loss.item(),
             # Metrics
-            'mean_Q1': (Q1_mean * valid_mask).sum().item() / num_valid.item(),
-            'mean_Q2': (Q2_mean * valid_mask).sum().item() / num_valid.item(),
-            'mean_height': (height * valid_mask).sum().item() / num_valid.item(),
-            'mean_fractal': (fractal_uncertainty * valid_mask).sum().item() / num_valid.item(),
-            'target_Q1_mean': (target_Q1 * valid_mask).sum().item() / num_valid.item(),
-            'target_Q2_mean': (target_Q2 * valid_mask).sum().item() / num_valid.item(),
-            'target_height_mean': (target_height * valid_mask).sum().item() / num_valid.item(),
-
+            "mean_Q1": (Q1_mean * valid_mask).sum().item() / num_valid.item(),
+            "mean_Q2": (Q2_mean * valid_mask).sum().item() / num_valid.item(),
+            "mean_height": (height * valid_mask).sum().item() / num_valid.item(),
+            "mean_fractal": (fractal_uncertainty * valid_mask).sum().item() / num_valid.item(),
+            "target_Q1_mean": (target_Q1 * valid_mask).sum().item() / num_valid.item(),
+            "target_Q2_mean": (target_Q2 * valid_mask).sum().item() / num_valid.item(),
+            "target_height_mean": (target_height * valid_mask).sum().item() / num_valid.item(),
             # Calibration metrics (ECE, Brier)
-            'ece': ece,
-            'brier_score': brier,
-            'uncertainty_error_corr': uncertainty_error_corr,
-
+            "ece": ece,
+            "brier_score": brier,
+            "uncertainty_error_corr": uncertainty_error_corr,
             # Force weights (base cognitive forces)
-            'mean_memory': (pyramid_outputs['w_memory'] * valid_mask).sum().item() / num_valid.item(),
-            'mean_pain': (pyramid_outputs['w_pain'] * valid_mask).sum().item() / num_valid.item(),
-            'mean_choice': (pyramid_outputs['w_choice'] * valid_mask).sum().item() / num_valid.item(),
-            'mean_exploration': (pyramid_outputs['w_exploration'] * valid_mask).sum().item() / num_valid.item(),
-            'base_stability': (pyramid_outputs['base_stability'] * valid_mask).sum().item() / num_valid.item(),
-
+            "mean_memory": (pyramid_outputs["w_memory"] * valid_mask).sum().item()
+            / num_valid.item(),
+            "mean_pain": (pyramid_outputs["w_pain"] * valid_mask).sum().item() / num_valid.item(),
+            "mean_choice": (pyramid_outputs["w_choice"] * valid_mask).sum().item()
+            / num_valid.item(),
+            "mean_exploration": (pyramid_outputs["w_exploration"] * valid_mask).sum().item()
+            / num_valid.item(),
+            "base_stability": (pyramid_outputs["base_stability"] * valid_mask).sum().item()
+            / num_valid.item(),
             # Lambdas
-            'lambda_base': self.lambda_base,
-            'lambda_Q1': self.lambda_Q1,
-            'lambda_Q2': self.lambda_Q2,
-            'lambda_fractal': self.lambda_fractal,
-            'lambda_height': self.lambda_height
+            "lambda_base": self.lambda_base,
+            "lambda_Q1": self.lambda_Q1,
+            "lambda_Q2": self.lambda_Q2,
+            "lambda_fractal": self.lambda_fractal,
+            "lambda_height": self.lambda_height,
         }
 
 
 def compute_pyramidal_q1q2_metrics(
-    pyramid_outputs: dict[str, torch.Tensor],
-    valid_mask: torch.Tensor | None = None
+    pyramid_outputs: dict[str, torch.Tensor], valid_mask: torch.Tensor | None = None
 ) -> dict[str, float]:
     """Compute aggregate metrics from pyramidal Q1/Q2 outputs.
 
@@ -636,7 +600,7 @@ def compute_pyramidal_q1q2_metrics(
         Dictionary with comprehensive metrics
     """
     if valid_mask is None:
-        valid_mask = torch.ones_like(pyramid_outputs['height'], dtype=torch.bool)
+        valid_mask = torch.ones_like(pyramid_outputs["height"], dtype=torch.bool)
 
     def masked_mean(tensor: torch.Tensor) -> float:
         masked = tensor[valid_mask]
@@ -652,44 +616,38 @@ def compute_pyramidal_q1q2_metrics(
         if masked.numel() == 0:
             return 0.0
         # Binary entropy: H(p) = -p*log(p) - (1-p)*log(1-p)
-        p = masked.clamp(1e-8, 1-1e-8)
-        entropy = -(p * p.log() + (1-p) * (1-p).log())
+        p = masked.clamp(1e-8, 1 - 1e-8)
+        entropy = -(p * p.log() + (1 - p) * (1 - p).log())
         return entropy.mean().item()
 
     metrics = {
         # Q1 metrics (Aleatoric)
-        'Q1_mean': masked_mean(pyramid_outputs['Q1_mean']),
-        'Q1_std': masked_std(pyramid_outputs['Q1_mean']),
-        'Q1_entropy': masked_entropy(pyramid_outputs['Q1_mean']),
-        'Q1_var_mean': masked_mean(pyramid_outputs['Q1_var']),
-
+        "Q1_mean": masked_mean(pyramid_outputs["Q1_mean"]),
+        "Q1_std": masked_std(pyramid_outputs["Q1_mean"]),
+        "Q1_entropy": masked_entropy(pyramid_outputs["Q1_mean"]),
+        "Q1_var_mean": masked_mean(pyramid_outputs["Q1_var"]),
         # Q2 metrics (Epistemic)
-        'Q2_mean': masked_mean(pyramid_outputs['Q2_mean']),
-        'Q2_std': masked_std(pyramid_outputs['Q2_mean']),
-        'Q2_entropy': masked_entropy(pyramid_outputs['Q2_mean']),
-        'Q2_var_mean': masked_mean(pyramid_outputs['Q2_var']),
-
+        "Q2_mean": masked_mean(pyramid_outputs["Q2_mean"]),
+        "Q2_std": masked_std(pyramid_outputs["Q2_mean"]),
+        "Q2_entropy": masked_entropy(pyramid_outputs["Q2_mean"]),
+        "Q2_var_mean": masked_mean(pyramid_outputs["Q2_var"]),
         # Height metrics
-        'height_mean': masked_mean(pyramid_outputs['height']),
-        'height_std': masked_std(pyramid_outputs['height']),
-        'height_entropy': masked_entropy(pyramid_outputs['height']),
-
+        "height_mean": masked_mean(pyramid_outputs["height"]),
+        "height_std": masked_std(pyramid_outputs["height"]),
+        "height_entropy": masked_entropy(pyramid_outputs["height"]),
         # Fractal metrics
-        'fractal_mean': masked_mean(pyramid_outputs['fractal_uncertainty']),
-        'fractal_std': masked_std(pyramid_outputs['fractal_uncertainty']),
-
+        "fractal_mean": masked_mean(pyramid_outputs["fractal_uncertainty"]),
+        "fractal_std": masked_std(pyramid_outputs["fractal_uncertainty"]),
         # Total uncertainty
-        'total_uncertainty_mean': masked_mean(pyramid_outputs['total_uncertainty']),
-
+        "total_uncertainty_mean": masked_mean(pyramid_outputs["total_uncertainty"]),
         # Confidence
-        'confidence_mean': masked_mean(pyramid_outputs['confidence']),
-
+        "confidence_mean": masked_mean(pyramid_outputs["confidence"]),
         # Base metrics
-        'base_stability_mean': masked_mean(pyramid_outputs['base_stability']),
-        'w_memory_mean': masked_mean(pyramid_outputs['w_memory']),
-        'w_pain_mean': masked_mean(pyramid_outputs['w_pain']),
-        'w_choice_mean': masked_mean(pyramid_outputs['w_choice']),
-        'w_exploration_mean': masked_mean(pyramid_outputs['w_exploration'])
+        "base_stability_mean": masked_mean(pyramid_outputs["base_stability"]),
+        "w_memory_mean": masked_mean(pyramid_outputs["w_memory"]),
+        "w_pain_mean": masked_mean(pyramid_outputs["w_pain"]),
+        "w_choice_mean": masked_mean(pyramid_outputs["w_choice"]),
+        "w_exploration_mean": masked_mean(pyramid_outputs["w_exploration"]),
     }
 
     return metrics

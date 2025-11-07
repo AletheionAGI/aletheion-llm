@@ -29,12 +29,7 @@ def device():
 @pytest.fixture
 def batch_config():
     """Standard batch configuration for tests."""
-    return {
-        "batch_size": 4,
-        "seq_len": 32,
-        "d_model": 128,
-        "vocab_size": 1000
-    }
+    return {"batch_size": 4, "seq_len": 32, "d_model": 128, "vocab_size": 1000}
 
 
 class TestLocalUncertaintyGate:
@@ -50,11 +45,7 @@ class TestLocalUncertaintyGate:
     def test_forward_2d(self, device, batch_config):
         """Test Q₁ forward pass with 2D input (batch, d_model)."""
         gate = LocalUncertaintyGate(d_model=batch_config["d_model"]).to(device)
-        context = torch.randn(
-            batch_config["batch_size"],
-            batch_config["d_model"],
-            device=device
-        )
+        context = torch.randn(batch_config["batch_size"], batch_config["d_model"], device=device)
 
         q1 = gate(context)
 
@@ -71,7 +62,7 @@ class TestLocalUncertaintyGate:
             batch_config["batch_size"],
             batch_config["seq_len"],
             batch_config["d_model"],
-            device=device
+            device=device,
         )
 
         q1 = gate(context)
@@ -86,10 +77,7 @@ class TestLocalUncertaintyGate:
         """Test that gradients flow through Q₁ gate."""
         gate = LocalUncertaintyGate(d_model=batch_config["d_model"]).to(device)
         context = torch.randn(
-            batch_config["batch_size"],
-            batch_config["d_model"],
-            device=device,
-            requires_grad=True
+            batch_config["batch_size"], batch_config["d_model"], device=device, requires_grad=True
         )
 
         q1 = gate(context)
@@ -132,17 +120,13 @@ class TestCrossContextGate:
 
     def test_forward_3d(self, device, batch_config):
         """Test Q₂ forward pass with 3D input."""
-        gate = CrossContextGate(
-            d_model=batch_config["d_model"],
-            n_heads=4,
-            dropout=0.1
-        ).to(device)
+        gate = CrossContextGate(d_model=batch_config["d_model"], n_heads=4, dropout=0.1).to(device)
 
         context = torch.randn(
             batch_config["batch_size"],
             batch_config["seq_len"],
             batch_config["d_model"],
-            device=device
+            device=device,
         )
 
         q2 = gate(context)
@@ -161,7 +145,7 @@ class TestCrossContextGate:
             batch_config["seq_len"],
             batch_config["d_model"],
             device=device,
-            requires_grad=True
+            requires_grad=True,
         )
 
         q2 = gate(context)
@@ -179,7 +163,9 @@ class TestCrossContextGate:
 
         # Create context with high agreement (all positions similar)
         base = torch.randn(1, 1, batch_config["d_model"], device=device)
-        context_high_consensus = base.expand(4, 32, -1) + 0.01 * torch.randn(4, 32, batch_config["d_model"], device=device)
+        context_high_consensus = base.expand(4, 32, -1) + 0.01 * torch.randn(
+            4, 32, batch_config["d_model"], device=device
+        )
 
         # Create context with low agreement (positions very different)
         context_low_consensus = torch.randn(4, 32, batch_config["d_model"], device=device)
@@ -203,20 +189,17 @@ class TestEpistemicSoftmax:
             batch_config["batch_size"],
             batch_config["seq_len"],
             batch_config["vocab_size"],
-            device=device
+            device=device,
         )
         context = torch.randn(
             batch_config["batch_size"],
             batch_config["seq_len"],
             batch_config["d_model"],
-            device=device
+            device=device,
         )
 
         probs, uncertainty = epistemic_softmax(
-            logits=logits,
-            context=context,
-            q1_gate=q1_gate,
-            q2_gate=q2_gate
+            logits=logits, context=context, q1_gate=q1_gate, q2_gate=q2_gate
         )
 
         # Check shapes
@@ -239,10 +222,7 @@ class TestEpistemicSoftmax:
         context = torch.randn(4, 32, batch_config["d_model"], device=device)
 
         probs, uncertainty = epistemic_softmax(
-            logits=logits,
-            context=context,
-            q1_gate=q1_gate,
-            q2_gate=None  # No Q₂ gate
+            logits=logits, context=context, q1_gate=q1_gate, q2_gate=None  # No Q₂ gate
         )
 
         # Should still work (assumes q2 = 1)
@@ -265,10 +245,7 @@ class TestEpistemicSoftmax:
         context = torch.randn(1, 1, d_model, device=device)
 
         probs, uncertainty = epistemic_softmax(
-            logits=logits,
-            context=context,
-            q1_gate=q1_gate,
-            q2_gate=q2_gate
+            logits=logits, context=context, q1_gate=q1_gate, q2_gate=q2_gate
         )
 
         # Should be mostly peaked (if gates are confident)
@@ -295,7 +272,7 @@ class TestEpistemicSoftmax:
             context=context,
             q1_gate=q1_gate,
             q2_gate=None,
-            confidence_threshold=0.1  # Low threshold
+            confidence_threshold=0.1,  # Low threshold
         )
 
         probs_high_thresh, _ = epistemic_softmax(
@@ -303,12 +280,16 @@ class TestEpistemicSoftmax:
             context=context,
             q1_gate=q1_gate,
             q2_gate=None,
-            confidence_threshold=0.9  # High threshold
+            confidence_threshold=0.9,  # High threshold
         )
 
         # Both should sum to 1
-        assert torch.allclose(probs_low_thresh.sum(dim=-1), torch.ones(1, 1, device=device), atol=1e-5)
-        assert torch.allclose(probs_high_thresh.sum(dim=-1), torch.ones(1, 1, device=device), atol=1e-5)
+        assert torch.allclose(
+            probs_low_thresh.sum(dim=-1), torch.ones(1, 1, device=device), atol=1e-5
+        )
+        assert torch.allclose(
+            probs_high_thresh.sum(dim=-1), torch.ones(1, 1, device=device), atol=1e-5
+        )
 
     def test_gradients_flow_through_gates(self, device, batch_config):
         """Test that gradients flow through epistemic softmax to gates."""
@@ -319,10 +300,7 @@ class TestEpistemicSoftmax:
         context = torch.randn(4, 32, batch_config["d_model"], device=device, requires_grad=True)
 
         probs, uncertainty = epistemic_softmax(
-            logits=logits,
-            context=context,
-            q1_gate=q1_gate,
-            q2_gate=q2_gate
+            logits=logits, context=context, q1_gate=q1_gate, q2_gate=q2_gate
         )
 
         loss = uncertainty.sum()
@@ -346,10 +324,7 @@ class TestEpistemicSoftmax:
         context = torch.randn(4, 32, batch_config["d_model"], device=device)
 
         probs, uncertainty = epistemic_softmax(
-            logits=logits,
-            context=context,
-            q1_gate=q1_gate,
-            q2_gate=q2_gate
+            logits=logits, context=context, q1_gate=q1_gate, q2_gate=q2_gate
         )
 
         # Get individual gate outputs

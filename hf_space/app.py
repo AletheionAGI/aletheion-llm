@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Try to import Aletheion modules
 try:
     from src.aletheion.pyramidal_model import AletheionPyramidalTransformer, PyramidalModelOutput
+
     ALETHEION_AVAILABLE = True
 except ImportError:
     ALETHEION_AVAILABLE = False
@@ -42,7 +43,7 @@ class AletheionDemo:
         """Load model and tokenizer."""
         try:
             # Load tokenizer (GPT-2 compatible)
-            self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+            self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
             # Check if model files exist
@@ -59,6 +60,7 @@ class AletheionDemo:
 
             # Load model configuration
             import json
+
             with open(config_path) as f:
                 config = json.load(f)
 
@@ -72,11 +74,11 @@ class AletheionDemo:
                 d_ff=2048,
                 max_seq_len=512,
                 dropout=0.1,
-                lambda_base=config.get('lambda_base', 0.005),
-                lambda_height=config.get('lambda_height', 0.02),
-                height_method=config.get('height_method', 'error_based'),
-                use_multi_head_height=config.get('multi_head_height', False),
-                modulate_temperature=not config.get('no_temp_modulation', False)
+                lambda_base=config.get("lambda_base", 0.005),
+                lambda_height=config.get("lambda_height", 0.02),
+                height_method=config.get("height_method", "error_based"),
+                use_multi_head_height=config.get("multi_head_height", False),
+                modulate_temperature=not config.get("no_temp_modulation", False),
             )
 
             # Load weights if available
@@ -95,6 +97,7 @@ class AletheionDemo:
         except Exception as e:
             print(f"Error loading model: {e}")
             import traceback
+
             traceback.print_exc()
 
     def generate_text(
@@ -103,7 +106,7 @@ class AletheionDemo:
         max_length: int = 100,
         temperature: float = 1.0,
         top_k: int = 50,
-        top_p: float = 0.95
+        top_p: float = 0.95,
     ) -> tuple[str, dict[str, float]]:
         """Generate text with uncertainty metrics.
 
@@ -138,24 +141,28 @@ class AletheionDemo:
 
                     # Collect pyramidal metrics
                     if outputs.pyramid is not None:
-                        height = outputs.pyramid['height'][:, -1].cpu().numpy()
-                        base_stability = outputs.pyramid['base_stability'][:, -1].cpu().numpy()
+                        height = outputs.pyramid["height"][:, -1].cpu().numpy()
+                        base_stability = outputs.pyramid["base_stability"][:, -1].cpu().numpy()
                         all_heights.append(height[0])
                         all_base_stabilities.append(base_stability[0])
 
                     # Apply top-k and top-p filtering
                     if top_k > 0:
                         indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-                        logits[indices_to_remove] = float('-inf')
+                        logits[indices_to_remove] = float("-inf")
 
                     if top_p < 1.0:
                         sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                        cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                        cumulative_probs = torch.cumsum(
+                            torch.softmax(sorted_logits, dim=-1), dim=-1
+                        )
                         sorted_indices_to_remove = cumulative_probs > top_p
-                        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[
+                            ..., :-1
+                        ].clone()
                         sorted_indices_to_remove[..., 0] = 0
                         indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                        logits[0, indices_to_remove] = float('-inf')
+                        logits[0, indices_to_remove] = float("-inf")
 
                     # Sample next token
                     probs = torch.softmax(logits, dim=-1)
@@ -188,13 +195,14 @@ class AletheionDemo:
                     "Average Base Stability": float(avg_base_stability),
                     "Uncertainty": float(uncertainty),
                     "Confidence": float(confidence),
-                    "ECE (estimated)": float(ece_estimate)
+                    "ECE (estimated)": float(ece_estimate),
                 }
 
             return generated_text, metrics
 
         except Exception as e:
             import traceback
+
             error_msg = f"Error during generation: {e}\n{traceback.format_exc()}"
             print(error_msg)
             return error_msg, {}
@@ -227,14 +235,11 @@ def create_interface(demo: AletheionDemo):
     Returns:
         Gradio interface
     """
+
     def generate_wrapper(prompt, max_length, temperature, top_k, top_p):
         """Wrapper function for Gradio interface."""
         generated_text, metrics = demo.generate_text(
-            prompt,
-            max_length=max_length,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p
+            prompt, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p
         )
         metrics_text = demo.format_metrics(metrics)
         return generated_text, metrics_text
@@ -248,7 +253,8 @@ def create_interface(demo: AletheionDemo):
     ]
 
     with gr.Blocks(title="Aletheion LLM Demo") as interface:
-        gr.Markdown("""
+        gr.Markdown(
+            """
         # 🗡️ Aletheion: Epistemic Uncertainty for LLMs
 
         Demo of the **Pyramidal Epistemology** architecture for calibrated language generation.
@@ -261,68 +267,45 @@ def create_interface(demo: AletheionDemo):
         - **ECE**: Expected Calibration Error (lower is better)
 
         **Benchmark Results:** ECE 0.011 vs 0.104 baseline (89% improvement)
-        """)
+        """
+        )
 
         with gr.Row():
             with gr.Column():
                 prompt_input = gr.Textbox(
-                    label="Prompt",
-                    placeholder="Enter your prompt here...",
-                    lines=3
+                    label="Prompt", placeholder="Enter your prompt here...", lines=3
                 )
 
                 max_length = gr.Slider(
-                    minimum=10,
-                    maximum=200,
-                    value=100,
-                    step=10,
-                    label="Max Length"
+                    minimum=10, maximum=200, value=100, step=10, label="Max Length"
                 )
 
                 temperature = gr.Slider(
-                    minimum=0.1,
-                    maximum=2.0,
-                    value=1.0,
-                    step=0.1,
-                    label="Temperature"
+                    minimum=0.1, maximum=2.0, value=1.0, step=0.1, label="Temperature"
                 )
 
                 with gr.Row():
-                    top_k = gr.Slider(
-                        minimum=0,
-                        maximum=100,
-                        value=50,
-                        step=5,
-                        label="Top-k"
-                    )
+                    top_k = gr.Slider(minimum=0, maximum=100, value=50, step=5, label="Top-k")
 
                     top_p = gr.Slider(
-                        minimum=0.0,
-                        maximum=1.0,
-                        value=0.95,
-                        step=0.05,
-                        label="Top-p (nucleus)"
+                        minimum=0.0, maximum=1.0, value=0.95, step=0.05, label="Top-p (nucleus)"
                     )
 
                 generate_btn = gr.Button("Generate", variant="primary")
 
             with gr.Column():
-                output_text = gr.Textbox(
-                    label="Generated Text",
-                    lines=10
-                )
+                output_text = gr.Textbox(label="Generated Text", lines=10)
 
-                metrics_output = gr.Markdown(
-                    label="Uncertainty Metrics"
-                )
+                metrics_output = gr.Markdown(label="Uncertainty Metrics")
 
         gr.Examples(
             examples=examples,
             inputs=[prompt_input, max_length, temperature, top_k, top_p],
-            label="Example Prompts"
+            label="Example Prompts",
         )
 
-        gr.Markdown("""
+        gr.Markdown(
+            """
         ---
         ### About Aletheion
 
@@ -336,13 +319,14 @@ def create_interface(demo: AletheionDemo):
         - Reduced hallucination rates
 
         📄 [Read the Paper](./assets/paper.pdf) | 🔗 [GitHub](https://github.com/AletheionAGI/aletheion-llm)
-        """)
+        """
+        )
 
         # Connect interface
         generate_btn.click(
             fn=generate_wrapper,
             inputs=[prompt_input, max_length, temperature, top_k, top_p],
-            outputs=[output_text, metrics_output]
+            outputs=[output_text, metrics_output],
         )
 
     return interface

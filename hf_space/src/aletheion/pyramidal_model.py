@@ -88,10 +88,10 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         # Pyramidal-specific parameters
         lambda_base: float = 0.01,
         lambda_height: float = 0.02,
-        height_method: str = 'error_based',
+        height_method: str = "error_based",
         use_multi_head_height: bool = False,
         modulate_temperature: bool = True,
-        max_temperature_scale: float = 2.0
+        max_temperature_scale: float = 2.0,
     ) -> None:
         # Initialize baseline transformer
         super().__init__(
@@ -103,7 +103,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
             max_seq_len=max_seq_len,
             dropout=dropout,
             tie_weights=tie_weights,
-            use_flash_attention=use_flash_attention
+            use_flash_attention=use_flash_attention,
         )
 
         # Store pyramidal parameters
@@ -117,14 +117,13 @@ class AletheionPyramidalTransformer(BaselineTransformer):
             d_model=d_model,
             n_heads=n_heads,
             dropout=dropout,
-            use_multi_head_height=use_multi_head_height
+            use_multi_head_height=use_multi_head_height,
         )
 
         # Optional temperature modulator
         if modulate_temperature:
             self.temp_modulator = PyramidalTemperatureModulator(
-                base_temperature=1.0,
-                max_temperature_scale=max_temperature_scale
+                base_temperature=1.0, max_temperature_scale=max_temperature_scale
             )
 
         print("🔻 Pyramidal Epistemology initialized")
@@ -144,7 +143,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         input_ids: torch.Tensor,
         labels: torch.Tensor | None = None,
         return_dict: bool = True,
-        return_pyramid_state: bool = True
+        return_pyramid_state: bool = True,
     ) -> PyramidalModelOutput | dict[str, torch.Tensor]:
         """Forward pass with pyramidal epistemic computation.
 
@@ -159,9 +158,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         """
         batch_size, seq_len = input_ids.shape
         if seq_len > self.max_seq_len:
-            raise ValueError(
-                f"Sequence length {seq_len} exceeds maximum {self.max_seq_len}"
-            )
+            raise ValueError(f"Sequence length {seq_len} exceeds maximum {self.max_seq_len}")
 
         # Standard transformer forward pass (same as baseline)
         token_emb = self.token_embedding(input_ids)
@@ -185,7 +182,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         # Compute logits with optional temperature modulation
         if self.modulate_temperature and pyramid_outputs is not None:
             # Modulate temperature based on height
-            height = pyramid_outputs['height']
+            height = pyramid_outputs["height"]
             logits = self.lm_head(hidden_states)
             logits = self.temp_modulator(logits, height)
         else:
@@ -203,21 +200,13 @@ class AletheionPyramidalTransformer(BaselineTransformer):
             loss = nn.functional.cross_entropy(
                 shift_logits.view(-1, shift_logits.size(-1)),
                 shift_labels.view(-1),
-                ignore_index=-100
+                ignore_index=-100,
             )
 
         if return_dict:
-            return PyramidalModelOutput(
-                logits=logits,
-                loss=loss,
-                pyramid=pyramid_outputs
-            )
+            return PyramidalModelOutput(logits=logits, loss=loss, pyramid=pyramid_outputs)
 
-        return {
-            "logits": logits,
-            "loss": loss,
-            "pyramid": pyramid_outputs
-        }
+        return {"logits": logits, "loss": loss, "pyramid": pyramid_outputs}
 
     @torch.no_grad()
     def generate(
@@ -229,7 +218,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         top_p: float | None = None,
         do_sample: bool = True,
         use_pyramid: bool = True,
-        height_threshold: float = 0.5
+        height_threshold: float = 0.5,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Generate tokens with pyramidal epistemic-aware decoding.
 
@@ -271,9 +260,9 @@ class AletheionPyramidalTransformer(BaselineTransformer):
 
             # Get pyramidal state for last position
             if use_pyramid and outputs.pyramid is not None:
-                height = outputs.pyramid['height'][:, -1, :].squeeze(-1)  # (batch,)
-                uncertainty = outputs.pyramid['uncertainty'][:, -1, :].squeeze(-1)
-                base_stability = outputs.pyramid['base_stability'][:, -1, :].squeeze(-1)
+                height = outputs.pyramid["height"][:, -1, :].squeeze(-1)  # (batch,)
+                uncertainty = outputs.pyramid["uncertainty"][:, -1, :].squeeze(-1)
+                base_stability = outputs.pyramid["base_stability"][:, -1, :].squeeze(-1)
 
                 heights.append(height)
                 uncertainties.append(uncertainty)
@@ -284,7 +273,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
                 adjusted_temp = torch.where(
                     height < height_threshold,
                     temperature * (1.0 + (1.0 - height)),
-                    torch.full_like(height, temperature)
+                    torch.full_like(height, temperature),
                 )
 
                 # Apply adjusted temperature per sample
@@ -327,9 +316,9 @@ class AletheionPyramidalTransformer(BaselineTransformer):
         # Stack pyramidal history
         pyramid_history = {}
         if heights:
-            pyramid_history['heights'] = torch.stack(heights, dim=1)  # (batch, max_new_tokens)
-            pyramid_history['uncertainties'] = torch.stack(uncertainties, dim=1)
-            pyramid_history['base_stabilities'] = torch.stack(base_stabilities, dim=1)
+            pyramid_history["heights"] = torch.stack(heights, dim=1)  # (batch, max_new_tokens)
+            pyramid_history["uncertainties"] = torch.stack(uncertainties, dim=1)
+            pyramid_history["base_stabilities"] = torch.stack(base_stabilities, dim=1)
 
         return generated, pyramid_history
 
@@ -351,6 +340,7 @@ class AletheionPyramidalTransformer(BaselineTransformer):
             save_dir: Directory to save checkpoint
         """
         import os
+
         os.makedirs(save_dir, exist_ok=True)
 
         # Get config from first attention block
@@ -360,30 +350,31 @@ class AletheionPyramidalTransformer(BaselineTransformer):
 
         # Save full state dict (includes all parameters)
         checkpoint = {
-            'model_state_dict': self.state_dict(),
-            'config': {
-                'vocab_size': self.token_embedding.num_embeddings,
-                'd_model': self.token_embedding.embedding_dim,
-                'n_layers': len(self.blocks),
-                'n_heads': n_heads,
-                'd_ff': d_ff,
-                'max_seq_len': self.pos_embedding.num_embeddings,
-                'dropout': 0.1,
-                'tie_weights': self.token_embedding.weight.data_ptr() == self.lm_head.weight.data_ptr(),
-                'use_flash_attention': False,
-                'lambda_base': self.lambda_base,
-                'lambda_height': self.lambda_height,
-                'height_method': self.height_method,
-                'use_multi_head_height': self.pyramid_gates.use_multi_head_height,
-                'modulate_temperature': self.modulate_temperature,
-            }
+            "model_state_dict": self.state_dict(),
+            "config": {
+                "vocab_size": self.token_embedding.num_embeddings,
+                "d_model": self.token_embedding.embedding_dim,
+                "n_layers": len(self.blocks),
+                "n_heads": n_heads,
+                "d_ff": d_ff,
+                "max_seq_len": self.pos_embedding.num_embeddings,
+                "dropout": 0.1,
+                "tie_weights": self.token_embedding.weight.data_ptr()
+                == self.lm_head.weight.data_ptr(),
+                "use_flash_attention": False,
+                "lambda_base": self.lambda_base,
+                "lambda_height": self.lambda_height,
+                "height_method": self.height_method,
+                "use_multi_head_height": self.pyramid_gates.use_multi_head_height,
+                "modulate_temperature": self.modulate_temperature,
+            },
         }
 
-        torch.save(checkpoint, os.path.join(save_dir, 'pytorch_model.bin'))
+        torch.save(checkpoint, os.path.join(save_dir, "pytorch_model.bin"))
         print(f"✅ Pyramidal model saved to {save_dir}")
 
     @classmethod
-    def load_pretrained(cls, load_dir: str, device: str = 'cpu') -> AletheionPyramidalTransformer:
+    def load_pretrained(cls, load_dir: str, device: str = "cpu") -> AletheionPyramidalTransformer:
         """Load model checkpoint including pyramidal gates.
 
         Args:
@@ -394,19 +385,20 @@ class AletheionPyramidalTransformer(BaselineTransformer):
             Loaded AletheionPyramidalTransformer instance
         """
         import os
-        checkpoint_path = os.path.join(load_dir, 'pytorch_model.bin')
+
+        checkpoint_path = os.path.join(load_dir, "pytorch_model.bin")
 
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(f"No checkpoint found at {checkpoint_path}")
 
         checkpoint = torch.load(checkpoint_path, map_location=device)
-        config = checkpoint['config']
+        config = checkpoint["config"]
 
         # Instantiate model with saved config
         model = cls(**config)
 
         # Load weights
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint["model_state_dict"])
         model.to(device)
 
         print(f"✅ Pyramidal model loaded from {load_dir}")
