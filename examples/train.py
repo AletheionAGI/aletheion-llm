@@ -6,6 +6,10 @@ import argparse
 from pathlib import Path
 
 import torch
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
 from data.dataset import collate_fn, load_wikitext_dataset
 from src import BaselineTransformer, get_device, load_config, set_seed
 from src.utils import (
@@ -13,9 +17,6 @@ from src.utils import (
     cosine_decay_with_warmup,
     linear_decay_with_warmup,
 )
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 
 try:  # pragma: no cover - optional dependency
     import wandb

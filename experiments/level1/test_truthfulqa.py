@@ -27,12 +27,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from data.dataset import load_truthfulqa_dataset
 from scipy import stats
-from src import get_device, set_seed
-from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
 from tqdm import tqdm
 from transformers import GPT2LMHeadModel
+
+from data.dataset import load_truthfulqa_dataset
+from src import get_device, set_seed
+from src.aletheion.pyramidal_model import AletheionPyramidalTransformer
 
 
 def collate_fn_qa(batch):
