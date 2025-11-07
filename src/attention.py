@@ -122,7 +122,7 @@ class MultiHeadAttention(nn.Module):
         if mask is not None:
             if mask.dim() == 3:
                 mask = mask.unsqueeze(1)
-            attn_scores = attn_scores.masked_fill(mask == 0, float("-inf"))
+            attn_scores = attn_scores.masked_fill(~mask, float("-inf"))
 
         attn_weights = F.softmax(attn_scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
@@ -146,7 +146,7 @@ class CausalSelfAttention(MultiHeadAttention):
 
         self.register_buffer(
             "causal_mask",
-            torch.tril(torch.ones(max_seq_len, max_seq_len, dtype=torch.uint8)).view(
+            torch.tril(torch.ones(max_seq_len, max_seq_len, dtype=torch.bool)).view(
                 1, 1, max_seq_len, max_seq_len
             ),
             persistent=False,
