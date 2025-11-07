@@ -12,6 +12,7 @@ Tests cover:
 
 import pytest
 import torch
+
 from src.aletheion.gates import (
     CrossContextGate,
     LocalUncertaintyGate,
