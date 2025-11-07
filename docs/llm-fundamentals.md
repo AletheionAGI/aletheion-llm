@@ -88,7 +88,9 @@ $$
 
 where $E \in \mathbb{R}^{V \times d_{\text{model}}}$ is the embedding matrix.
 
-**Positional Encoding**: Adds position information using sinusoidal functions:
+**Positional Encoding**: Adds position information to preserve sequential order. Two common approaches:
+
+1. **Sinusoidal Encoding** (Vaswani et al., 2017):
 
 $$
 \text{PE}(t, 2i) = \sin\left(\frac{t}{10000^{2i/d_{\text{model}}}}\right)
@@ -97,6 +99,16 @@ $$
 $$
 \text{PE}(t, 2i+1) = \cos\left(\frac{t}{10000^{2i/d_{\text{model}}}}\right)
 $$
+
+2. **Learned Positional Embeddings** (GPT-2, our implementation):
+
+$$
+\text{PE}(t) = P[t] \in \mathbb{R}^{d_{\text{model}}}
+$$
+
+where $P \in \mathbb{R}^{T_{\text{max}} \times d_{\text{model}}}$ is a learnable embedding matrix.
+
+> **Implementation Note:** The Aletheion codebase uses **learned positional embeddings** (`nn.Embedding(max_seq_len, d_model)` in `src/model.py:96`), following the GPT-2 approach. Both methods are valid; learned embeddings are simpler and perform comparably in most scenarios.
 
 Combined input to first layer:
 

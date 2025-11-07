@@ -4,6 +4,17 @@
 
 All components of Aletheion Level 1 have been successfully implemented based on the paper "Aletheion: Fractal Epistemic Architecture for Large Language Models".
 
+### Implementation Status by Level
+
+| Level | Description | Status | Location |
+|-------|-------------|--------|----------|
+| **Level 0** | Baseline Transformer | ✅ **Fully Implemented** | `src/model.py` |
+| **Level 1** | Output-Only Gates (Q₁/Q₂) | ✅ **Fully Implemented** | `src/aletheion/` |
+| **Level 2** | Attention + Output Gates | ⏳ **Partial** | `src/aletheion/pyramidal_*.py` |
+| **Level 3** | Full Fractal Architecture | 🔜 **Planned** | Future work |
+
+> **Current Focus:** Level 1 is complete and ready for experimental validation. Level 2 has pyramidal variants available but not fully integrated.
+
 ---
 
 ## 📁 What Was Implemented

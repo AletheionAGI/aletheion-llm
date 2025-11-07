@@ -108,7 +108,15 @@ The softmax layer is the **boundary** between:
 
 Aletheion can be integrated at **three levels** of increasing depth.
 
-### Level 1: Gating at Output (Post-Softmax)
+### Implementation Status Summary
+
+| Level | Status | Location | Description |
+|-------|--------|----------|-------------|
+| **Level 1** | ✅ **Fully Implemented** | `src/aletheion/model.py` | Output-only gates (production-ready) |
+| **Level 2** | ⏳ **Partial** | `src/aletheion/pyramidal_*.py` | Attention-level gates (pyramidal variants) |
+| **Level 3** | 🔜 **Planned** | Future work | Deep VARO integration in hidden states |
+
+### Level 1: Gating at Output (Post-Softmax) ✅ IMPLEMENTED
 
 **Architecture**: Compute Q scores after softmax, gate the sampled token.
 
@@ -137,7 +145,7 @@ $$
 
 **Use case**: Quick integration with existing models.
 
-### Level 2: Gating at Logits (Pre-Softmax) ⭐ RECOMMENDED
+### Level 2: Gating at Logits (Pre-Softmax) ⏳ PARTIAL IMPLEMENTATION
 
 **Architecture**: Compute Q scores, then **modify logits** before softmax.
 
@@ -174,7 +182,7 @@ where $\alpha, \beta$ are hyperparameters.
 
 **Use case**: Production deployment with quality-controlled generation.
 
-### Level 3: Deep Integration (VARO in Hidden States)
+### Level 3: Deep Integration (VARO in Hidden States) 🔜 PLANNED
 
 **Architecture**: Inject VARO regularization **inside transformer layers**.
 
