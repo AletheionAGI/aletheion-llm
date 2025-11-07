@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 
 import torch
-
 from src import BaselineTransformer, get_device
 from src.tokenizer import build_tokenizer
 
