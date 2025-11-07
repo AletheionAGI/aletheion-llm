@@ -6,13 +6,12 @@ sys.path.insert(0, "/home/sapo/aletheion-llm")
 
 import torch
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
 from data.dataset import load_wikitext_dataset
 from src import BaselineTransformer, get_device
 from src.aletheion.model import AletheionTransformer
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 def collate_fn(batch):
