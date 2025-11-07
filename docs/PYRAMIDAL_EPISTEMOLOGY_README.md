@@ -1,8 +1,12 @@
 # Pyramidal Epistemology - Implementation Guide
 
+**Status:** ⏳ **Partial Implementation** - Pyramidal variants implemented, full Level 2 integration pending
+
 ## Overview
 
 This document describes the implementation of **Pyramidal Epistemology**, a novel epistemic uncertainty framework for LLMs based on 5-vertex pyramidal geometry.
+
+> **Implementation Note:** Pyramidal components are implemented and available in `src/aletheion/pyramidal_*.py`. These represent advanced Level 2 concepts but are not yet integrated into the main training pipeline. Level 1 (output-only gates) is the current production-ready implementation.
 
 ### Motivation
 
