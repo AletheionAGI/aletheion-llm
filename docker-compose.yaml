@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # Development environment
+  dev:
+    build:
+      context: .
+      target: development
+    image: aletheion-llm:dev
+    container_name: aletheion-dev
+    volumes:
+      - .:/app
+      - pip-cache:/root/.cache/pip
+      - pre-commit-cache:/root/.cache/pre-commit
+    environment:
+      - PYTHONPATH=/app/src
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+    stdin_open: true
+    tty: true
+    command: bash
+
+  # Jupyter notebook for experimentation
+  jupyter:
+    build:
+      context: .
+      target: development
+    image: aletheion-llm:dev
+    container_name: aletheion-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/app
+      - jupyter-data:/root/.jupyter
+    environment:
+      - PYTHONPATH=/app/src
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      bash -c "
+      jupyter lab
+        --ip=0.0.0.0
+        --port=8888
+        --no-browser
+        --allow-root
+        --NotebookApp.token=''
+        --NotebookApp.password=''
+      "
+
+  # Training with GPU support
+  train:
+    build:
+      context: .
+      target: training
+    image: aletheion-llm:train
+    container_name: aletheion-train
+    volumes:
+      - .:/app
+      - training-outputs:/app/outputs
+      - huggingface-cache:/root/.cache/huggingface
+    environment:
+      - PYTHONPATH=/app/src
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: python examples/train.py --config config/small.yaml
+
+  # Testing environment
+  test:
+    build:
+      context: .
+      target: development
+    image: aletheion-llm:dev
+    container_name: aletheion-test
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/src
+    command: pytest tests/ --cov=src --cov-report=term-missing
+
+  # Documentation server
+  docs:
+    build:
+      context: .
+      target: development
+    image: aletheion-llm:dev
+    container_name: aletheion-docs
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: mkdocs serve --dev-addr=0.0.0.0:8000
+
+  # Linting and code quality
+  lint:
+    build:
+      context: .
+      target: development
+    image: aletheion-llm:dev
+    container_name: aletheion-lint
+    volumes:
+      - .:/app
+    command: >
+      bash -c "
+      echo '==> Running Ruff...' &&
+      ruff check . &&
+      echo '==> Checking Black formatting...' &&
+      black --check . &&
+      echo '==> Checking isort...' &&
+      isort --check .
+      "
+
+volumes:
+  pip-cache:
+  pre-commit-cache:
+  jupyter-data:
+  training-outputs:
+  huggingface-cache:
