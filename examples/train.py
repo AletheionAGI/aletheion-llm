@@ -23,7 +23,7 @@ except Exception:  # pragma: no cover - fallback when wandb missing
     wandb = None
 
 
-def build_dataloaders(config: dict) -> tuple[DataLoader, DataLoader]:
+def build_dataloaders(config: dict, device: torch.device) -> tuple[DataLoader, DataLoader]:
     """Instantiate dataloaders for training and validation."""
 
     data_cfg = config["data"]
@@ -43,6 +43,7 @@ def build_dataloaders(config: dict) -> tuple[DataLoader, DataLoader]:
         batch_size=config["training"]["batch_size"],
         shuffle=True,
         num_workers=data_cfg.get("num_workers", 0),
+        pin_memory=(device.type == "cuda"),
         collate_fn=collate_fn,
     )
 
@@ -51,6 +52,7 @@ def build_dataloaders(config: dict) -> tuple[DataLoader, DataLoader]:
         batch_size=config["training"]["batch_size"],
         shuffle=False,
         num_workers=data_cfg.get("num_workers", 0),
+        pin_memory=(device.type == "cuda"),
         collate_fn=collate_fn,
     )
 
@@ -140,7 +142,7 @@ def main(config_path: str) -> None:
     set_seed(config["system"].get("seed", 42))
     device = get_device(config["system"].get("device", "cuda"))
 
-    train_loader, val_loader = build_dataloaders(config)
+    train_loader, val_loader = build_dataloaders(config, device)
     model = create_model(config, device)
     optimizer = create_optimizer(config, model)
 
