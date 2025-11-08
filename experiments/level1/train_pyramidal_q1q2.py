@@ -412,6 +412,360 @@ def evaluate(model, dataloader, device, max_batches=10):
     return avg_loss, pyramid_metrics
 
 
+def generate_training_report(
+    history: dict,
+    final_metrics: dict,
+    args: argparse.Namespace,
+    save_dir: Path
+) -> None:
+    """Generate comprehensive Markdown training report.
+
+    Creates a detailed report with:
+    - Training configuration
+    - Final metrics (ECE, Perplexity, Brier, Q1, Q2, etc.)
+    - Training curves summary
+    - Calibration metrics
+    - Force weights analysis
+    - Lambda values used
+    """
+    report_path = save_dir / f"TRAINING_REPORT_seed_{args.seed}.md"
+
+    # Compute final statistics from history
+    final_step = len(history["train_loss"])
+
+    with open(report_path, "w") as f:
+        # Header
+        f.write(f"# Training Report: Pyramidal Q1/Q2 Model\n\n")
+        f.write(f"**Experiment:** {args.experiment_name}\n")
+        f.write(f"**Seed:** {args.seed}\n")
+        f.write(f"**Date:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"**Total Steps:** {final_step}\n")
+        f.write(f"**Dataset:** {args.dataset.upper()}\n\n")
+        f.write("---\n\n")
+
+        # Table of Contents
+        f.write("## 📚 Table of Contents\n\n")
+        f.write("1. [Configuration](#configuration)\n")
+        f.write("2. [Final Metrics](#final-metrics)\n")
+        f.write("3. [Calibration Metrics](#calibration-metrics)\n")
+        f.write("4. [Q1/Q2 Analysis](#q1q2-analysis)\n")
+        f.write("5. [Force Weights](#force-weights)\n")
+        f.write("6. [Loss Components](#loss-components)\n")
+        f.write("7. [Training Curves](#training-curves)\n")
+        f.write("8. [Recommendations](#recommendations)\n\n")
+        f.write("---\n\n")
+
+        # 1. Configuration
+        f.write("## Configuration\n\n")
+        f.write("### Model Architecture\n\n")
+        f.write(f"- **Model Dimension (d_model):** {args.d_model}\n")
+        f.write(f"- **Number of Layers:** {args.n_layers}\n")
+        f.write(f"- **Attention Heads:** {args.n_heads}\n")
+        f.write(f"- **Feedforward Dimension:** {args.d_ff}\n")
+        f.write(f"- **Max Sequence Length:** {args.max_seq_len}\n")
+        f.write(f"- **Dropout Rate:** {args.dropout}\n\n")
+
+        f.write("### Pyramidal Parameters (Lambda Values)\n\n")
+        f.write(f"- **λ_base (Base Stability):** {args.lambda_base}\n")
+        f.write(f"- **λ_Q1 (Aleatoric Calibration):** {args.lambda_Q1}\n")
+        f.write(f"- **λ_Q2 (Epistemic Calibration):** {args.lambda_Q2}\n")
+        f.write(f"- **λ_fractal (Fractal Regularization):** {args.lambda_fractal}\n")
+        f.write(f"- **λ_height (Height Calibration):** {args.lambda_height}\n")
+        f.write(f"- **Max Temperature Scale:** {args.max_temperature_scale}\n\n")
+
+        f.write("### Training Configuration\n\n")
+        effective_batch = args.batch_size * args.gradient_accumulation_steps
+        f.write(f"- **Batch Size:** {args.batch_size} (effective: {effective_batch} with {args.gradient_accumulation_steps}x accumulation)\n")
+        f.write(f"- **Learning Rate:** {args.learning_rate}\n")
+        f.write(f"- **Weight Decay:** {args.weight_decay}\n")
+        f.write(f"- **Max Steps:** {args.max_steps}\n")
+        f.write(f"- **Warmup Steps:** {args.warmup_steps}\n")
+        f.write(f"- **Gradient Clipping:** {args.grad_clip}\n")
+        f.write(f"- **Gradient Checkpointing:** {args.gradient_checkpointing}\n")
+        f.write(f"- **Mixed Precision (FP16):** {args.fp16}\n\n")
+        f.write("---\n\n")
+
+        # 2. Final Metrics
+        f.write("## Final Metrics\n\n")
+
+        if history["eval_loss"]:
+            final_eval_loss = history["eval_loss"][-1]
+            final_perplexity = history["eval_perplexity"][-1]
+        else:
+            final_eval_loss = history["train_loss"][-1]
+            final_perplexity = np.exp(final_eval_loss)
+
+        f.write("### Overall Performance\n\n")
+        f.write(f"| Metric | Value |\n")
+        f.write(f"|--------|-------|\n")
+        f.write(f"| **Final Training Loss** | {history['train_loss'][-1]:.4f} |\n")
+        f.write(f"| **Final Validation Loss** | {final_eval_loss:.4f} |\n")
+        f.write(f"| **Final Perplexity** | {final_perplexity:.2f} |\n\n")
+
+        # Q1/Q2 Final Values
+        f.write("### Uncertainty Components\n\n")
+        f.write(f"| Component | Mean | Min | Max | Range | Entropy |\n")
+        f.write(f"|-----------|------|-----|-----|-------|----------|\n")
+
+        q1_mean = history["Q1_mean"][-1] if history["Q1_mean"] else 0.0
+        q1_min = history["Q1_min"][-1] if history["Q1_min"] else 0.0
+        q1_max = history["Q1_max"][-1] if history["Q1_max"] else 0.0
+        q1_range = history["Q1_range"][-1] if history["Q1_range"] else 0.0
+        q1_entropy = history["Q1_entropy"][-1] if history["Q1_entropy"] else 0.0
+
+        q2_mean = history["Q2_mean"][-1] if history["Q2_mean"] else 0.0
+        q2_min = history["Q2_min"][-1] if history["Q2_min"] else 0.0
+        q2_max = history["Q2_max"][-1] if history["Q2_max"] else 0.0
+        q2_range = history["Q2_range"][-1] if history["Q2_range"] else 0.0
+        q2_entropy = history["Q2_entropy"][-1] if history["Q2_entropy"] else 0.0
+
+        height_mean = history["height_mean"][-1] if history["height_mean"] else 0.0
+        fractal_mean = history["fractal_mean"][-1] if history["fractal_mean"] else 0.0
+
+        f.write(f"| **Q1 (Aleatoric)** | {q1_mean:.4f} | {q1_min:.4f} | {q1_max:.4f} | {q1_range:.4f} | {q1_entropy:.4f} |\n")
+        f.write(f"| **Q2 (Epistemic)** | {q2_mean:.4f} | {q2_min:.4f} | {q2_max:.4f} | {q2_range:.4f} | {q2_entropy:.4f} |\n")
+        f.write(f"| **Height** | {height_mean:.4f} | - | - | - | - |\n")
+        f.write(f"| **Fractal** | {fractal_mean:.4f} | - | - | - | - |\n\n")
+
+        # Health Check
+        f.write("### Health Status\n\n")
+        f.write("| Check | Status | Value | Expected Range |\n")
+        f.write("|-------|--------|-------|----------------|\n")
+
+        q1_healthy = 0.2 <= q1_mean <= 0.4
+        q2_healthy = 0.3 <= q2_mean <= 0.6
+        height_healthy = 0.5 <= height_mean <= 0.7
+        fractal_healthy = 0.1 <= fractal_mean <= 0.3
+        q1_entropy_ok = q1_entropy > 0.3
+        q2_entropy_ok = q2_entropy > 0.3
+
+        f.write(f"| Q1 Mean | {'✅ HEALTHY' if q1_healthy else '⚠️ OUT OF RANGE'} | {q1_mean:.3f} | [0.2, 0.4] |\n")
+        f.write(f"| Q2 Mean | {'✅ HEALTHY' if q2_healthy else '⚠️ OUT OF RANGE'} | {q2_mean:.3f} | [0.3, 0.6] |\n")
+        f.write(f"| Height | {'✅ HEALTHY' if height_healthy else '⚠️ OUT OF RANGE'} | {height_mean:.3f} | [0.5, 0.7] |\n")
+        f.write(f"| Fractal | {'✅ HEALTHY' if fractal_healthy else '⚠️ OUT OF RANGE'} | {fractal_mean:.3f} | [0.1, 0.3] |\n")
+        f.write(f"| Q1 Entropy | {'✅ NO COLLAPSE' if q1_entropy_ok else '⚠️ COLLAPSED'} | {q1_entropy:.3f} | > 0.3 |\n")
+        f.write(f"| Q2 Entropy | {'✅ NO COLLAPSE' if q2_entropy_ok else '⚠️ COLLAPSED'} | {q2_entropy:.3f} | > 0.3 |\n\n")
+
+        f.write("---\n\n")
+
+        # 3. Calibration Metrics
+        f.write("## Calibration Metrics\n\n")
+
+        final_ece = history["ece"][-1] if history["ece"] else 0.0
+        final_brier = history["brier_score"][-1] if history["brier_score"] else 0.0
+
+        f.write(f"| Metric | Value | Quality |\n")
+        f.write(f"|--------|-------|----------|\n")
+        f.write(f"| **ECE (Expected Calibration Error)** | {final_ece:.4f} | {'✅ EXCELLENT' if final_ece < 0.05 else '✅ GOOD' if final_ece < 0.1 else '⚠️ NEEDS IMPROVEMENT'} |\n")
+        f.write(f"| **Brier Score** | {final_brier:.4f} | {'✅ EXCELLENT' if final_brier < 0.2 else '✅ GOOD' if final_brier < 0.3 else '⚠️ NEEDS IMPROVEMENT'} |\n\n")
+
+        f.write("### Calibration Interpretation\n\n")
+        f.write("- **ECE < 0.05:** Excellent calibration (model confidence matches accuracy)\n")
+        f.write("- **ECE 0.05-0.10:** Good calibration\n")
+        f.write("- **ECE > 0.10:** Poor calibration (needs tuning)\n\n")
+        f.write("- **Brier Score < 0.2:** Excellent probabilistic predictions\n")
+        f.write("- **Brier Score 0.2-0.3:** Good probabilistic predictions\n")
+        f.write("- **Brier Score > 0.3:** Poor probabilistic predictions\n\n")
+        f.write("---\n\n")
+
+        # 4. Q1/Q2 Analysis
+        f.write("## Q1/Q2 Analysis\n\n")
+
+        f.write("### What are Q1 and Q2?\n\n")
+        f.write("- **Q1 (Aleatoric Uncertainty):** Irreducible uncertainty due to noise in the data\n")
+        f.write("- **Q2 (Epistemic Uncertainty):** Reducible uncertainty due to lack of knowledge\n\n")
+
+        f.write("### Convergence Analysis\n\n")
+
+        if history["Q1_target"]:
+            q1_target = history["Q1_target"][-1]
+            q2_target = history["Q2_target"][-1]
+            q1_gap = abs(q1_mean - q1_target)
+            q2_gap = abs(q2_mean - q2_target)
+
+            f.write(f"| Component | Current | Target | Gap | Converged? |\n")
+            f.write(f"|-----------|---------|--------|-----|------------|\n")
+            f.write(f"| **Q1** | {q1_mean:.4f} | {q1_target:.4f} | {q1_gap:.4f} | {'✅ YES' if q1_gap < 0.05 else '⚠️ NO'} |\n")
+            f.write(f"| **Q2** | {q2_mean:.4f} | {q2_target:.4f} | {q2_gap:.4f} | {'✅ YES' if q2_gap < 0.05 else '⚠️ NO'} |\n\n")
+
+        # Distinctness check
+        q1_q2_distinct = abs(q1_mean - q2_mean) > 0.05
+        f.write("### Q1/Q2 Distinctness\n\n")
+        f.write(f"- **Q1 Mean:** {q1_mean:.4f}\n")
+        f.write(f"- **Q2 Mean:** {q2_mean:.4f}\n")
+        f.write(f"- **Difference:** {abs(q1_mean - q2_mean):.4f}\n")
+        f.write(f"- **Status:** {'✅ Q1 and Q2 are DISTINCT' if q1_q2_distinct else '⚠️ Q1 and Q2 are TOO SIMILAR'}\n\n")
+
+        if not q1_q2_distinct:
+            f.write("⚠️ **Warning:** Q1 and Q2 should be distinct. Consider adjusting λ_Q1 and λ_Q2.\n\n")
+
+        f.write("---\n\n")
+
+        # 5. Force Weights
+        f.write("## Force Weights\n\n")
+
+        f.write("### Cognitive Force Balance\n\n")
+
+        w_memory = history["w_memory"][-1] if history["w_memory"] else 0.0
+        w_pain = history["w_pain"][-1] if history["w_pain"] else 0.0
+        w_choice = history["w_choice"][-1] if history["w_choice"] else 0.0
+        w_exploration = history["w_exploration"][-1] if history["w_exploration"] else 0.0
+        base_stability = history["base_stability"][-1] if history["base_stability"] else 0.0
+
+        total_forces = w_memory + w_pain + w_choice + w_exploration
+
+        f.write(f"| Force | Weight | Percentage | Balanced? |\n")
+        f.write(f"|-------|--------|------------|------------|\n")
+        f.write(f"| **Memory** | {w_memory:.4f} | {(w_memory/total_forces*100 if total_forces > 0 else 0):.1f}% | {'✅' if 0.15 <= w_memory <= 0.35 else '⚠️'} |\n")
+        f.write(f"| **Pain** | {w_pain:.4f} | {(w_pain/total_forces*100 if total_forces > 0 else 0):.1f}% | {'✅' if 0.15 <= w_pain <= 0.35 else '⚠️'} |\n")
+        f.write(f"| **Choice** | {w_choice:.4f} | {(w_choice/total_forces*100 if total_forces > 0 else 0):.1f}% | {'✅' if 0.15 <= w_choice <= 0.35 else '⚠️'} |\n")
+        f.write(f"| **Exploration** | {w_exploration:.4f} | {(w_exploration/total_forces*100 if total_forces > 0 else 0):.1f}% | {'✅' if 0.15 <= w_exploration <= 0.35 else '⚠️'} |\n")
+        f.write(f"| **Total** | {total_forces:.4f} | 100.0% | - |\n\n")
+
+        f.write(f"### Base Stability\n\n")
+        f.write(f"- **Value:** {base_stability:.4f}\n")
+        f.write(f"- **Target:** > 0.7 (stable foundation)\n")
+        f.write(f"- **Status:** {'✅ STABLE' if base_stability > 0.7 else '⚠️ UNSTABLE'}\n\n")
+
+        f.write("---\n\n")
+
+        # 6. Loss Components
+        f.write("## Loss Components\n\n")
+
+        final_ce = history["ce_loss"][-1] if history["ce_loss"] else 0.0
+        final_base = history["base_loss"][-1] if history["base_loss"] else 0.0
+        final_q1_loss = history["Q1_loss"][-1] if history["Q1_loss"] else 0.0
+        final_q2_loss = history["Q2_loss"][-1] if history["Q2_loss"] else 0.0
+        final_fractal_loss = history["fractal_loss"][-1] if history["fractal_loss"] else 0.0
+        final_height_loss = history["height_loss"][-1] if history["height_loss"] else 0.0
+
+        total_loss = final_ce + final_base + final_q1_loss + final_q2_loss + final_fractal_loss + final_height_loss
+
+        f.write(f"| Component | Raw Value | Weighted Value | Percentage |\n")
+        f.write(f"|-----------|-----------|----------------|-------------|\n")
+        f.write(f"| **Cross-Entropy (CE)** | {final_ce:.6f} | {final_ce:.6f} | {(final_ce/total_loss*100 if total_loss > 0 else 0):.1f}% |\n")
+        f.write(f"| **Base Stability** | {final_base:.6f} | {final_base * args.lambda_base:.6f} | {(final_base/total_loss*100 if total_loss > 0 else 0):.1f}% |\n")
+        f.write(f"| **Q1 Calibration** | {final_q1_loss:.6f} | {final_q1_loss * args.lambda_Q1:.6f} | {(final_q1_loss/total_loss*100 if total_loss > 0 else 0):.1f}% |\n")
+        f.write(f"| **Q2 Calibration** | {final_q2_loss:.6f} | {final_q2_loss * args.lambda_Q2:.6f} | {(final_q2_loss/total_loss*100 if total_loss > 0 else 0):.1f}% |\n")
+        f.write(f"| **Fractal Regularization** | {final_fractal_loss:.6f} | {final_fractal_loss * args.lambda_fractal:.6f} | {(final_fractal_loss/total_loss*100 if total_loss > 0 else 0):.1f}% |\n")
+        f.write(f"| **Height Calibration** | {final_height_loss:.6f} | {final_height_loss * args.lambda_height:.6f} | {(final_height_loss/total_loss*100 if total_loss > 0 else 0):.1f}% |\n\n")
+
+        f.write("### Loss Balance\n\n")
+        f.write("- **CE should dominate** (typically 85-95% of total loss)\n")
+        f.write("- Pyramidal components should be small regularizers (5-15% total)\n")
+        f.write("- If CE < 80%, lambda values may be too high\n\n")
+
+        f.write("---\n\n")
+
+        # 7. Training Curves
+        f.write("## Training Curves\n\n")
+        f.write(f"Training curves visualization saved to:\n\n")
+        f.write(f"```\n{save_dir / 'training_curves.png'}\n```\n\n")
+        f.write("The visualization includes:\n")
+        f.write("- Loss curves (train/eval)\n")
+        f.write("- Q1/Q2 progression with targets\n")
+        f.write("- Height and Fractal uncertainty\n")
+        f.write("- Base stability\n")
+        f.write("- Force weights evolution\n")
+        f.write("- Loss components breakdown\n")
+        f.write("- Calibration metrics (ECE, Brier)\n")
+        f.write("- Q1/Q2 entropy (collapse detection)\n")
+        f.write("- Distribution ranges\n")
+        f.write("- Evaluation perplexity\n\n")
+
+        f.write("---\n\n")
+
+        # 8. Recommendations
+        f.write("## Recommendations\n\n")
+
+        f.write("### Model Health\n\n")
+
+        all_healthy = (q1_healthy and q2_healthy and height_healthy and
+                      fractal_healthy and q1_entropy_ok and q2_entropy_ok)
+
+        if all_healthy:
+            f.write("✅ **All metrics are in healthy ranges!**\n\n")
+            f.write("The model has converged successfully. You can:\n")
+            f.write("- Proceed to evaluation on test set\n")
+            f.write("- Run multi-seed validation for reproducibility\n")
+            f.write("- Generate reliability diagrams\n")
+            f.write("- Test on out-of-domain data\n\n")
+        else:
+            f.write("⚠️ **Some metrics are out of healthy ranges.**\n\n")
+            f.write("**Recommendations:**\n\n")
+
+            if not q1_healthy:
+                f.write(f"- **Q1 Mean ({q1_mean:.3f}):** Adjust λ_Q1 (current: {args.lambda_Q1})\n")
+                if q1_mean < 0.2:
+                    f.write(f"  - Q1 too low → decrease λ_Q1 to allow more aleatoric uncertainty\n")
+                else:
+                    f.write(f"  - Q1 too high → increase λ_Q1 to reduce aleatoric uncertainty\n")
+
+            if not q2_healthy:
+                f.write(f"- **Q2 Mean ({q2_mean:.3f}):** Adjust λ_Q2 (current: {args.lambda_Q2})\n")
+                if q2_mean < 0.3:
+                    f.write(f"  - Q2 too low → decrease λ_Q2 to allow more epistemic uncertainty\n")
+                else:
+                    f.write(f"  - Q2 too high → increase λ_Q2 to reduce epistemic uncertainty\n")
+
+            if not height_healthy:
+                f.write(f"- **Height ({height_mean:.3f}):** Adjust λ_height (current: {args.lambda_height})\n")
+
+            if not fractal_healthy:
+                f.write(f"- **Fractal ({fractal_mean:.3f}):** Adjust λ_fractal (current: {args.lambda_fractal})\n")
+
+            if not q1_entropy_ok:
+                f.write(f"- **Q1 Entropy ({q1_entropy:.3f}):** Q1 may have collapsed! Lower λ_Q1\n")
+
+            if not q2_entropy_ok:
+                f.write(f"- **Q2 Entropy ({q2_entropy:.3f}):** Q2 may have collapsed! Lower λ_Q2\n")
+
+            f.write("\n")
+
+        f.write("### Calibration Quality\n\n")
+
+        if final_ece < 0.05:
+            f.write("✅ **Excellent calibration!** (ECE < 0.05)\n\n")
+            f.write("The model's confidence matches its accuracy very well.\n\n")
+        elif final_ece < 0.1:
+            f.write("✅ **Good calibration** (ECE < 0.10)\n\n")
+            f.write("The model is reasonably well-calibrated. Consider:\n")
+            f.write("- Temperature scaling for further refinement\n")
+            f.write("- More training steps\n\n")
+        else:
+            f.write("⚠️ **Poor calibration** (ECE > 0.10)\n\n")
+            f.write("**Recommendations:**\n")
+            f.write("- Increase λ_Q1 and λ_Q2 for better calibration\n")
+            f.write("- Train for more steps\n")
+            f.write("- Check if model has converged\n")
+            f.write("- Apply temperature scaling post-training\n\n")
+
+        f.write("### Next Steps\n\n")
+        f.write("1. **Review training curves:** Check `training_curves.png` for convergence patterns\n")
+        f.write("2. **Multi-seed validation:** Run with different seeds for reproducibility\n")
+        f.write("3. **Evaluation:** Test on held-out test set\n")
+        f.write("4. **Ablation studies:** Test sensitivity to hyperparameters\n")
+        f.write("5. **Benchmarking:** Compare against baselines (MC Dropout, Deep Ensembles)\n\n")
+
+        f.write("---\n\n")
+
+        # Footer
+        f.write("## Files Generated\n\n")
+        f.write(f"- **Model checkpoint:** `{save_dir / 'final_model'}`\n")
+        f.write(f"- **Training history:** `{save_dir / 'history.json'}`\n")
+        f.write(f"- **Training curves:** `{save_dir / 'training_curves.png'}`\n")
+        f.write(f"- **This report:** `{report_path}`\n")
+        f.write(f"- **Configuration:** `{save_dir / 'config.json'}`\n\n")
+
+        f.write("---\n\n")
+        f.write(f"**Report Generated:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"**Experiment:** {args.experiment_name}\n")
+        f.write(f"**Seed:** {args.seed}\n")
+
+    print(f"📄 Training report saved to {report_path}")
+    return report_path
+
+
 def plot_training_curves(history: dict, save_dir: Path):
     """Plot comprehensive training curves for Pyramidal Q1/Q2 model.
 
@@ -1290,6 +1644,10 @@ def main():
     # Plot training curves
     print("\n📊 Generating training curves...")
     plot_training_curves(history, exp_dir)
+
+    # Generate comprehensive training report
+    print("\n📄 Generating training report...")
+    generate_training_report(history, val_pyramid_metrics, args, exp_dir)
 
     writer.close()
 
