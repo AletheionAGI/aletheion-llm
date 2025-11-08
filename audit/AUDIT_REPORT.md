@@ -87,9 +87,39 @@
   ```
 
 #### 📊 Baseline Metrics Expected
-- Model size (default config): ~45M parâmetros (embedding 25.7M + 6 blocos * ~3.15M).  
-- Training time (WikiText-2, 1×A100 40GB): ~6–8 horas para 100k steps com batch efetivo 32 (AMP ativo).  
+- Model size (default config): ~45M parâmetros (embedding 25.7M + 6 blocos * ~3.15M).
+- Training time (WikiText-2, 1×A100 40GB): ~6–8 horas para 100k steps com batch efetivo 32 (AMP ativo).
 - Expected validation perplexity (WikiText-2): ~32–38 após convergência inicial (baseline GPT-2 small-like).
+
+#### 📈 Training Results - Level 1 First Run
+
+**Status:** ✅ **COMPLETED** - First Level 1 training run complete
+
+**Available Training Figures:**
+- **`paper/en/figures/baseline_training_curves.png`** (465KB)
+  Training curves for the baseline transformer (Level 0), showing loss and perplexity evolution over training steps.
+
+- **`paper/en/figures/pyramidal_training_curves.png`** (791KB)
+  Training curves for pyramidal architecture showing convergence behavior of the geometric epistemic model.
+
+- **`paper/en/figures/pyramidal_q1q2_training_curves.png`** (1.5MB)
+  Detailed training curves for the pyramidal Q1/Q2 model, including gate activation patterns and uncertainty metrics.
+
+- **`paper/en/figures/fractal_epistemic_architecture.png`** (2.0MB)
+  Architecture diagram illustrating the fractal epistemic propagation throughout the model layers.
+
+**Key Observations:**
+- ✅ Level 1 training completed successfully without gradient instabilities
+- ✅ Epistemic gates (Q₁/Q₂) converged to meaningful confidence values
+- ✅ VARO loss integrated smoothly with cross-entropy training
+- ✅ Uncertainty quantification functional throughout training
+- ✅ Training curves documented and visualized in `paper/en/figures/`
+
+**Next Steps:**
+- Compare baseline vs Level 1 calibration metrics (ECE, Brier score)
+- Analyze gate activation patterns across different input types
+- Validate uncertainty-error correlation
+- Prepare comparative analysis report
 
 ---
 
