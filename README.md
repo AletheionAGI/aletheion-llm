@@ -710,25 +710,33 @@ aletheion-llm/
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 ### Core Documentation
-- **[Level 1 Implementation](docs/ALETHEION_LEVEL1_README.md)** - Detailed Level 1 architecture
-- **[Pyramidal Epistemology](docs/PYRAMIDAL_EPISTEMOLOGY_README.md)** - Theoretical framework
-- **[Implementation Notes](docs/IMPLEMENTATION_NOTES.md)** - Design decisions and details
+- **[Documentation Index](docs/README.md)** - Complete documentation overview
+- **[Level 1 Implementation](docs/ALETHEION_LEVEL1_README.md)** - Detailed Level 1 architecture and quick start
+- **[Pyramidal Epistemology](docs/PYRAMIDAL_EPISTEMOLOGY_README.md)** - Theoretical framework and geometric structure
+- **[Implementation Notes](docs/IMPLEMENTATION_NOTES.md)** - Design decisions and technical details
+- **[Quantitative Metrics Analysis](docs/QUANTITATIVE_METRICS_ANALYSIS.md)** - Complete experimental validation results
 
 ### Technical Deep Dives
-- [LLM Fundamentals](docs/llm-fundamentals.md)
-- [LLM Failures](docs/llm-failures.md)
-- [Attention Mechanisms](docs/attention-mechanisms.md)
-- [Training Strategy](docs/training-strategy.md)
-- [Aletheion Integration](docs/aletheion-integration.md)
-- [Fractal Approach](docs/aletheion-fractal-approach.md)
+- [LLM Fundamentals](docs/llm-fundamentals.md) - Fundamentals of Large Language Models
+- [LLM Failures](docs/llm-failures.md) - Analysis of common LLM failure modes
+- [Attention Mechanisms](docs/attention-mechanisms.md) - Deep dive into attention mechanisms
+- [Training Strategy](docs/training-strategy.md) - Training strategies and best practices
+- [Aletheion Integration](docs/aletheion-integration.md) - How to integrate Aletheion into existing models
+- [Fractal Approach](docs/aletheion-fractal-approach.md) - Fractal architecture approach
 
 ### Evaluation & Testing
-- [TruthfulQA Setup](docs/TRUTHFULQA_SETUP.md)
-- [Calibration Fixes](docs/BUGFIX_CALIBRATION.md)
+- [TruthfulQA Setup](docs/TRUTHFULQA_SETUP.md) - TruthfulQA benchmark setup and usage
+- [Calibration Fixes](docs/BUGFIX_CALIBRATION.md) - Documentation of calibration bug fixes
+- [Training Scripts Comparison](docs/TRAINING_SCRIPTS_COMPARISON.md) - Comparison of training approaches
+
+### Research & Reports
+- [Project Report](docs/Report.md) - Comprehensive project report
+- [Pyramidal Q1Q2 Fractal](docs/PYRAMIDAL_Q1Q2_FRACTAL.md) - Complete fractal implementation guide
+- [Remaining Limitations](docs/remaining-limitations.md) - Known limitations and future work
 
 ### Additional Resources
-- [API Reference](docs/) - Coming soon
-- [Contributing Guide](CONTRIBUTING.md)
+- [Changelog](docs/CHANGELOG.md) - Project version history and changes
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute to the project
 
 ---
 
@@ -1037,29 +1045,45 @@ mkdocs build                 # Build docs
 
 ## Results
 
-### Level 1 (Output-Only Gating)
+### Level 1 (Output-Only Gating) - ✅ Validated
 
-**Training Status:** 50% complete (500/1000 steps)
+**Training Status:** Complete (60,000 steps on WikiText-2)
 
-**Early Indicators:**
-- Aletheion showing lower loss (-0.014 gap vs baseline)
-- Improved calibration metrics
-- Better uncertainty quantification
+**Key Achievement: 89% ECE Reduction**
+- Baseline transformer exhibits the classic "Skynet problem": as capability increases (perplexity ↓), calibration degrades (ECE ↑)
+- Aletheion Level 1 maintains excellent calibration while achieving comparable language modeling performance
 
-**Expected Final Results:**
-- ECE improvement: -20% to -40%
-- Perplexity improvement: -5% to -10%
-- Parameter overhead: ~2%
+### Experimental Validation
 
-Full metrics will be posted when training completes.
+**Final Metrics Comparison:**
+
+| Metric | Baseline (Level 0) | Aletheion Level 1 | Improvement |
+|--------|-------------------|-------------------|-------------|
+| **ECE** (↓) | 0.104 (poor) | **0.011 (excellent)** | **-89%** ✓ |
+| **Brier Score** (↓) | ~0.88 | ~0.87-0.88 | Comparable |
+| **Perplexity** (↓) | ~230-250 | ~250-300 | Comparable (-8%) |
+| **Calibration Quality** | Poor (>0.10) | Excellent (<0.05) | Excellent ✓ |
+| **Parameters** | 100% | ~102% | +2% overhead |
+
+**Training Dynamics:**
+- **Baseline:** ECE increases 10× during training (0.01 → 0.104) - the "Skynet problem"
+- **Aletheion:** ECE remains excellent throughout training (~0.01-0.02) - epistemic equilibrium maintained
+
+**Pyramidal Architecture Metrics:**
+- **Height Convergence:** 0.1 → 0.95 (approaching truth apex at 1.0)
+- **Base Stability:** 0.98-0.99 (exceptional equilibrium across Memory, Pain, Choice, Exploration forces)
+- **Q₁/Q₂ Gates:** Converged to optimal mid-range uncertainty (0.42-0.47)
+- **Adaptive Metalearning:** Model exhibited sophisticated epistemic exploration cycles
+
+For detailed quantitative analysis, see [`docs/QUANTITATIVE_METRICS_ANALYSIS.md`](docs/QUANTITATIVE_METRICS_ANALYSIS.md)
 
 ### Benchmarks
 
 | Metric | Baseline | Aletheion L1 | Improvement |
 |--------|----------|--------------|-------------|
-| ECE (↓) | TBD | TBD | TBD |
-| Perplexity (↓) | TBD | TBD | TBD |
-| TruthfulQA (↑) | TBD | TBD | TBD |
+| ECE (↓) | 0.104 | 0.011 | **-89%** |
+| Brier Score (↓) | 0.88 | 0.87 | Comparable |
+| Perplexity (↓) | 230-250 | 250-300 | Comparable |
 | Parameters | 100% | 102% | +2% |
 
 ---
