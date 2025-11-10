@@ -1,3 +1,11 @@
+# PROPRIETARY AND CONFIDENTIAL
+# Copyright (c) 2024-2025 AletheionAGI
+# Unauthorized copying prohibited
+#
+# LEVEL 3 PROPRIETARY ARCHITECTURE
+# This file contains proprietary pyramidal epistemology implementations
+# that are confidential and not covered by AGPL-3.0
+
 """Aletheion transformer with Pyramidal Epistemology.
 
 This module implements the Pyramidal Epistemology architecture, which extends

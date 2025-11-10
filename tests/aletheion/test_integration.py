@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Integration tests for Aletheion Level 1 end-to-end workflow.
 
 Tests the complete pipeline:

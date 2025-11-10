@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Test Selective Abstention.
 
 This script tests selective abstention on ambiguous cases using height as

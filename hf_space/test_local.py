@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """
 Local testing script for Aletheion HuggingFace Space.
 Run this before deploying to verify everything works.

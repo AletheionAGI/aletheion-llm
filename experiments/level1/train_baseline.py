@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Training script for baseline GPT-2 model.
 
 This script trains a standard GPT-2 transformer on WikiText-2 WITHOUT epistemic gates.

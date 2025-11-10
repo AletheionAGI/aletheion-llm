@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Utility script to build a simple text dataset from raw files."""
 
 from __future__ import annotations

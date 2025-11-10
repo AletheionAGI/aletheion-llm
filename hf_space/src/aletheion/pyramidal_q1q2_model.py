@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Aletheion Pyramidal Transformer with Q1/Q2/Fractal Integration.
 
 This module implements the complete transformer architecture with:

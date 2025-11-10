@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Test Out-of-Domain Calibration.
 
 This script tests how well pyramidal models maintain calibration on

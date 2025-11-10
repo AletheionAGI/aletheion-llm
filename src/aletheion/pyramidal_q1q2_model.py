@@ -1,3 +1,11 @@
+# PROPRIETARY AND CONFIDENTIAL
+# Copyright (c) 2024-2025 AletheionAGI
+# Unauthorized copying prohibited
+#
+# LEVEL 3 PROPRIETARY ARCHITECTURE
+# This file contains proprietary pyramidal transformer implementations
+# that are confidential and not covered by AGPL-3.0
+
 """Aletheion Pyramidal Transformer with Q1/Q2/Fractal Integration.
 
 This module implements the complete transformer architecture with:

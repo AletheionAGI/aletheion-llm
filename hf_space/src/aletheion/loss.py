@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """VARO (Variance-Adjusted Ranking Optimization) loss for epistemic training.
 
 This module implements the loss function described in Section 6 of the Aletheion paper:

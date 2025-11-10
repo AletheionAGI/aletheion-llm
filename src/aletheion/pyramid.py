@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Pyramidal Epistemic Gates for Aletheion.
 
 This module implements the Pyramidal Epistemology framework, which uses a 5-vertex

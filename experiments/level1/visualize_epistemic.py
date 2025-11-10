@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Visualize Epistemic Metrics.
 
 This script visualizes height, Q1, Q2 evolution on specific examples

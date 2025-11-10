@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Training script for Aletheion Level 1 model with VARO loss.
 
 This extends the baseline train.py to support epistemic uncertainty training.

@@ -1,0 +1,779 @@
+01f85eeccf6d94342ce959248105172731e99321
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 03:28:27 -0300
+Initial commit
+
+cb32a492fc5c2171764283a1a9846a16400f825e
+Claude <noreply@anthropic.com>
+2025-11-06 06:49:26 +0000
+Initial AletheionGuard project structure and documentation
+
+82a3ce26c96d7e3d8c9c63d6b45a60c68c36504c
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 03:51:51 -0300
+Merge pull request #1 from AletheionAGI/claude/setup-aletheionguard-docs-011CUrAarbd2eLr72iH2wf2F
+
+72b1f83476d2d3e1b51db040adb1d441b3813051
+Claude <noreply@anthropic.com>
+2025-11-06 06:56:50 +0000
+Add comprehensive AI project audit document
+
+9a63ea86195c909249e11ba8a021115d953170a3
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 03:58:35 -0300
+Merge pull request #2 from AletheionAGI/claude/add-ai-prompt-summary-011CUrCJwXZoPxuNBFo9H78D
+
+808e93575fb90d3caa69c32fb927703db8242249
+Claude <noreply@anthropic.com>
+2025-11-06 07:25:53 +0000
+Implement Phase 1 (Core) of AletheionGuard epistemic auditor
+
+86d534fca206762df712acd30e8fe5e2b05b1e1a
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 04:27:37 -0300
+Merge pull request #3 from AletheionAGI/claude/aletheionguard-phase1-core-011CUrDPMjKusGGmMWNNdBDH
+
+241461f658ca84e93acfa1505b8828fd76223595
+Claude <noreply@anthropic.com>
+2025-11-06 07:35:43 +0000
+Add comprehensive project audit and roadmap documentation
+
+a38aaf689d1fce023593ce4d4abddce00f63858e
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 04:36:50 -0300
+Merge pull request #4 from AletheionAGI/claude/audit-project-summary-011CUrF2sZqx7SrdRD7LbdQL
+
+3bf476d35b6bcfc185f48df08354c555a937c051
+Claude <noreply@anthropic.com>
+2025-11-06 08:33:38 +0000
+Add BYO-HF (Bring Your Own Hugging Face) mode - v1.1.0
+
+590cab5ec26c01bcb20d3973fc6d5e546eb9429b
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 05:35:56 -0300
+Merge pull request #5 from AletheionAGI/claude/add-byo-hf-mode-011CUrJmS9CAGFAQQyDQZZoV
+
+0e7560957b3c1f97d5f6e704876adf6d176901f0
+Claude <noreply@anthropic.com>
+2025-11-06 09:12:54 +0000
+Apply official epistemic verdict rule (ACCEPT/MAYBE/REFUSED)
+
+389f0854479b01c341a1f3d0faf2dbc89ae75c99
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 06:16:50 -0300
+Merge pull request #6 from AletheionAGI/claude/aletheionguard-hf-space-011CUrL7osZoGn2jqauZa5P6
+
+1f7b1d4680d85d1c833151f85e17393b85d0a369
+Claude <noreply@anthropic.com>
+2025-11-06 09:28:58 +0000
+Add comprehensive project audit and roadmap (v1.1.0)
+
+988ae0698fa552c494d76b0410a3e02c45a59886
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 06:33:35 -0300
+Merge pull request #7 from AletheionAGI/claude/audit-project-summary-011CUrPJVJmcHJ8iF5hc6yP7
+
+85390ae8f86abf4f4a94d046a2cf0bfe26215a26
+Claude <noreply@anthropic.com>
+2025-11-06 10:05:41 +0000
+Add heuristics-based epistemic auditor (v1.1.0)
+
+6ca464253d2428d3dfbf9ac8b0f64bb871c5303b
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 07:13:49 -0300
+Merge pull request #8 from AletheionAGI/claude/add-heuristics-toggle-auditor-011CUrShp677bTF7fH6tc1iw
+
+1230d64260f023abff36a81b5257f97e662c1718
+Claude <noreply@anthropic.com>
+2025-11-06 10:25:02 +0000
+Add two safety modes to Aletheion auditor (v1.2.0)
+
+fe7c06ac1576c33fe02b74393cd3894e3d13906e
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-06 07:29:08 -0300
+Merge pull request #9 from AletheionAGI/claude/add-two-safety-modes-auditor-011CUrUA5pFfhHkTKUHJqZuu
+
+d4c517fc11de4a65b744fc3a74780fd179044ad5
+Claude <noreply@anthropic.com>
+2025-11-07 04:07:30 +0000
+Add comprehensive project audit and roadmap
+
+68c36cfe7a5b5f9cd5e5a9d73587949e95e95f33
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 01:15:31 -0300
+Merge pull request #10 from AletheionAGI/claude/audit-project-summary-011CUsrf815xRSWrjS4LwDcq
+
+f26a7751c3face6d8015eec244a2e29c60fefe43
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 01:26:22 -0300
+Update contact emails across documentation and setup files
+
+2c56d8d8e4091e5f0b11db07f8d80bd764d96f9b
+Claude <noreply@anthropic.com>
+2025-11-07 04:28:27 +0000
+Add comprehensive Fase 2 training tutorial
+
+110e1e53a28067ebc69cbd97b3a14976d3d2eac8
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 01:29:50 -0300
+Merge pull request #11 from AletheionAGI/claude/create-fase2-training-tutorial-011CUstcieL3vLd5uzEL9YiQ
+
+6b008f0b5dd9cf211aafbae4b4e44c9cc414f042
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:05:57 -0300
+feat: Add synthetic dataset generation and training scripts for Q1/Q2 gates
+
+e1489294336bf4bc30e1fcce9baad0dc4cfabad5
+Claude <noreply@anthropic.com>
+2025-11-07 05:07:34 +0000
+fix: Resolve UTF-8 encoding syntax error in pyramidal.py
+
+3c07acf28efdd9e0f58afeb52af98d28f1bd7b6f
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:08:10 -0300
+Merge pull request #12 from AletheionAGI/claude/fix-utf8-syntax-error-011CUswv4w3VneLjGhNjbeNq
+
+5dcfa165d4c65ee926f42835c0350073acbd554e
+Claude <noreply@anthropic.com>
+2025-11-07 05:10:23 +0000
+fix: Handle 'auto' device type in InputProcessor
+
+110eb03c9fd89e7e1a06b8d79287075d3fc2cda5
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:11:01 -0300
+Merge pull request #13 from AletheionAGI/claude/fix-device-type-error-011CUsx9SnJfG9xu5AtXu49P
+
+be8e649504d950aa1f739d869e68e375d379a174
+Claude <noreply@anthropic.com>
+2025-11-07 05:12:52 +0000
+fix: Correct Q1Gate and Q2Gate initialization arguments in training script
+
+530c58a52fa779e5f689052eefc08dd95dfd4ef0
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:13:33 -0300
+Merge pull request #14 from AletheionAGI/claude/fix-q1gate-init-args-011CUsxKzMdWd4z457quoyi8
+
+04ce41ad8ce0e747e2e2896beff3af12b2465c03
+Claude <noreply@anthropic.com>
+2025-11-07 05:15:24 +0000
+fix: Remove unsupported verbose parameter from ReduceLROnPlateau
+
+dd8be866e9edbd1edb0868f79a62a7bdc496e683
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:17:37 -0300
+chore: Add TensorBoard event log for Q1Q2 training
+
+ef79fc818b3ded99b9d1a390f9148314f718ef9e
+Claude <noreply@anthropic.com>
+2025-11-07 05:18:37 +0000
+fix: Use encode_with_context() method for dataset encoding with context
+
+9c5bc938814f29d806ab821cde5ca5284dcf6776
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:19:03 -0300
+Merge pull request #15 from AletheionAGI/claude/fix-dataloader-context-error-011CUsxoTu6R7JukxVAdARA2
+
+5e84870988f64df052ed21808adc3007575ba345
+Claude <noreply@anthropic.com>
+2025-11-07 05:20:35 +0000
+fix: Set multiprocessing start method to 'spawn' for CUDA compatibility
+
+a69a493c85a4481950302ea7949a5f2154d3bbb2
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:21:10 -0300
+Merge pull request #16 from AletheionAGI/claude/fix-cuda-dataloader-multiprocessing-011CUsxwffEyua7VwhXNCSJ4
+
+b159db765d3effe85ade1f3ffa14805a486ca476
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:21:21 -0300
+chore: Add hyperparameters configuration for Q1Q2 training
+
+ca88dc7931089fb155f870a048cb489c17dc293b
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:21:24 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+cb39e73faeaf368e041615939ae4313b6b921b46
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:22:53 -0300
+chore: Add hyperparameters configuration for Q1Q2 training
+
+c98b05fd4e77456e0b8e65bf52dde2b601d844a0
+Claude <noreply@anthropic.com>
+2025-11-07 05:24:27 +0000
+fix: Disable DataLoader multiprocessing when using CUDA
+
+bdb7f2920dffe258c32a6a7ff2c1af9bdce726b6
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:25:13 -0300
+Merge pull request #17 from AletheionAGI/claude/fix-cuda-multiprocessing-error-011CUsyCp8tURgVxqhaNoxT3
+
+00c5f5cb38191db8a65b01c600e2083c1b77518d
+Claude <noreply@anthropic.com>
+2025-11-07 05:27:14 +0000
+fix: Disable pin_memory in DataLoader when using CUDA
+
+d5ebca0890ff05c26104d0f1aa04c87b5f70d73d
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:28:04 -0300
+Merge pull request #18 from AletheionAGI/claude/fix-cuda-pin-memory-error-011CUsyRwE9DeQ21xVwL5oyx
+
+f8f03817621634ad6d75d9c9fc3c9f2825634ab7
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:28:11 -0300
+ops
+
+2fef673b7093c54731c4a824af77491b1a420b40
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:28:22 -0300
+Merge branches 'main' and 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+2a0a0c10d4dd3e70766e13d9fbcd6661e84b95c1
+Claude <noreply@anthropic.com>
+2025-11-07 05:31:00 +0000
+fix: Enable gradient computation in Q1Gate and Q2Gate for training
+
+4a3ee81e19238c522ce60a2ea09e79066c5135dd
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:33:36 -0300
+Merge pull request #19 from AletheionAGI/claude/fix-tensor-grad-error-011CUsyeZeyGearpADhYwiQ6
+
+36714af4ed1cb75397aca4a80c986c5cfa240627
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:33:49 -0300
+feat: Add hyperparameters configuration for training
+
+5e9346fac15fc6490c5626828ebdb08ec53cd14c
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:33:52 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+ca5bab8e758539b7880897a7ba07413bf59e9e15
+Claude <noreply@anthropic.com>
+2025-11-07 05:37:54 +0000
+fix: Add squeeze() to height tensor to match target dimensions
+
+95ee889216663720f4e576f3027ae3e67ee8d8c1
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:40:05 -0300
+Merge branch 'main' into claude/fix-reducelronplateau-verbose-011CUsxaZDCuPfj5btJz2zh1
+
+c7a52418d8d16ecb1126f4e98d11e47aec43c802
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:40:11 -0300
+Merge pull request #20 from AletheionAGI/claude/fix-reducelronplateau-verbose-011CUsxaZDCuPfj5btJz2zh1
+
+a3d7cd26fdb54985046c7d7238c119885a0614b6
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:40:28 -0300
+Merge pull request #21 from AletheionAGI/claude/fix-tensor-shape-mismatch-011CUsz7hD9URHLCtCmeHx3o
+
+fbe65b8721733619160d891750fe378bf57f13d3
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:41:06 -0300
+Refactor code structure for improved readability and maintainability
+
+945124d981461652f9d0fd70dc853678236b7fbf
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 02:41:09 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+b431a7fc3469dbca122054bb970aca558be2874d
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:00:46 -0300
+Add evaluation script for Q1/Q2 gates with calibration metrics
+
+87e2f1f83c7818b46d45304aeb332c5581466b32
+Claude <noreply@anthropic.com>
+2025-11-07 06:03:36 +0000
+Fix relative import error in auditor.py
+
+3f0659333cad3643c1b0f52969f51fe8b309a06e
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:04:25 -0300
+Merge pull request #22 from AletheionAGI/claude/fix-relative-import-error-011CUt27UJVe92LrPmFKdQhj
+
+f40350044ce28ce792911cb359aaa4dff3051cdb
+Claude <noreply@anthropic.com>
+2025-11-07 06:05:46 +0000
+Fix UTF-8 encoding error in metrics.py
+
+9b4605278919b78d85d74b120ed883f117e3e4ea
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:06:30 -0300
+Merge pull request #23 from AletheionAGI/claude/fix-utf8-syntax-error-011CUt2PiB8WJwJXPpfEiNyS
+
+957ed7f799f2d5ff7682c6ceec5be30ed7d7d244
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:09:45 -0300
+Refactor code structure for improved readability and maintainability
+
+72e5533d2c39b0b4b9602aae044a5816f7bb94ec
+Claude <noreply@anthropic.com>
+2025-11-07 06:20:39 +0000
+Fix ECE calibration metric by correcting accuracy definition
+
+ad5b873eaef289c5695461cc51732b39cd9059eb
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:27:29 -0300
+Merge pull request #24 from AletheionAGI/claude/improve-ece-calibration-011CUt2uSqURE1c5ni1YVNjn
+
+a3596ceb6e842ec5ce1b6849d3d2afa2c63324f4
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:32:28 -0300
+Update ECE and Brier score metrics in metrics.json; replace outdated values
+
+e8163e9e8182ee54c2218f2201396d255c43c54c
+Claude <noreply@anthropic.com>
+2025-11-07 06:34:15 +0000
+Fix ECE calibration by removing circular dependency on Q2
+
+b27d9e8fef92181f896a32ed93fdb09ff91bc0af
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:35:16 -0300
+Merge pull request #25 from AletheionAGI/claude/evaluate-model-metrics-011CUt4DvFrSizzC3ikjRukN
+
+ffe3c8f7130dcb1f2b28f9e94a10dd6e43ba50de
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:36:26 -0300
+Update ECE and Brier score metrics in metrics.json; correct values for improved accuracy
+
+37c03f67d7d69e48243076cc66b6b14f1505b16a
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:41:24 -0300
+Add Zone.Identifier file for How to solve Skynet PDF download reference
+
+a5200d22a873cfa73ce744a8995d8289a563d234
+Claude <noreply@anthropic.com>
+2025-11-07 06:41:56 +0000
+Fix ECE calibration by using actual prediction error instead of arbitrary threshold
+
+e18a7d03354f1a0c2bbd0f9d4d66e5392f932c0a
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:42:55 -0300
+Merge pull request #26 from AletheionAGI/claude/evaluate-model-metrics-011CUt4nNEhFquga1B2zPuV6
+
+ff5faceee4f56cd05447b56fc6952c54384ce472
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:44:14 -0300
+Update ECE and Brier score metrics for improved accuracy; add uncertainty correlation
+
+8f7d1f3563127130a4241bdcecbaf7fcba960300
+Claude <noreply@anthropic.com>
+2025-11-07 06:48:38 +0000
+Fix evaluation metrics: Replace classification ECE/Brier with regression calibration
+
+0ff7361243851f7ac368bd7dd556baaa0f6c5847
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:50:04 -0300
+Merge pull request #27 from AletheionAGI/claude/evaluate-model-metrics-011CUt5NjmwDQh9SKo4FVy5K
+
+9e52f12b2c62c1454872013377a2eab867041849
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:51:22 -0300
+Implement code changes to enhance functionality and improve performance
+
+24a76b259c64e04f2fb22b36eb4fee9be9fb9cd7
+Claude <noreply@anthropic.com>
+2025-11-07 06:54:21 +0000
+Add calibration loss to improve Q2 uncertainty estimation
+
+0023ff8ee2a1dcc59a979570bac298d46f4ef49d
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 03:55:13 -0300
+Merge pull request #28 from AletheionAGI/claude/fix-model-calibration-metrics-011CUt5uy7EQdZVmHAiB1dcN
+
+7a71ac028679970b27b94047a16f3588c55fa513
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 04:18:42 -0300
+Refactor code structure for improved readability and maintainability
+
+a91b67bbf5765c1c5e5001f5dc2c4c372f8ab7ac
+Claude <noreply@anthropic.com>
+2025-11-07 07:22:50 +0000
+Improve RCE metric with binned calibration loss
+
+fc466ac00bf7652db22959ea3616721df5230b83
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 04:24:54 -0300
+Merge pull request #29 from AletheionAGI/claude/improve-rce-metric-011CUt87QDdtCSwzsWFvVRFT
+
+efcac70d58d2730b2779197fe22164006b2bc889
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:04:05 -0300
+atualizando fase2
+
+674f414374e2ca7efff9584575c9bba2895c69e8
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:04:08 -0300
+fase 2
+
+b9156ab03dc8737f70a9d76d231860e84728ff16
+Claude <noreply@anthropic.com>
+2025-11-07 17:08:00 +0000
+Update training tutorial with validated hyperparameter recommendations
+
+6c70ff7c465aae26e8b174ef5b1164b33ac969c4
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:09:03 -0300
+Merge pull request #30 from AletheionAGI/claude/improve-val-loss-metric-011CUt9at4ZuuWszy2Af4EmS
+
+f3129cffff2053b3f1b171d72ada29f988ceef04
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:09:28 -0300
+novas metricas
+
+174d4c7a6d10665b3ef1f43cbc3914657b060129
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:10:21 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+7431e98cb689a647c1d29bd4f94d4d4dbffd7f0e
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:26:28 -0300
+fase 2 training
+
+0d198773b7143de5b2ab1a99d85cdda5122de357
+Claude <noreply@anthropic.com>
+2025-11-07 17:34:57 +0000
+Update Phase 2 training documentation with validated hyperparameters
+
+c5b6f9ec7425e445ce01c936a06f7044b3a141f0
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:47:12 -0300
+Merge pull request #31 from AletheionAGI/claude/update-phase-2-training-011CUtvmSAscFi3foREQLmXL
+
+b5532efb47e9d663abd13ad266b8522569d1076c
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:47:33 -0300
+training novo
+
+05784ce9e14375526f972f5d6bf36fa19d4153b7
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:48:46 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+64fe2944046b51b0f065b5e5795febf4ba466a63
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:49:44 -0300
+fix
+
+455310f1cf0eadac6cf2c99a70b4feb24be1d921
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 14:58:42 -0300
+recalibração
+
+260ff1e18d618cb67f713db8031f3be08254612a
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 15:01:08 -0300
+recalibracao 0.01
+
+beb4b066b1feb0b7cb71e236f1f28a7c9407d77c
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 15:01:11 -0300
+ok
+
+2ecd37a0dc43142acb2e87dc29f0333ebe02c437
+Claude <noreply@anthropic.com>
+2025-11-08 02:35:02 +0000
+Fix training warnings and optimize performance
+
+a2519d83050af4b88d35b7f825c3fa5b5433eb82
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-07 23:36:14 -0300
+Merge pull request #32 from AletheionAGI/claude/fix-training-warnings-011CUue399eyBotEka8LcSck
+
+f1e1d3210adc6c4f4d9b5abe85e721056dffef56
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 00:44:20 -0300
+fine-tuning
+
+3a33b6b8275141c1919e681f131726cdd22976b5
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 00:44:36 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+e7fadf9135ed7b1d1f63c741ed7c53b34c08e44f
+Claude <noreply@anthropic.com>
+2025-11-08 03:51:51 +0000
+Fix CUDA multiprocessing error in training script
+
+ce2953e424600141aa127013934312d682d3812f
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 00:55:17 -0300
+Merge pull request #33 from AletheionAGI/claude/fix-cuda-multiprocessing-error-011CUujuKP34MRjDnvfoFeMu
+
+e69ab8c09290640220ad384dc87947e5458953fb
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 00:55:46 -0300
+Add hyperparameters configuration for training
+
+e955b5d61b86ef41cc9e6c2b6b676c6eb22b77fa
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 00:55:50 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+8b802c36e845bf0d22ed5b7921471887675fbb71
+Claude <noreply@anthropic.com>
+2025-11-08 04:19:02 +0000
+Add comprehensive evaluation metrics tutorial
+
+5a4bea533a7a6c45985378325df20ea9eb57eef2
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 01:20:27 -0300
+Merge pull request #34 from AletheionAGI/claude/evalue-metrics-explanation-011CUumgqEm6KoUbbUhkCxYf
+
+863afeab4b448ecac105d79ca0b370f05ea66082
+Claude <noreply@anthropic.com>
+2025-11-08 07:20:58 +0000
+Add automatic hyperparameter search for calibration tuning
+
+748d7e9276b1058f4e304f92b92c07d1cd60bf63
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 04:22:00 -0300
+Merge pull request #35 from AletheionAGI/claude/calibration-hyperparameter-tuning-011CUv1jqtBFGmSchrMjt2c7
+
+35be548bcb53210ed68958e63bb3f207df603b99
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 04:23:24 -0300
+files.
+
+9bd5ac0ce44650b1f18b17298e9d5b27c694d40d
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 04:23:28 -0300
+Merge branch 'main' of https://github.com/AletheionAGI/AletheionGuard
+
+cdd99709fd1a7163990890f47c690a6d3cacadeb
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 04:25:25 -0300
+po
+
+3a621af042a5f4d9a1ee814f4fbc3a2e987076e1
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 13:43:56 -0300
+tentativa de achar parametros
+
+808cd5817815823d642a3fe4851c0ec05522d53e
+Claude <noreply@anthropic.com>
+2025-11-08 16:54:03 +0000
+Add Bayesian hyperparameter optimization with Optuna
+
+fbee9a73b62e3fe9641ca3252c91209c5e1ede4b
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-08 14:04:38 -0300
+Merge pull request #36 from AletheionAGI/claude/hyperparameter-optimization-research-011CUvmRDbEEyQg7Jjtn7PGb
+
+4267eb561d1299bb39ff119e75d937dbe6b64f0e
+Claude <noreply@anthropic.com>
+2025-11-09 18:06:41 +0000
+Add optimized hyperparameter search strategies for faster convergence
+
+3027410a31eeca97d8f022461c95bcfe9a695556
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 15:13:22 -0300
+Merge pull request #37 from AletheionAGI/claude/optimize-hyperparameter-convergence-011CUxkf7RgUuS99Q79rjhwP
+
+1ebe81a144c94cacba34595f2f5e7fb4a046f46c
+Claude <noreply@anthropic.com>
+2025-11-09 19:23:39 +0000
+Implement Level 2 Pyramidal Architecture for improved Q2 calibration
+
+58ad6fa766d146fb86fcd35c70bee7d92f315633
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 16:26:20 -0300
+Merge pull request #38 from AletheionAGI/claude/hyperparameter-optimization-analysis-011CUxq7DDPRYQR9HPE8ktTD
+
+55b6ecdcf37a33fdad983022ddecdb258fe4a2ee
+Claude <noreply@anthropic.com>
+2025-11-09 21:12:56 +0000
+Fix dataset generation script to support size-specific arguments
+
+bb3df31cb7badb9d8955e9bebf1853a8feb2c102
+Claude <noreply@anthropic.com>
+2025-11-09 21:13:34 +0000
+Add generated synthetic datasets for Q1/Q2 training
+
+2f29243be816667698daaece55357f4d1b71efee
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 18:13:44 -0300
+Merge pull request #39 from AletheionAGI/claude/fix-dataset-script-args-011CUy18F9f7deiEFHNxxXcH
+
+63080a754a0e3f100759087a63eacd745600e0dd
+gnai-creator <rahtomaya@gmail.com>
+2025-11-09 18:26:41 -0300
+remove obsolete model
+
+5363100427ede4d78c9c10b86c595994388d765c
+Claude <noreply@anthropic.com>
+2025-11-09 21:36:11 +0000
+Fix syntax error in pyramidal.py: Replace Unicode subscript characters
+
+21fd6a3a711a131f1072b4e71c96f1b03c2447d4
+gnai-creator <rahtomaya@gmail.com>
+2025-11-09 18:36:48 -0300
+new files
+
+a2510bbd17559ff0c8196c832ef1e0c8450c821f
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 18:37:37 -0300
+Merge pull request #40 from AletheionAGI/claude/fix-pyramidal-syntax-error-011CUy2tmQvBgWjWmCvieoAd
+
+3150cee8e9f57ca6fe5bf6dc679c1a2006adb0e7
+Claude <noreply@anthropic.com>
+2025-11-09 21:41:35 +0000
+Fix Unicode syntax errors: Replace subscript characters with ASCII
+
+3cbf7ed92e29056815b45f788e9e11bf12347beb
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 18:43:14 -0300
+Merge pull request #41 from AletheionAGI/claude/fix-unicode-syntax-error-011CUy3FzyKqvc3ebyNR9nxn
+
+77ebde9feac7a0f25a45701391e28ad52da8ee95
+Claude <noreply@anthropic.com>
+2025-11-09 21:46:40 +0000
+Update requirements.txt with all project dependencies
+
+95fa5944bb06948cfe5b09294420a2eefc262f22
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 18:49:44 -0300
+Merge pull request #42 from AletheionAGI/claude/update-requirements-imports-011CUy3gVh9kRsYYxYjzrCfr
+
+9edabfb5e405c515b189f42435f0d5c8bddba515
+gnai-creator <rahtomaya@gmail.com>
+2025-11-09 18:59:16 -0300
+removed all unecessary
+
+1bade520b4002ee41c03aaab1e80c24535a25efa
+gnai-creator <rahtomaya@gmail.com>
+2025-11-09 19:00:08 -0300
+Merge branch 'main' of github.com:AletheionAGI/AletheionGuard
+
+78c81595bfbbedd60aec18676c5d49f9a98d36d2
+Claude <noreply@anthropic.com>
+2025-11-09 22:05:29 +0000
+Refactor: Align architecture levels with aletheion-llm
+
+5f45029432f058082e77b4d7c188c3231de43ccd
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 19:06:27 -0300
+Merge pull request #43 from AletheionAGI/claude/pyramidal-q1q2-clarification-011CUy495BWHT2NUWJUJQRre
+
+527f09abbe7e260fdd9e43b19d12cbb4cff3084e
+Claude <noreply@anthropic.com>
+2025-11-09 22:12:41 +0000
+Add architecture level definitions to documentation
+
+4f218553cb82e678072a1dcca6fcabfee395a6a6
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 19:13:32 -0300
+Merge pull request #44 from AletheionAGI/claude/add-level-zero-definition-011CUy5g4GRespafsLsYJ6k3
+
+dfa5015fff3c6e998394d36ea0949e810466e57a
+Claude <noreply@anthropic.com>
+2025-11-09 22:18:54 +0000
+Refactor: Standardize architecture level definitions across all .md files
+
+d79232bb812f31c5f9272e7d36be6ecd48d1160a
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 19:20:09 -0300
+Merge pull request #45 from AletheionAGI/claude/refactor-markdown-files-011CUy5xU27Uuet85HVTPy6L
+
+38eb20041b1742ab6c5c483aaf57f4dda69d99b0
+Claude <noreply@anthropic.com>
+2025-11-09 22:29:22 +0000
+Fix: Correct architecture level definitions across documentation
+
+3f540a243f48b167bdd972cd3d0c16c8abd9e161
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 19:31:13 -0300
+Merge pull request #46 from AletheionAGI/claude/level-2-architecture-011CUy6YNzCVHgEGCcgx5Qpy
+
+1c654d231ac67665620152e5f0539b12b61bab08
+Claude <noreply@anthropic.com>
+2025-11-09 22:43:51 +0000
+Fix: Resolve test failures in test_pyramidal.py
+
+e248266239aea3b175e88ee61a1bfebadc3e8ac2
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 19:49:52 -0300
+Merge pull request #47 from AletheionAGI/claude/fix-pyramidal-test-failures-011CUy7byxLJx4i3VezNfR4U
+
+721d9499e879015cceb344342da574c1951de16c
+Claude <noreply@anthropic.com>
+2025-11-09 23:10:40 +0000
+feat: Implement Epistemic Softmax from aletheion-llm (v1.1.0)
+
+e9599bee89afc8c1d1e6cec3c902b24d7d01d5b4
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 20:11:05 -0300
+Merge pull request #48 from AletheionAGI/claude/confirm-alethionguard-architecture-011CUy9Hc2TSxFwtxw87XPdx
+
+12be9abb4e95bcba7d33f0edc47a03354abb6998
+Claude <noreply@anthropic.com>
+2025-11-09 23:35:57 +0000
+refactor: Update hyperparameter search scripts for pyramidal_q1q2 architecture
+
+7eb492d69061524aa7bae7a474ea180b122f5617
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 20:38:26 -0300
+Merge pull request #49 from AletheionAGI/claude/add-epistemic-softmax-011CUyAQYDKLH2oTLJWHPWvs
+
+570e9961ba6d92612a3c645000ffaa39f65a7c94
+Claude <noreply@anthropic.com>
+2025-11-10 00:21:27 +0000
+docs: Add comprehensive code audit report (2025-11-10)
+
+f6ce130bc8efdededac6171a62391c476e983a18
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 21:31:36 -0300
+Merge pull request #50 from AletheionAGI/claude/code-audit-documentation-011CUyCRFSn94Tob4ei1bkR2
+
+6085fe8199a8ed07821f31079b3744be96b13981
+Claude <noreply@anthropic.com>
+2025-11-10 01:36:44 +0000
+security: Fix all critical vulnerabilities from audit report (SEC-001 to SEC-009)
+
+ff1ad3c0b83c1f5d140f94ce83398cc6a5920a44
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 22:38:54 -0300
+Merge pull request #51 from AletheionAGI/claude/fix-doct-vulnerabilities-011CUyLzkd4D8tesQ8x4XJFW
+
+3feb0edd879219fb780ee4b7e8658bdcb435f2dd
+Claude <noreply@anthropic.com>
+2025-11-10 01:43:30 +0000
+docs: Refactor fase_2_training.md to reflect Level 1 architecture
+
+3e20d91f27c942e9b5126969c4581950d70a56b8
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 22:45:04 -0300
+Merge pull request #52 from AletheionAGI/claude/refactor-fase-2-training-011CUyMciYndGYLHsoU83c3k
+
+0775bff018860eb6d280ea62d4f33c70d3e95caa
+Claude <noreply@anthropic.com>
+2025-11-10 01:52:35 +0000
+docs: Add comprehensive second audit report (AUDIT_2_2025-11-10.md)
+
+5695cc00b595549425836dfbf665e01a1ffd559d
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 23:04:11 -0300
+Merge pull request #53 from AletheionAGI/claude/faz-uma-au-011CUyN9jrnmM24aY7WHdfnJ
+
+cf517ea80465f4b39e355325c07669722397948d
+Claude <noreply@anthropic.com>
+2025-11-10 02:07:39 +0000
+fix: Update evaluate.py to support Level 1 pyramidal architecture
+
+fafde60b7bb693d32d49b903e96586ae17646cf2
+Felipe Maya Muniz <67922105+gnai-creator@users.noreply.github.com>
+2025-11-09 23:14:00 -0300
+Merge pull request #54 from AletheionAGI/claude/fix-evaluate-script-args-011CUyPXQbdjkjoEKVLhT6yr
+
+83afd71923214fd41223697cf83d061468f89691
+gnai-creator <rahtomaya@gmail.com>
+2025-11-10 00:01:24 -0300
+atualizacao gitignore
+
+43324af1b8f81cc022aa01f13ff2fe55b0de30ce
+gnai-creator <rahtomaya@gmail.com>
+2025-11-10 00:01:55 -0300
+Merge branch 'main' of github.com:AletheionAGI/AletheionGuard

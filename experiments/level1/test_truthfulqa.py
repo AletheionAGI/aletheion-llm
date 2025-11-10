@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Test models on TruthfulQA dataset (out-of-domain evaluation).
 
 This script evaluates baseline and pyramidal models on TruthfulQA to assess:

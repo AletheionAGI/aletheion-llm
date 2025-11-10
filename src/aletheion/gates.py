@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Epistemic gates for uncertainty-aware softmax operations.
 
 This module implements the core components of Aletheion Level 1:

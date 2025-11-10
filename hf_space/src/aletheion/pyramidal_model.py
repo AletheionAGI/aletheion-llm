@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Aletheion transformer with Pyramidal Epistemology.
 
 This module implements the Pyramidal Epistemology architecture, which extends

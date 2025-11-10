@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Aletheion: Epistemic uncertainty quantification for LLMs.
 
 This package implements the Aletheion architecture described in:

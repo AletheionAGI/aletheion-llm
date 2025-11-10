@@ -1,3 +1,11 @@
+# PROPRIETARY AND CONFIDENTIAL
+# Copyright (c) 2024-2025 AletheionAGI
+# Unauthorized copying prohibited
+#
+# LEVEL 3 PROPRIETARY ALGORITHM
+# This file contains proprietary fractal pyramidal architecture
+# that is confidential and not covered by AGPL-3.0
+
 """Pyramidal Epistemic Architecture with Q1/Q2/Fractal Integration.
 
 This module implements the complete integration of:

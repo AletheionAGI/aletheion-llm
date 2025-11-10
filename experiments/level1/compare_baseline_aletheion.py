@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2024-2025 Felipe Maya Muniz
+
 """Comparison script for Baseline vs Aletheion Level 1.
 
 This script trains both models on WikiText-2 with identical hyperparameters
