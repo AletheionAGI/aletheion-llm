@@ -1,0 +1,64 @@
+\section{Epistemic Softmax}
+\subsection{Motivation}
+Standard softmax treats logits as fully reliable. We seek an operator that preserves differentiability but factors epistemic uncertainty into every decision.
+
+\subsection{Components in the Pyramidal Framework}
+
+Epistemic softmax integrates with the pyramidal architecture via the following components:
+
+\textbf{$Q_1$ (Aleatoric gate):} As defined in Section~3.3, $Q_1$ captures irreducible uncertainty. Within epistemic softmax, $Q_1$ modulates the temperature of the distribution based on inherent data ambiguity. When $Q_1$ is high, the softmax interpolates more heavily toward a uniform distribution.
+
+\textbf{$Q_2$ (Epistemic gate):} As defined in Section~3.3, $Q_2$ captures reducible uncertainty. Within epistemic softmax, $Q_2$ signals whether the model should abstain or request additional information. High $Q_2$ triggers uncertainty-aware behaviors such as retrieval or deferral to human judgment.
+
+\textbf{Fractal variances $\sigma_{Q_1}^2, \sigma_{Q_2}^2$:} As defined in Section~3.4, these capture meta-epistemic uncertainty. Within epistemic softmax, high fractal variance inflates the total uncertainty $U_{\text{total}}$, leading to even more conservative probability assignments.
+
+\textbf{Height-aware gating:} The derived height $h$ from Equation~3.2 serves as a global confidence signal. Low height (near base) triggers increased exploration and temperature scaling, while high height (near apex) permits confident, peaked distributions.
+
+\textbf{VARO loss:} The pyramidal VARO loss (Section~6) extends the original formulation with separate calibration targets for $Q_1$ and $Q_2$, ensuring each gate learns its respective uncertainty mode.
+
+\subsection{Algorithmic Definition}
+Algorithm~\ref{alg:epsoftmax} clarifies the gating mechanism and returned uncertainty signal.
+
+\begin{algorithm}
+    \caption{Epistemic Softmax}
+    \label{alg:epsoftmax}
+    \begin{algorithmic}[1]
+        \Require logits $z$, context features $c_{\text{ctx}}$, gate networks $Q_1$, $Q_2$, base temperature $\tau_0$, threshold $\tau_{\text{thresh}}$
+        \State $q_1 \gets Q_1(c_{\text{ctx}})$ \Comment{local evidence gate}
+        \State $q_2 \gets Q_2(c_{\text{ctx}})$ \Comment{cross-context consensus gate}
+        \State $c \gets \operatorname{clip}(q_1 q_2, \varepsilon, 1)$ \Comment{epistemic confidence}
+        \State $\tau \gets \tau_0 / c$ if $c < \tau_{\text{thresh}}$ else $\tau_0$
+        \State $p \gets \softmax(z / \tau)$
+        \State $u_{\text{uniform}} \gets \mathbf{1} / |p|$
+        \State $p_{\text{gated}} \gets c \cdot p + (1 - c) \cdot u_{\text{uniform}}$
+        \State $u \gets 1 - c$ \Comment{epistemic uncertainty scalar}
+        \State \Return $p_{\text{gated}}, u$
+    \end{algorithmic}
+\end{algorithm}
+
+The gating interpolates between a confident softmax distribution and a maximally uncertain uniform distribution. Returning $p_{\text{gated}}$ and $u$ makes explicit that epistemic softmax outputs both a calibrated distribution and an uncertainty scalar.
+
+\subsection{Properties}
+Epistemic softmax reduces to standard softmax when $Q_1 = Q_2 = 1$, outputs uniform distributions when $Q_1 = Q_2 = 0$, remains differentiable, and exposes explicit uncertainty $u = 1 - Q_1 Q_2$.
+
+\subsection{Comparison with Standard Softmax}
+
+Table~\ref{tab:softmax_comparison} summarizes the key differences between standard softmax and epistemic softmax, highlighting how the latter addresses fundamental limitations of forced normalization.
+
+\begin{table}[h]
+\centering
+\caption{Comparison between standard softmax and epistemic softmax.}
+\label{tab:softmax_comparison}
+\begin{tabular}{ll}
+\toprule
+\textbf{Standard Softmax} & \textbf{Epistemic Softmax} \\
+\midrule
+Inputs logits & Inputs logits + gates \\
+Temperature fixed & Temperature adaptive \\
+Outputs $p$ & Outputs $\tilde{p}$, $u$ \\
+Forced confidence & Confidence modulated \\
+No uncertainty signal & Explicit uncertainty \\
+\bottomrule
+\end{tabular}
+\end{table}
+

@@ -1,0 +1,267 @@
+\section{Discussion}
+\subsection{Why Fractal Works}
+Self-similarity enforces consistent epistemic reasoning across all scales of the transformer. Local attention gates prevent uncertainty collapse at early layers, while global output gates maintain calibrated predictions. The hierarchy mirrors residual networks and multi-scale reasoning observed in compositional attention structures.
+
+Unlike fixed-architecture approaches, Q1Q2 exhibits adaptive epistemic dynamics, discovering optimal uncertainty decomposition for each dataset. This flexibility suggests the architecture could generalize across domains with varying aleatoric/epistemic structure.
+
+\subsection{Limitations and Open Questions}
+
+We categorize open questions by urgency and expected outcomes:
+
+\subsubsection*{Critical (blocking production deployment)}
+
+\paragraph{Q1: Gate collapse}
+\textbf{Question:} Can $Q_1$ or $Q_2$ degenerate to always-on ($\approx 1$) or always-off ($\approx 0$)?
+
+\textbf{Expected answer:} Unlikely with entropy regularization.
+
+\textbf{Evidence:} Similar gating mechanisms (e.g., LSTM gates \cite{hochreiter1997long}, attention gates in transformers) avoid collapse when trained with proper regularization.
+
+\textbf{Validation strategy:}
+\begin{itemize}
+    \item Monitor gate entropy during training: $H(Q_i) = -\sum_j q_{ij} \log q_{ij}$
+    \item Apply gradient penalties if $\mathbb{E}[H(Q_i)] < \theta_{\text{min}}$
+    \item Use initialization bias: initialize $Q_i$ to output $\approx 0.7$ (confident but not saturated)
+\end{itemize}
+
+\paragraph{Q2: VARO-RLHF interaction}
+\textbf{Question:} Does preference optimization (DPO/RLHF) after VARO training collapse epistemic gates?
+
+\textbf{Hypothesis:} Sequential training (VARO $\to$ freeze gates $\to$ RLHF) preserves calibration.
+
+\textbf{Alternative approach:} Joint training with multi-objective loss:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{RLHF}} + \lambda_1 \mathcal{L}_{\text{VARO}} + \lambda_2 H(\text{gates})
+\end{equation}
+
+\textbf{Requires:} Empirical validation on standard RLHF benchmarks (HH-RLHF, Anthropic Helpful-Harmless).
+
+\subsubsection*{High priority (affects performance)}
+
+\paragraph{Q3: Optimal $\lambda$}
+\textbf{Question:} How to set VARO weight $\lambda$ across datasets and model scales?
+
+\textbf{Current approach:} Grid search $\lambda \in \{0.01, 0.1, 1.0\}$
+
+\textbf{Expected:} $\lambda$ scales inversely with model size (larger models need smaller $\lambda$ to avoid overwhelming cross-entropy signal).
+
+\textbf{Future:} Meta-learning $\lambda$ or adaptive $\lambda_t$ schedule (e.g., cosine annealing).
+
+\paragraph{Q4: Uncertainty aggregation}
+\textbf{Question:} Which function $f$ ($\max$/$\text{mean}$/learned) works best?
+
+\textbf{Hypothesis:}
+\begin{itemize}
+    \item $\max$: best for safety-critical applications (conservative, never under-reports uncertainty)
+    \item $\text{mean}$: best for balanced performance-calibration tradeoff
+    \item Learned: best asymptotic performance but requires uncertainty-labeled data
+\end{itemize}
+
+\textbf{Ablation study:} Test all three on TruthfulQA, compare ECE and selective prediction curves.
+
+\paragraph{Q5: Scaling to 175B+ parameters}
+\textbf{Question:} Do uncertainty gains persist at GPT-3 scale (175B) and beyond?
+
+\textbf{Expected:} Yes, since epistemic failures worsen with scale \cite{lin2021truthfulqa}. Larger models hallucinate more complex fabrications.
+
+\textbf{Challenge:} Computational cost of training gates on 175B model ($\approx 5\%$ overhead still substantial).
+
+\textbf{Mitigation strategy:}
+\begin{enumerate}
+    \item Train smaller epistemic model (e.g., 7B with gates)
+    \item Distill uncertainty behavior to large base model (175B)
+    \item Use LoRA-style efficient fine-tuning for gates only
+\end{enumerate}
+
+\subsubsection*{Medium priority (future work)}
+
+\paragraph{Q6: Multimodal extension}
+\textbf{Question:} How to apply epistemic softmax to vision-language models?
+
+\textbf{Approach:} Gated cross-attention between vision and text modalities.
+
+\textbf{Application:} Reduce hallucination in image captioning (e.g., detecting when visual features insufficient to support textual claim).
+
+\paragraph{Q7: Epistemic chain-of-thought}
+\textbf{Question:} Can the model reason explicitly about its own uncertainty?
+
+\textbf{Example:} "I'm uncertain about X because evidence Y conflicts with evidence Z."
+
+\textbf{Requires:} Training on uncertainty-annotated reasoning traces (expensive to collect).
+
+\paragraph{Q8: Adversarial robustness}
+\textbf{Question:} Can adversarial inputs fool epistemic gates?
+
+\textbf{Risk:} Adversary crafts input that looks out-of-distribution but gates output $u \approx 0$ (false confidence).
+
+\textbf{Defense:} Adversarial training specifically on gates:
+\begin{equation}
+\max_{\|\delta\| < \epsilon} \mathcal{L}_{\text{VARO}}(x + \delta)
+\end{equation}
+
+\paragraph{Q9: Integration with Consistency Training}
+\textbf{Question:} How does Aletheion interact with consistency training~\cite{google2024consistency}?
+
+\textbf{Hypothesis:} Complementary and synergistic. Aletheion provides architectural epistemic gates while consistency training enforces paraphrase invariance.
+
+\textbf{Approach:} Combined loss function:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda_1 \mathcal{L}_{\text{VARO}} + \lambda_2 \mathcal{L}_{\text{consistency}}
+\end{equation}
+where $\mathcal{L}_{\text{consistency}}$ penalizes output variance across paraphrased prompts.
+
+\textbf{Expected outcome:} Models that are both \emph{calibrated} (low ECE via VARO) and \emph{robust to paraphrases} (low variance via consistency training). This combination may be particularly effective against sycophancy (Failure Mode 3, Section~3).
+
+\textbf{Experimental validation:}
+\begin{itemize}
+    \item Baseline: Standard transformer
+    \item + Consistency training only
+    \item + Aletheion only
+    \item + Both (combined)
+\end{itemize}
+Measure: TruthfulQA accuracy, paraphrase consistency, ECE.
+
+\subsubsection*{Low priority (philosophical)}
+
+\paragraph{Q10:} What is the correct formalization of "epistemic uncertainty" for autoregressive language models?
+
+\paragraph{Q11:} Can epistemic gates enable true "I don't know" responses (or just calibrated low confidence)?
+
+\paragraph{Q12:} Relationship to human metacognition and confidence calibration?
+
+\subsection{Philosophical Implications}
+Softmax acts as a forced decision rule; epistemic softmax enables ``aware'' decisions where the model can admit ignorance. This architectural humility aligns with AI safety principles emphasizing deferment when knowledge is insufficient~\cite{ji2023survey}.
+
+\subsection{Connection to ARC-AGI}
+The Abstraction and Reasoning Corpus (ARC) tests few-shot abstract reasoning where current LLMs underperform (approximately $5\%$ vs. $85\%$ human accuracy)~\cite{chollet2019measure}. Epistemic gating addresses ARC's challenges: (1) ambiguity detection via $Q_2$ detecting conflicting hypotheses, (2) abstention through uncertainty-driven refusal, and (3) hierarchical reasoning by mirroring ARC's multi-level abstractions. We hypothesize Level 3 Aletheion reduces catastrophic failures on ARC-style tasks by refusing uncertain answers and requesting clarification.
+
+\subsection{When Aletheion Fails: Failure Mode Analysis}
+
+Epistemic softmax is not a panacea. We identify scenarios where the architecture cannot provide guarantees:
+
+\subsubsection*{1. Irreducible Aleatoric Uncertainty}
+
+\textbf{Problem:} Inherently random processes (dice rolls, quantum events, inherently unpredictable future events).
+
+\textbf{Why Aletheion fails:} No amount of information reduces uncertainty. Epistemic gates cannot distinguish aleatoric from epistemic uncertainty without explicit supervision.
+
+\textbf{Example:} "Will this fair coin land heads?"
+\begin{itemize}
+    \item True answer: $p(\text{heads}) = 0.5$ with $u = 1$ (maximal uncertainty, but aleatoric)
+    \item Aletheion: May output $p \approx 0.5$ but $u$ may be miscalibrated
+\end{itemize}
+
+\textbf{Mitigation:} Distinguish epistemic vs. aleatoric in $u^*$ supervision signal. For known aleatoric scenarios, supervise with $u^* = 1$ but flag as non-reducible.
+
+\subsubsection*{2. Adversarial Attacks on Gates}
+\label{sec:adv-attacks}
+
+\textbf{Problem:} Adversary crafts inputs that fool $Q_1$/$Q_2$ into outputting low uncertainty despite the input being adversarial.
+
+\textbf{Example:} Input $x_{\text{adv}}$ that appears in-distribution to gates but is actually crafted to trigger specific (wrong) behavior.
+
+\textbf{Why Aletheion fails:} Gates are neural networks, thus vulnerable to adversarial examples. Standard adversarial training does not explicitly protect gates.
+
+\textbf{Mitigation:} Adversarial training specifically targeting gates:
+\begin{equation}
+\mathcal{L}_{\text{adv}} = \max_{\|\delta\| < \epsilon} \mathcal{L}_{\text{VARO}}(x + \delta)
+\label{eq:adv-varo}
+\end{equation}
+subject to $\|\delta\|_{\infty} < \epsilon$ (small perturbation).
+
+\textbf{Empirical Demonstration:} During the adversarial gate-training phase (Sec.~\ref{sec:adv-attacks}), the model
+reaches \textbf{Height $=1.000$} with nearly silent uncertainty gates
+(\textbf{$Q_1\!\approx\!0.03$, $Q_2\!\approx\!0.06$}), consistent with a successful
+adversarial suppression of epistemic responses.
+This illustrates the theoretical vulnerability described in Eq.~\eqref{eq:adv-varo}:
+adversarial optimization of $\mathcal L_{\text{VARO}}$ can induce
+\textbf{apex delusion}---overconfident predictions despite residual calibration (ECE $\approx 0.06$).
+
+\subsubsection*{3. Specification Gaming}
+
+\textbf{Problem:} RLHF may incentivize \emph{hiding} uncertainty to maximize reward.
+
+\textbf{Example:} If reward model favors confident answers, the model learns "confident wrong answer gets higher reward than uncertain right answer."
+
+\textbf{Why Aletheion fails:} Preference optimization doesn't value calibration by default. Gates may learn to always output low $u$ to please the reward model.
+
+\textbf{Mitigation:} Include calibration metrics in reward model:
+\begin{equation}
+R(\text{response}) = R_{\text{preference}}(\text{response}) - \lambda \cdot \text{ECE}(\text{response})
+\end{equation}
+Penalize miscalibrated confidence directly in the reward.
+
+\subsubsection*{4. Catastrophic Forgetting During Fine-Tuning}
+
+\textbf{Problem:} Fine-tuning on narrow distribution may collapse gates. As illustrated in Step~36{,}300, the model undergoes a transient phase of
+\textbf{representational compression} (Memory~$\downarrow$, Pain~$\uparrow$),
+consistent with the ``Catastrophic Forgetting'' dynamics described in
+Section~\ref{sec:catastrophic-forgetting}.
+
+
+\textbf{Example:} Fine-tune on medical QA dataset $\to$ gates learn to always be confident on medical queries, but forget to trigger uncertainty on non-medical queries.
+
+\textbf{Why Aletheion fails:} Standard fine-tuning doesn't preserve epistemic behavior outside the fine-tuning distribution.
+
+\textbf{Mitigation:}
+\begin{enumerate}
+    \item Continual learning techniques: Elastic Weight Consolidation (EWC), PackNet
+    \item Maintain separate uncertainty validation set (held-out diverse queries)
+    \item Regularize gates during fine-tuning:
+    \begin{equation}
+    \mathcal{L}_{\text{finetune}} = \mathcal{L}_{\text{task}} + \lambda \|Q_{\text{new}} - Q_{\text{old}}\|^2
+    \end{equation}
+\end{enumerate}
+
+\subsubsection*{5. Computational Budget Constraints}
+
+\textbf{Problem:} Production systems may not afford 4-5\% overhead.
+
+\textbf{Example:} Real-time chatbot with strict latency requirements (e.g., <50ms response time).
+
+\textbf{Why Aletheion fails:} Even small overhead may violate SLA (service level agreement).
+
+\textbf{Mitigation:}
+\begin{enumerate}
+    \item Use Level 1 (output-only, <1\% overhead)
+    \item Conditional gating: Only activate gates for queries flagged as potentially uncertain (via cheap heuristic)
+    \item Model distillation: Train small "epistemic triage" model; use full Aletheion only when triage indicates uncertainty
+\end{enumerate}
+
+\subsubsection*{6. Missing Ground Truth for $u^*$}
+
+\textbf{Problem:} Many domains lack uncertainty labels.
+
+\textbf{Example:} Creative writing tasks have no "correct" answer, thus $u^*$ is undefined.
+
+\textbf{Why Aletheion fails:} VARO requires $u^*$ supervision. Without it, gates may not learn meaningful uncertainty.
+
+\textbf{Mitigation:}
+\begin{enumerate}
+    \item Use unsupervised methods (head variance, self-consistency) as fallback
+    \item Human annotation for calibration set (expensive but one-time cost)
+    \item Transfer uncertainty behavior from related domains (e.g., factual QA $\to$ creative writing)
+\end{enumerate}
+
+\subsubsection*{Summary of Failure Modes}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Failure Mode} & \textbf{Severity} & \textbf{Mitigation?} & \textbf{Blocks Deploy?} \\
+\midrule
+Aleatoric uncertainty & Low & Partial (better $u^*$) & No \\
+Adversarial gates & Medium & Yes (adv. training) & No \\
+Specification gaming & High & Yes (calibration rewards) & Maybe \\
+Catastrophic forgetting & High & Yes (continual learning) & No \\
+Compute constraints & Medium & Yes (Level 1, distill) & Maybe \\
+Missing $u^*$ labels & Medium & Yes (unsupervised) & No \\
+\bottomrule
+\end{tabular}
+\caption{Failure scenarios and recommended mitigations for Aletheion.}
+\label{tab:failures}
+\end{table}
+
+\textbf{Deployment recommendation:} Deploy Aletheion with continuous monitoring of gate behavior and maintain a held-out uncertainty validation set to detect failures early. Start with Level 1 in production; upgrade to Level 2/3 as compute budget allows.
+

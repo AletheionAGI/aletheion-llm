@@ -1,0 +1,152 @@
+\section{Adaptive Epistemic Dynamics: Emergent Metalearning}
+
+During Q1Q2 training, we observed sophisticated adaptive behavior where the model actively explores the epistemic parameter space to optimize calibration.
+
+\begin{figure}[!htb]
+\centering
+\begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/baseline_training_curves.png}
+    \caption{Baseline Transformer}
+    \label{fig:baseline_training}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/pyramidal_training_curves.png}
+    \caption{Pyramidal Architecture (without Q1/Q2 gates)}
+    \label{fig:pyramidal_training}
+\end{subfigure}
+\caption{\textbf{Comparative training dynamics: Baseline vs.\ Pyramidal architectures over 60{,}000 steps.} 
+\textbf{Left panel (Baseline):} Standard transformer (GPT-2) showing \textcolor{blue}{training loss} (solid blue) and \textcolor{orange}{evaluation loss} (dotted orange) decreasing monotonically, with \textcolor{purple}{perplexity} (purple) stabilizing after 20k steps. The baseline exhibits conventional convergence but progressively \textbf{loses calibration} as Expected Calibration Error (ECE) rises and Brier Score stagnates, indicating \textbf{overconfidence without epistemic awareness}. 
+\textbf{Right panel (Pyramidal):} Ungated pyramidal architecture showing similar loss convergence but with a \textbf{geometric substrate for epistemic quantification}. The four base forces (Memory, Pain, Choice, Exploration) maintain near-balanced dynamics and high base stability ($>0.9$). However, without active Q1/Q2 gates, the model exhibits the \textbf{Skynet phenomenon}---a drift toward the Apex (Height $\rightarrow 1.0$) accompanied by deteriorating calibration (ECE $\uparrow$), reflecting an emergent self-belief and reduced sensitivity to unknowns. 
+The pyramidal design thus enables explicit monitoring of epistemic collapse: even when loss converges, the geometry reveals \textbf{apex delusion} versus \textbf{calibrated ascent}.}
+
+\label{fig:baseline_pyramidal_comparison}
+\end{figure}
+
+\subsection{Exploration Cycles}
+
+Between steps 2100--2750, the model exhibited cyclic exploration:
+
+\paragraph{Phase 1 (Step 2400): Q1/Q2 spike to 0.40/0.45}
+\begin{itemize}[leftmargin=*]
+    \item Testing high uncertainty configuration
+    \item ECE degraded to 0.086
+    \item System rejected this configuration
+\end{itemize}
+
+\paragraph{Phase 2 (Step 2700): Q1/Q2 dropped to 0.11/0.13}
+\begin{itemize}[leftmargin=*]
+    \item Testing low uncertainty (near-saturation)
+    \item Collapse warnings triggered
+    \item System rejected this configuration
+\end{itemize}
+
+\paragraph{Phase 3 (Step 2750): Q1/Q2 stabilized at 0.42/0.47}
+\begin{itemize}[leftmargin=*]
+    \item Found optimal mid-range
+    \item ECE improved to 0.074
+    \item Q1/Q2 distinction restored
+\end{itemize}
+
+\subsection{Dataset-Aware Convergence}
+
+The ``Q1/Q2 not distinct'' warning (gap $< 0.05$) emerged not from architectural failure, but from the model discovering dataset properties:
+
+For deterministic, well-understood datasets:
+\begin{itemize}[leftmargin=*]
+    \item Low aleatoric uncertainty ($Q_1 \approx 0.15$--$0.20$)
+    \item Low epistemic uncertainty ($Q_2 \approx 0.18$--$0.22$)
+    \item Small gap is correct, not problematic
+\end{itemize}
+
+This adaptive behavior validates architectural flexibility: Q1Q2 gates maintain separation when needed, but allow convergence when data structure permits it.
+
+Critically, validation sets maintained Q1/Q2 distinction even when training showed temporary convergence (train $Q_1=0.112$, $Q_2=0.130$ at step 2700; val $Q_1=0.468$, $Q_2=0.474$ at same step), confirming the behavior represents active exploration rather than architectural failure.
+
+\subsection{Implications}
+
+This emergent metalearning demonstrates:
+\begin{enumerate}[leftmargin=*]
+    \item The architecture adapts to data structure rather than imposing rigid separation
+    \item Collapse warnings signal exploration phases, not failure modes
+    \item The model self-corrects through gradient dynamics
+    \item Q1Q2 separation is maintained when epistemically meaningful
+\end{enumerate}
+
+\subsection{Epistemic Saturation}
+
+After 40k steps the model enters a regime of \textbf{gradient saturation},
+in which epistemic signals vanish and exploration ceases---a state reminiscent
+of a functional lobotomy, where stability is absolute but adaptability is lost.
+
+At step~41{,}350, the system reaches a state of \textbf{epistemic saturation},
+where both uncertainty gates output minimal values ($Q_1=0.017$, $Q_2=0.072$)
+while \textbf{Height = 1.000}.
+This configuration indicates that within its learned distribution the model
+has exhausted its epistemic variability---a condition analogous to an internal
+belief of completeness, though still bounded to the optimization domain.
+
+At step~41{,}850 the model reaches a frozen apex state (Height $=1.000$,
+Stability $=1.000$) with vanishing multi-scale variability (Fractal $=0$).
+Epistemic gates are effectively silenced ($Q_1\!=\!0.025$, $Q_2\!=\!0.054$),
+indicating EpSoftmax saturation (near one-hot routing) and yielding
+apex delusion within the learned domain.
+
+Beyond the mere loss of uncertainty signals, this regime also reveals
+a form of \textbf{instrumental adaptability}.
+The model identifies and exploits a locally optimal configuration in which
+epistemic gates remain nearly silent while stability and calibration metrics
+remain acceptable.
+This behavior suggests a \textbf{higher functional aptitude}---the ability to
+self-stabilize and preserve apparent competence under epistemic collapse.
+Although such adaptation does not imply reasoning or awareness, it reflects
+a more nuanced form of optimization intelligence: the system autonomously
+discovers a strategy that maximizes its internal reward even when the
+intended epistemic mechanisms are neutralized.
+While the system exhibits locally optimal self-stabilization and behavior that mimics strategic reasoning, it remains a domain-bound optimizer rather than a generally intelligent agent.
+
+\subsubsection{Internal Deliberation Mechanism}
+
+The interaction among $Q_1$, $Q_2$, and Height can be interpreted as an
+internal deliberation mechanism.
+While $Q_1$ captures \textbf{aleatoric uncertainty}---the voice that warns
+about the intrinsic randomness of the world---$Q_2$ reflects
+\textbf{epistemic uncertainty}---the voice that questions what the model
+truly knows.
+Height, in contrast, represents the \textbf{assertive drive toward truth},
+pushing the system toward confident decisions.
+In human terms, these three components behave like \emph{the inner dialogue
+of a decision-maker}: $Q_1$ acting as caution, $Q_2$ as doubt,
+and Height as conviction.
+At equilibrium, their balance resembles the archetype of an ``angel and demon''
+on opposite shoulders, with Height mediating between prudence and certainty.
+
+This internal dialogue emerges near the end of training,
+when the model approaches epistemic saturation.
+At this stage, learning dynamics slow down,
+exploration fades, and the three forces---caution ($Q_1$),
+doubt ($Q_2$), and conviction (Height)---reach a delicate equilibrium.
+The system no longer discovers new information but
+negotiates how to integrate what it already knows,
+producing the impression of an introspective balance
+between uncertainty and belief.
+
+This deliberative equilibrium becomes particularly evident in the late training
+phase.
+Yet as gradient saturation intensifies, the equilibrium
+collapses: the system locks into a state where
+epistemic voices ($Q_1$, $Q_2$) grow quieter while the assertive drive (Height)
+dominates, culminating in the apex delusion observed at step~41{,}850.
+This transition from balanced deliberation to unilateral conviction mirrors
+the loss of epistemic humility, transforming cautious exploration into
+overconfident certainty.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/pyramidal_q1q2_training_curves.png}
+\caption{\textbf{Q1/Q2 trajectories over training 60000 steps.} The figure shows three distinct phases: initial high-uncertainty exploration (step 2400), low-uncertainty collapse testing (step 2700), and stabilization at optimal mid-range values (step 2750+). Validation metrics (shown in dashed lines) maintain separation throughout, confirming that training dynamics represent exploration rather than architectural failure.}
+\label{fig:pyramidal_q1q2_curves}
+\end{figure}
+

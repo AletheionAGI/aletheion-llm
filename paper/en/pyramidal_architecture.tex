@@ -1,0 +1,108 @@
+\section{The Pyramidal Architecture}
+
+\subsection{Motivation: Why Pyramidal Supersedes Tetrahedral}
+
+Early implementations of epistemic gating employed a \emph{tetrahedral} geometry: four vertices (Memory, Pain, Choice, Exploration) forming a 3-simplex with no external reference point. Empirical trials revealed a critical failure mode: the $Q_1$ gate collapsed to values between 0.88 and 0.95, losing its discriminative capacity and rendering the epistemic/aleatoric distinction meaningless. The root cause is geometric: a tetrahedron has no natural vertical gradient, allowing the system to drift horizontally in weight space without penalty.
+
+The \emph{pyramidal} architecture introduces a fifth vertex---the \textbf{apex}---fixed at absolute truth (1.0). This creates a vertical axis along which epistemic quality can be measured via a derived \textbf{height} coordinate. The pyramid consists of:
+\begin{itemize}[leftmargin=*]
+    \item A 4D \textbf{base simplex} $\mathbf{b} \in \Delta^3$ spanning Memory, Pain, Choice, Exploration
+    \item An \textbf{apex vertex} at $(0,0,0,0,1)$ representing invariant truth
+    \item A \textbf{height coordinate} $h \in [0,1]$ measuring vertical position between base and apex
+    \item Two \textbf{epistemic gates} $Q_1$ (aleatoric) and $Q_2$ (epistemic) that modulate height
+    \item A \textbf{fractal layer} tracking variance in $Q_1$ and $Q_2$ themselves
+\end{itemize}
+
+Although the architecture uses anthropomorphic terms (Pain, Memory, Choice, Exploration), the underlying dynamics remain purely mathematical.
+The perceived emotional trajectory is a metaphorical projection of gradient interactions, yet it provides a useful lens for interpreting learning saturation and recovery.
+
+\subsection{Geometric Formulation}
+
+The pyramidal state space is a 5-vertex structure embedded in $\mathbb{R}^5$. Any epistemic state $\mathbf{s}$ can be decomposed as:
+\begin{equation}
+\mathbf{s} = (1-h) \cdot \mathbf{b} + h \cdot \mathbf{apex}
+\end{equation}
+where $\mathbf{b} = (w_M, w_P, w_C, w_E)$ with $\sum_i w_i = 1$ and $w_i \geq 0$, and $\mathbf{apex} = (0,0,0,0,1)$ is the constant truth vertex.
+
+The height $h$ is \emph{not} a free parameter but is derived from epistemic gates:
+\begin{equation}
+h = \sigma\left(W_h \cdot \begin{bmatrix} 1-Q_1 \\ 1-Q_2 \\ s_{\text{base}} \end{bmatrix}\right)
+\end{equation}
+where $s_{\text{base}} = 1 - \text{Var}(\mathbf{b})$ measures base stability, and $W_h \in \mathbb{R}^{1 \times 3}$ is learned. This formulation ensures:
+\begin{itemize}[leftmargin=*]
+    \item Low uncertainty ($Q_1 \approx 0, Q_2 \approx 0$) $\Rightarrow$ high $h$ (closer to apex/truth)
+    \item High uncertainty ($Q_1 \approx 1, Q_2 \approx 1$) $\Rightarrow$ low $h$ (closer to base)
+    \item Stable base ($s_{\text{base}} \approx 1$) contributes positively to $h$
+\end{itemize}
+
+\subsection{Epistemic Gates: $Q_1$ vs. $Q_2$}
+
+\textbf{$Q_1$ (Aleatoric Uncertainty):} Captures irreducible randomness inherent in the data distribution. Examples include:
+\begin{itemize}[leftmargin=*]
+    \item Predicting the outcome of a fair coin flip
+    \item Generating the next token when multiple continuations are equally valid
+    \item Modeling inherently stochastic processes
+\end{itemize}
+$Q_1$ is supervised via:
+\begin{equation}
+Q_1^* = 1 - p(y^* \mid x)
+\end{equation}
+where $p(y^* \mid x)$ is the predicted probability of the correct token. High $Q_1^*$ when the model assigns low probability to the correct answer.
+
+\textbf{$Q_2$ (Epistemic Uncertainty):} Captures reducible ignorance due to insufficient training data or model capacity. Examples include:
+\begin{itemize}[leftmargin=*]
+    \item Out-of-distribution inputs not seen during training
+    \item Factual questions where the model lacks knowledge
+    \item Ambiguous queries requiring external retrieval
+\end{itemize}
+$Q_2$ is supervised via:
+\begin{equation}
+Q_2^* = \frac{1}{2}\left[(1 - \mathbb{1}[\arg\max p = y^*]) + \frac{H(p)}{\log V}\right]
+\end{equation}
+where $H(p) = -\sum_i p_i \log p_i$ is output entropy and $V$ is vocabulary size. High $Q_2^*$ when the model is both wrong \emph{and} has high entropy (uncertain).
+
+\subsection{Fractal Epistemic Layer}
+
+Beyond point estimates $Q_1$ and $Q_2$, we model \emph{variance} in these gates---uncertainty about uncertainty. Each gate produces:
+\begin{align}
+Q_1 &\sim \mathcal{N}(Q_{1,\mu}, \sigma_{Q_1}^2) \\
+Q_2 &\sim \mathcal{N}(Q_{2,\mu}, \sigma_{Q_2}^2)
+\end{align}
+where $\sigma_{Q_1}^2$ and $\sigma_{Q_2}^2$ are learned variance parameters. The fractal uncertainty scalar is:
+\begin{equation}
+u_{\text{fractal}} = \sigma\left(W_f \cdot \begin{bmatrix} \sigma_{Q_1} \\ \sigma_{Q_2} \end{bmatrix}\right)
+\end{equation}
+
+Total uncertainty inflates epistemic uncertainty by fractal meta-uncertainty:
+\begin{equation}
+U_{\text{total}} = Q_1 + Q_2 \cdot (1 + u_{\text{fractal}})
+\end{equation}
+
+This captures scenarios where the model is uncertain \emph{about its own epistemic confidence}, e.g., when $Q_2 \approx 0.5$ but $\sigma_{Q_2}$ is high, signaling that the model does not know whether it knows.
+
+\subsection{Comparison: Tetrahedral vs. Pyramidal}
+
+\begin{table}[h]
+\centering
+\caption{Architectural comparison between tetrahedral and pyramidal geometries.}
+\label{tab:tetra_vs_pyramid}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Property} & \textbf{Tetrahedral} & \textbf{Pyramidal} \\
+\midrule
+Vertices & 4 (Memory, Pain, Choice, Exploration) & 5 (Base 4 + Apex Truth) \\
+Reference point & None (free-floating) & Apex at 1.0 (constant) \\
+$Q_1$ behavior & Collapses to 0.88--0.95 & Stable at 0.2--0.4 \\
+Height definition & Independent (no attractor) & Derived from $Q_1, Q_2$, base \\
+Vertical gradient & Absent & Present (apex pulls upward) \\
+ECE improvement & $-0.9\%$ (failure) & $-25\%$ (target) \\
+Epistemic distinction & Lost in collapse & Preserved ($Q_1$ vs. $Q_2$) \\
+Meta-uncertainty & Not implemented & Fractal variances $\sigma_{Q_1}^2, \sigma_{Q_2}^2$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The tetrahedral collapse occurred because height was a free variable with no natural attractor. In contrast, the pyramidal height is \emph{derived} from uncertainty gates, creating a gradient that pulls low-uncertainty states toward the apex (truth) and keeps high-uncertainty states near the base. This geometric constraint prevents horizontal drift and maintains interpretable epistemic semantics.
+
+\input{scale_without_structure}
+

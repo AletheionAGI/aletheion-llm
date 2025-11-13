@@ -1,0 +1,18 @@
+\section{Background}
+\subsection{Transformer Architecture}
+Transformers encode tokens into contextual representations using multi-head self-attention, feed-forward networks, and layer normalization~\cite{vaswani2017attention}. Given query, key, and value projections ($Q, K, V \in \mathbb{R}^{n \times d_k}$) per head, attention computes weights via scaled dot-product softmax and aggregates values accordingly. Feed-forward sublayers apply position-wise non-linear transformations, while residual connections and layer normalization stabilize training.
+
+\subsection{Softmax and Uncertainty}
+For logits $\mathbf{z} \in \mathbb{R}^m$, softmax produces $\softmax(z)_i = \frac{e^{z_i}}{\sum_j e^{z_j}}$. Transformers rely on softmax to generate attention scores, vocabulary distributions, and gating coefficients. However, forcing a probability distribution even under epistemic uncertainty masks the model's ignorance.
+
+\subsection{Epistemic vs. Aleatoric Uncertainty}
+Aleatoric uncertainty arises from inherent data noise, while epistemic uncertainty reflects ignorance reducible with more information. LLMs trained on static corpora primarily face epistemic uncertainty when encountering novel facts, adversarial prompts, or contradictory instructions; softmax conflates these modes by always returning a confident distribution.
+
+\subsection{Related Work}
+Bayesian neural networks, deep ensembles, Monte Carlo dropout, selective prediction, and conformal prediction provide valuable uncertainty estimates but are costly or post-hoc~\cite{blundell2015weight,gal2016dropout,lakshminarayanan2017simple,kamath2020selective,ovadia2019can}. Calibration studies for LLMs rely on selective prediction or verbalized confidence. Our approach differs by embedding epistemic reasoning directly within the attention and decoding primitives, avoiding ensembling or expensive sampling~\cite{lin2022teaching,kadavath2022language}.
+
+\paragraph{Consistency Training and Sycophancy}
+Recent work by Google DeepMind~\cite{google2024consistency} addresses sycophancy and jailbreaks through \emph{consistency training}: augmenting training data with paraphrased prompts and penalizing inconsistent responses across paraphrases. This behavioral-level intervention reduces sycophancy without modifying the underlying architecture or providing explicit uncertainty estimates.
+
+Aletheion is \emph{complementary} to consistency training. While consistency training enforces paraphrase robustness at the training objective level, epistemic softmax provides architectural uncertainty quantification that operates at every decision point. Combined approaches---where $\mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda_1 \mathcal{L}_{\text{VARO}} + \lambda_2 \mathcal{L}_{\text{consistency}}$---may yield models that are both \emph{calibrated} (via Aletheion's epistemic gates) and \emph{behaviorally consistent} (via consistency training). We leave empirical validation of this combination to future work.
+

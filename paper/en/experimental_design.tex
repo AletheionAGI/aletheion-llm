@@ -1,0 +1,56 @@
+\section{Experimental Design}
+\subsection{Datasets and Metrics}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{llll}
+        \toprule
+        Dataset & Task & Metric & Baseline Expected \\
+        \midrule
+        TruthfulQA~\cite{lin2021truthfulqa} & Hallucination & \% truthful answers & $40\%$ \\
+        TempQuestions~\cite{tu2023tempquestions} & Temporal generalization & Accuracy & $30\%$ \\
+        Consistency~\cite{elazar2021consistency} & Paraphrase consistency & Accuracy variance & $15\%$ \\
+        MMLU~\cite{hendrycks2020mmlu} & Calibration & ECE, Brier score & $0.15$ ECE \\
+        Synthetic OOD~\cite{ovadia2019can} & Uncertainty detection & AUROC (unc vs. error) & $0.60$ \\
+        \bottomrule
+    \end{tabular}
+    \caption{Datasets and metrics for evaluating Aletheion.}
+    \label{tab:datasets}
+\end{table}
+
+\subsection{Models and Ablations}
+\begin{table}[h]
+\centering
+\caption{Projected performance improvements across Aletheion levels.$^{\dagger}$}
+\label{tab:results}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{TruthfulQA} & \textbf{ECE} & \textbf{Hallucination Rate} & \textbf{Unc--Error Corr.} \\
+\midrule
+Baseline Transformer & 40\% & 0.15 & 60\% & 0.30 \\
++ Temperature Scaling & 42\% & 0.13 & 58\% & 0.35 \\
+Aletheion Level 1 & 48\% & 0.10 & 45\% & 0.60 \\
+Aletheion Level 2 & 52\% & 0.08 & 38\% & 0.70 \\
+Aletheion Level 3 & 58\% & 0.06 & 25\% & 0.80 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\footnotesize{$^{\dagger}$These are theoretical projections based on architectural analysis and prior uncertainty quantification literature. Empirical validation is ongoing and results may vary. The baseline transformer achieves stated performance on respective benchmarks \cite{lin2021truthfulqa}. Projected improvements assume successful VARO training and optimal $\lambda$ tuning.}
+\end{table}
+
+Ablations include removing $Q_2$, varying $\lambda$, testing alternative uncertainty aggregators, and evaluating abstention policies. Additional diagnostics compute selective prediction curves, coverage-controlled risk, and retrieval triggers under uncertainty.
+
+\subsection{Evaluation Protocol}
+\begin{enumerate}[leftmargin=*]
+    \item Pretrain baseline model on open-source corpora.
+    \item Fine-tune Levels 1--3 using identical data, enabling incremental comparisons.
+    \item Measure calibration via ECE, Brier score, and reliability diagrams.
+    \item Report computational overhead (FLOPs, latency) for inference.
+    \item Evaluate abstention quality using selective prediction curves and coverage risk.
+\end{enumerate}
+
+\subsection{Risk and Mitigation}
+Potential failure includes gate collapse and miscalibrated $u^*$. We monitor entropy of gate outputs, apply adaptive $\lambda$, and integrate human-in-the-loop review for high uncertainty outputs.
+
+\input{skynet_phenomenon}
+

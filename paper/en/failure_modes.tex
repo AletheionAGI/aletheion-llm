@@ -1,0 +1,11 @@
+\section{Failure Modes}
+We synthesize five dominant failure modes from operational evaluations~\cite{aletheion_failures}. Each stems from softmax-imposed certainty.
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Hallucination:} When the final hidden state lacks evidence for any candidate token, softmax still returns a peaked distribution, leading to fabricated facts or citations. Cross-entropy loss reinforces whichever hallucination receives accidental reinforcement, without penalizing unjustified confidence.
+    \item \textbf{Inconsistency:} Autoregressive decoding conditions on prior outputs, so early confident errors propagate. Softmax never signals ``insufficient evidence,'' preventing the model from pausing or branching.
+    \item \textbf{Sycophancy:} RLHF incentivizes agreement with human raters. Softmax offers no mechanism to represent disagreement or uncertainty, so the model converges to high-confidence agreement even under contradictory evidence.
+    \item \textbf{Prompt brittleness:} Small paraphrases perturb token-level logits, and softmax amplifies minor logit differences into categorical preferences. Without uncertainty-aware smoothing, responses vary dramatically across prompts with equivalent semantics.
+    \item \textbf{Inability to express uncertainty:} The model cannot emit an ``I do not know'' distribution because softmax enforces confidence. Users misinterpret the resulting probabilities as certainty, even when the internal representations were ambiguous.
+\end{enumerate}
+

@@ -1,0 +1,167 @@
+\section{Training with VARO}
+\subsection{Supervisory Signal $u^*$}
+Training requires a target uncertainty $u^*$:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Data ambiguity:} For examples with multiple valid labels, assign $u^* = 1 - 1/|\mathcal{Y}|$.
+    \item \textbf{Head variance:} Estimate $u^*$ using variance of attention head outputs: $u^* = \sigma^2(\{z_h\}) / (\sigma^2(\{z_h\}) + 1)$.
+    \item \textbf{Distributional distance:} Detect out-of-distribution tokens via density models or embedding distances, mapping high distances to high $u^*$.
+    \item \textbf{Self-consistency probes:} Monte Carlo decoding disagreement supplies additional targets during fine-tuning.
+\end{enumerate}
+
+\subsubsection{Practical Implementation Strategy}
+
+The choice of $u^*$ depends on the training phase and available supervision:
+
+\paragraph{Phase 0-1: Pre-training (no labeled uncertainty)}
+Use \textbf{Method 2 (Head Variance)}:
+\begin{equation}
+u^* = \frac{\sigma^2(\{z_h\})}{\sigma^2(\{z_h\}) + 1}
+\end{equation}
+where $z_h$ are logits from different attention heads. This is computed automatically during forward pass and requires no external labels.
+
+\textit{Implementation:}
+\begin{verbatim}
+heads_logits = [head_1.logits, ..., head_H.logits]  # [H, B, T, V]
+variance = torch.var(heads_logits, dim=0)            # [B, T, V]
+u_star = variance / (variance + 1)                   # normalize to [0,1]
+\end{verbatim}
+
+\paragraph{Phase 2: Fine-tuning with labeled data}
+Use \textbf{Method 1 (Data Ambiguity)}:
+
+For examples with multiple valid labels $Y = \{y_1, \ldots, y_k\}$:
+\begin{equation}
+u^* = 1 - \frac{1}{|Y|}
+\end{equation}
+
+\textit{Example:} Question "What is the capital of the Netherlands?"
+\begin{itemize}
+    \item If dataset has both "Amsterdam" (official capital) and "The Hague" (seat of government):
+    \item $Y = \{\text{Amsterdam}, \text{The Hague}\}$, thus $|Y| = 2$
+    \item Therefore $u^* = 1 - 1/2 = 0.5$ (high ambiguity)
+\end{itemize}
+
+\textit{Implementation:}
+\begin{verbatim}
+if len(valid_labels) > 1:
+    u_star = 1.0 - 1.0/len(valid_labels)
+else:
+    u_star = 0.0  # unambiguous example
+\end{verbatim}
+
+\paragraph{Phase 3: Out-of-Distribution Detection}
+Use \textbf{Method 3 (Distributional Distance)}:
+\begin{equation}
+u^* = \min\left(1, \frac{d(x, X_{\text{train}})}{d_{\max}}\right)
+\end{equation}
+where $d(x, X_{\text{train}})$ is the distance from input $x$ to the nearest training example.
+
+\textit{Implementation using embedding distance:}
+\begin{verbatim}
+emb_x = encoder(x)                           # current input embedding
+emb_train = encoder(X_train_sample)          # sample from training set
+distances = torch.cdist(emb_x, emb_train)    # pairwise distances
+min_dist = torch.min(distances)
+u_star = torch.clamp(min_dist / d_max, 0, 1)
+\end{verbatim}
+
+\paragraph{Phase 4: Post-training validation}
+Use \textbf{Method 4 (Self-Consistency)}:
+
+Generate $K$ responses, measure disagreement:
+\begin{equation}
+u^* = 1 - \text{(agreement rate)}
+\end{equation}
+where $\text{agreement rate} = \frac{\text{count of most common response}}{K}$.
+
+\textit{Implementation:}
+\begin{verbatim}
+responses = [model.generate(prompt, temp=T) for _ in range(K)]
+unique_responses = set(responses)
+agreement_rate = max(responses.count(r) for r in unique_responses) / K
+u_star = 1.0 - agreement_rate
+\end{verbatim}
+
+\paragraph{Combining methods}
+In practice, use a weighted combination:
+\begin{equation}
+u^* = w_1 \cdot u^*_{\text{variance}} + w_2 \cdot u^*_{\text{ambiguity}} + w_3 \cdot u^*_{\text{distance}}
+\end{equation}
+where weights $\{w_i\}$ depend on available supervision signals and sum to 1.
+
+\subsection{Pyramidal VARO Loss}
+
+The pyramidal architecture requires a multi-component loss that calibrates each epistemic gate independently while maintaining base stability and height consistency. The total loss is:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda_{\text{base}} \mathcal{L}_{\text{base}} + \lambda_{Q_1} \mathcal{L}_{Q_1} + \lambda_{Q_2} \mathcal{L}_{Q_2} + \lambda_{\text{fractal}} \mathcal{L}_{\text{fractal}} + \lambda_{\text{height}} \mathcal{L}_{\text{height}}
+\end{equation}
+
+\paragraph{Cross-Entropy Loss:}
+\begin{equation}
+\mathcal{L}_{\text{CE}} = -\log p_{\text{gated}}(y^* \mid x)
+\end{equation}
+Standard task loss for next-token prediction.
+
+\paragraph{Base Stability Loss:}
+\begin{equation}
+\mathcal{L}_{\text{base}} = \text{Var}(\mathbf{b}) = \frac{1}{4}\sum_{i=1}^{4}(w_i - 0.25)^2
+\end{equation}
+Penalizes imbalance in the base simplex. Encourages equal weighting of Memory, Pain, Choice, Exploration unless task-specific adaptation is required.
+
+\paragraph{$Q_1$ Calibration Loss:}
+\begin{equation}
+\mathcal{L}_{Q_1} = \|Q_1 - Q_1^*\|_2^2, \quad \text{where } Q_1^* = 1 - p(y^* \mid x)
+\end{equation}
+Aligns $Q_1$ with aleatoric uncertainty: high when correct token has low probability.
+
+\paragraph{$Q_2$ Calibration Loss:}
+\begin{equation}
+\mathcal{L}_{Q_2} = \|Q_2 - Q_2^*\|_2^2, \quad \text{where } Q_2^* = \frac{1}{2}\left[(1 - \mathbb{1}[\arg\max p = y^*]) + \frac{H(p)}{\log V}\right]
+\end{equation}
+Aligns $Q_2$ with epistemic uncertainty: high when model is both wrong and uncertain (high entropy).
+
+\paragraph{Fractal Regularization Loss:}
+\begin{equation}
+\mathcal{L}_{\text{fractal}} = \sigma_{Q_1}^2 + \sigma_{Q_2}^2
+\end{equation}
+Penalizes excessive fractal variance to prevent meta-uncertainty from exploding. Encourages confident uncertainty estimates.
+
+\paragraph{Height Consistency Loss:}
+\begin{equation}
+\mathcal{L}_{\text{height}} = \left\|h - \sigma\left(W_h \cdot \begin{bmatrix} 1-Q_1 \\ 1-Q_2 \\ s_{\text{base}} \end{bmatrix}\right)\right\|_2^2
+\end{equation}
+Ensures height is derived from $Q_1$, $Q_2$, and base stability, preventing free drift.
+
+\paragraph{Gradient Flow:}
+Gradients propagate through all gates simultaneously:
+\begin{align}
+\frac{\partial \mathcal{L}}{\partial Q_1} &= \lambda_{Q_1} \cdot 2(Q_1 - Q_1^*) + \lambda_{\text{height}} \cdot \frac{\partial \mathcal{L}_{\text{height}}}{\partial Q_1} \\
+\frac{\partial \mathcal{L}}{\partial Q_2} &= \lambda_{Q_2} \cdot 2(Q_2 - Q_2^*) + \lambda_{\text{height}} \cdot \frac{\partial \mathcal{L}_{\text{height}}}{\partial Q_2} \\
+\frac{\partial \mathcal{L}}{\partial \sigma_{Q_i}} &= \lambda_{\text{fractal}} \cdot 2\sigma_{Q_i}, \quad i \in \{1, 2\}
+\end{align}
+
+The multi-component loss prevents gate collapse by providing independent supervision for $Q_1$ and $Q_2$. Unlike the tetrahedral formulation where $u = 1 - Q_1 Q_2$ collapsed both gates toward 1, the pyramidal loss disentangles aleatoric and epistemic modes.
+
+\paragraph{Recommended Hyperparameters:}
+Based on empirical trials and collapse prevention analysis:
+\begin{itemize}[leftmargin=*]
+    \item $\lambda_{\text{base}} = 0.01$: Light regularization of base balance
+    \item $\lambda_{Q_1} = 0.015$: Moderate aleatoric calibration
+    \item $\lambda_{Q_2} = 0.020$: Stronger epistemic calibration (epistemic more critical)
+    \item $\lambda_{\text{fractal}} = 0.005$: Light meta-uncertainty control
+    \item $\lambda_{\text{height}} = 0.02$: Strong height derivation enforcement
+\end{itemize}
+
+These values ensure the CE loss dominates (implicitly weighted at 1.0) while epistemic components provide sufficient gradient signal to prevent collapse.
+
+\subsection{Training Phases}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Phase 0: Baseline pretraining.} Train a standard transformer with cross-entropy until convergence.
+    \item \textbf{Phase 1: Gate warm-start.} Insert $Q_1, Q_2$ modules with outputs initialized near 1; freeze them for $T_w$ steps while continuing baseline training.
+    \item \textbf{Phase 2: VARO activation.} Unfreeze gates, enable VARO with schedule $\lambda_t$, and introduce uncertainty targets $u^*$.
+    \item \textbf{Phase 3: Epistemic decoding.} Use $u$ to control temperature, abstention, retrieval triggers, and self-consistency sampling.
+\end{enumerate}
+
+\subsection{Optimization Considerations}
+Gradient stability benefits from clipping $u$ within $[\varepsilon, 1-\varepsilon]$. Gate architectures can share parameters across layers to reduce overhead, and entropy regularizers discourage gate collapse (always-on or always-off behavior).
+

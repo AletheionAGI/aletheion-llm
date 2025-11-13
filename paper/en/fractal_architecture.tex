@@ -1,0 +1,212 @@
+\section{Fractal Architecture}
+
+The Aletheion architecture applies epistemic softmax hierarchically across all transformer components, creating a fractal pattern of uncertainty quantification. Figure~\ref{fig:fractal_architecture} illustrates the flow of epistemic gates through attention mechanisms, head aggregation, and output generation.
+
+\begin{figure}[h]
+\centering
+\small
+\begin{verbatim}
+Input Tokens
+     |
+[Embedding + Positional]
+     |
+┌───────────────────────────┐
+│ Layer ℓ                    │
+│ ┌───────────────────────┐ │
+│ │ Attention Logits      │ │
+│ │ epistemic_softmax     │◄┤ Q₁ (per-head)
+│ └───────────────────────┘ │
+│             │              │
+│      Attention Output      │
+│             │              │
+│ ┌───────────────────────┐ │
+│ │ Head Aggregation      │ │
+│ │ Q₂ Consensus Gate     │◄┤ Cross-head
+│ └───────────────────────┘ │
+│             │              │
+│     Residual + MLP         │
+│             │              │
+│   uncertainty_ℓ propagated │
+└───────────────────────────┘
+     |
+    ... (repeat for L layers)
+     |
+[Final Hidden State + aggregated uncertainty]
+     |
+┌───────────────────────────┐
+│ Output Logits             │
+│ epistemic_softmax         │◄┤ Q₁ + Q₂ (global)
+└───────────────────────────┘
+     |
+P(tokens), uncertainty_final
+\end{verbatim}
+\caption{\textbf{Fractal epistemic architecture.} Each layer applies epistemic softmax to attention weights (per-head $Q_1$ gates) and head aggregation ($Q_2$ consensus gate). Uncertainty propagates through layers and combines at the output, creating a multi-scale epistemic hierarchy.}
+\label{fig:fractal_architecture}
+\end{figure}
+
+\subsection{Level 1: Output-Only}
+Let $h_t$ denote decoder state, $z = W h_t$ the logits, and $c^{(\mathrm{out})}$ the context features (e.g., hidden state, attention summary). Epistemic softmax yields $(p_t, u_t) = \epsoftmax(z, c^{(\mathrm{out})})$. Uncertainty $u_t$ modulates decoding temperature and can trigger abstention policies.
+
+\subsection{Level 2: Attention + Output}
+
+Level 2 applies epistemic softmax to both attention mechanisms and output distributions.
+
+\subsubsection*{Attention with Epistemic Gating}
+
+For layer $l$ and head $h$, we first compute attention logits:
+\begin{equation}
+a^{(l,h)} = \frac{Q^{(l,h)} (K^{(l,h)})^\top}{\sqrt{d_k}} \in \mathbb{R}^{n \times n}
+\end{equation}
+where $Q^{(l,h)} = h^{(l-1)} W_Q^{(l,h)}$ and $K^{(l,h)} = h^{(l-1)} W_K^{(l,h)}$ are the projected query and key matrices.
+
+We then apply epistemic softmax to obtain gated attention weights:
+\begin{equation}
+(p^{(l,h)}_{\text{att}}, u^{(l,h)}_{\text{att}}) = \texttt{EpSoftmax}(a^{(l,h)}, c^{(l,h)}_{\text{att}})
+\end{equation}
+where $c^{(l,h)}_{\text{att}} = Q^{(l,h)}_{[:,0,:]}$ is the context vector (we use the first query position as representative context, though any pooling strategy works).
+
+The gated attention is applied to values:
+\begin{equation}
+o^{(l,h)} = p^{(l,h)}_{\text{att}} \cdot V^{(l,h)} \in \mathbb{R}^{n \times d_v}
+\end{equation}
+where $V^{(l,h)} = h^{(l-1)} W_V^{(l,h)}$.
+
+\subsubsection*{Head Aggregation with Epistemic Gating}
+
+After computing outputs from all $H$ heads, we aggregate them using a second epistemic gate. First, concatenate head outputs:
+\begin{equation}
+\text{head\_concat}^{(l)} = [o^{(l,1)} \, || \, o^{(l,2)} \, || \, \cdots \, || \, o^{(l,H)}] \in \mathbb{R}^{n \times d}
+\end{equation}
+
+To determine how to weight each head, we compute aggregation logits via a learned MLP:
+\begin{equation}
+w^{(l)} = \text{MLP}_{\text{agg}}(\text{mean}(\text{head\_concat}^{(l)})) \in \mathbb{R}^H
+\end{equation}
+where $\text{MLP}_{\text{agg}}$ is a small feedforward network that outputs $H$ scalar logits.
+
+We construct the context for the head aggregation gate:
+\begin{equation}
+c^{(l)}_{\text{head}} = \text{mean}_{\text{seq}}(\text{head\_concat}^{(l)}) \in \mathbb{R}^d
+\end{equation}
+(mean pooling over the sequence dimension).
+
+Apply epistemic softmax to obtain head mixing weights:
+\begin{equation}
+(p^{(l)}_{\text{head}}, u^{(l)}_{\text{head}}) = \texttt{EpSoftmax}(w^{(l)}, c^{(l)}_{\text{head}})
+\end{equation}
+where $p^{(l)}_{\text{head}} \in \mathbb{R}^H$ is a probability distribution over heads.
+
+The final layer output is the weighted combination:
+\begin{equation}
+h^{(l)}_{\text{attn}} = \sum_{h=1}^{H} p^{(l)}_{\text{head},h} \cdot o^{(l,h)} \in \mathbb{R}^{n \times d}
+\end{equation}
+
+\subsubsection*{Layer Uncertainty Aggregation}
+
+The combined uncertainty for layer $l$ aggregates uncertainties from all heads and the head mixing gate:
+\begin{equation}
+u^{(l)} = \max\left(\max_{h \in [H]} u^{(l,h)}_{\text{att}}, \, u^{(l)}_{\text{head}}\right)
+\end{equation}
+
+This conservative aggregation ensures that if \emph{any} head or the aggregation is uncertain, the layer reflects that uncertainty.
+
+\subsubsection*{Complete Layer Forward Pass}
+
+The complete forward pass for layer $l$ is:
+\begin{align}
+h^{(l)}_{\text{attn}} &= \text{LayerNorm}\left(h^{(l-1)} + \text{MultiHeadAttn}_{\text{epistemic}}(h^{(l-1)})\right) \\
+h^{(l)} &= \text{LayerNorm}\left(h^{(l)}_{\text{attn}} + \text{FFN}(h^{(l)}_{\text{attn}})\right)
+\end{align}
+where $\text{MultiHeadAttn}_{\text{epistemic}}$ incorporates all the epistemic gating described above.
+
+\subsection{Level 3: Full Fractal}
+Level 3 replaces every softmax invocation---mixture-of-experts routers, adaptive span controllers, key-value selection---with epistemic softmax. Each module exports an uncertainty scalar; the layer exposes $(y^{(l)}, u^{(l)})$. Uncertainty composition follows a monotone aggregation function $f$:
+\begin{equation}
+    u_{\mathrm{final}} = f\bigl(u_{\mathrm{att}}^{(1)}, \dots, u_{\mathrm{att}}^{(L)}, u_{\mathrm{head}}^{(1)}, \dots, u_{\mathrm{head}}^{(L)}, u_{\mathrm{out}}\bigr).
+\end{equation}
+Choices include $\max$ (conservative), mean (smooth), or a learned aggregator trained to predict downstream errors.
+
+\subsection{Fractal Pseudocode}
+\begin{algorithm}[H]
+\caption{Fractal Epistemic Transformer (Forward Pass)}
+\label{alg:fractal}
+\begin{algorithmic}[1]
+\Require Token sequence $x = (x_1, \ldots, x_n)$
+\Ensure Probability distribution $p_{\text{out}}$, uncertainty $u_{\text{final}}$
+\State $h^{(0)} \gets \text{Embed}(x) + \text{PositionalEncoding}(x)$
+\State
+\For{$l = 1$ to $L$}
+    \State \textcolor{blue}{// Multi-head attention with epistemic gating}
+    \For{$h = 1$ to $H$}
+        \State $Q^{(l,h)} \gets h^{(l-1)} W_Q^{(l,h)}$
+        \State $K^{(l,h)} \gets h^{(l-1)} W_K^{(l,h)}$
+        \State $V^{(l,h)} \gets h^{(l-1)} W_V^{(l,h)}$
+        \State
+        \State \textcolor{blue}{// Compute attention logits}
+        \State $a^{(l,h)} \gets (Q^{(l,h)} (K^{(l,h)})^\top) / \sqrt{d_k}$
+        \State
+        \State \textcolor{blue}{// Apply epistemic softmax to attention}
+        \State $c^{(l,h)}_{\text{att}} \gets Q^{(l,h)}_{[:,0,:]}$ \hfill $\triangleright$ use first query as context
+        \State $(p^{(l,h)}_{\text{att}}, u^{(l,h)}_{\text{att}}) \gets \texttt{EpSoftmax}(a^{(l,h)}, c^{(l,h)}_{\text{att}})$
+        \State
+        \State \textcolor{blue}{// Apply gated attention to values}
+        \State $o^{(l,h)} \gets p^{(l,h)}_{\text{att}} \cdot V^{(l,h)}$
+    \EndFor
+    \State
+    \State \textcolor{blue}{// Aggregate heads with epistemic gating}
+    \State $\text{head\_concat} \gets [o^{(l,1)} \, || \, \cdots \, || \, o^{(l,H)}]$
+    \State $w^{(l)} \gets \text{MLP}_{\text{agg}}(\text{mean}(\text{head\_concat}))$ \hfill $\triangleright$ produces $H$ logits
+    \State $c^{(l)}_{\text{head}} \gets \text{mean}_{\text{seq}}(\text{head\_concat})$ \hfill $\triangleright$ aggregated context
+    \State $(p^{(l)}_{\text{head}}, u^{(l)}_{\text{head}}) \gets \texttt{EpSoftmax}(w^{(l)}, c^{(l)}_{\text{head}})$
+    \State
+    \State \textcolor{blue}{// Weighted head combination}
+    \State $h^{(l)}_{\text{attn}} \gets \sum_{h=1}^{H} p^{(l)}_{\text{head},h} \cdot o^{(l,h)}$
+    \State
+    \State \textcolor{blue}{// Apply residual + FFN}
+    \State $h^{(l)}_{\text{attn}} \gets \text{LayerNorm}(h^{(l-1)} + h^{(l)}_{\text{attn}})$
+    \State $h^{(l)} \gets \text{LayerNorm}(h^{(l)}_{\text{attn}} + \text{FFN}(h^{(l)}_{\text{attn}}))$
+    \State
+    \State \textcolor{blue}{// Layer uncertainty}
+    \State $u^{(l)} \gets \max(\max_h u^{(l,h)}_{\text{att}}, u^{(l)}_{\text{head}})$
+\EndFor
+\State
+\State \textcolor{blue}{// Output distribution with epistemic gating}
+\State $\text{logits} \gets h^{(L)} W_{\text{vocab}}$
+\State $c_{\text{out}} \gets \text{mean}_{\text{seq}}(h^{(L)})$
+\State $(p_{\text{out}}, u_{\text{out}}) \gets \texttt{EpSoftmax}(\text{logits}, c_{\text{out}})$
+\State
+\State \textcolor{blue}{// Final uncertainty aggregation}
+\State $u_{\text{final}} \gets \max(u^{(1)}, \ldots, u^{(L)}, u_{\text{out}})$
+\State
+\Return $p_{\text{out}}, u_{\text{final}}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Uncertainty Propagation}
+For a transformer with $L$ layers, conservative deployment adopts
+\begin{equation}
+    u_{\mathrm{final}} = \max\bigl(\max_{l} u_{\mathrm{att}}^{(l)}, u_{\mathrm{out}}\bigr).
+\end{equation}
+Learned aggregators can be implemented as small monotone networks that take concatenated uncertainties and output a calibrated scalar.
+
+Figure~\ref{fig:uncertainty_flow} illustrates how layer-wise uncertainties aggregate into a final epistemic signal that can drive confidence-aware decoding and exploration strategies.
+
+\begin{figure}[h]
+\centering
+\small
+\begin{verbatim}
+Layer 1 Uncertainty (u₁) ──┐
+                           ▼
+Layer 2 Uncertainty (u₂) ──┐    Aggregate g(u)
+                           │         │
+⋮                          │         ▼
+Layer N Uncertainty (uₙ) ──┘   u_final → Exploration Controller
+                                       │
+                           Confidence-aware Decoding
+                                       │
+                             Response + uncertainty_final
+\end{verbatim}
+\caption{\textbf{Uncertainty flow through the epistemic architecture.} Layer-wise uncertainties are aggregated (e.g., via $\max$ or learned function $g$) into a final uncertainty scalar that drives exploration and confidence-aware decoding strategies.}
+\label{fig:uncertainty_flow}
+\end{figure}
+

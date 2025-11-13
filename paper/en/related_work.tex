@@ -1,0 +1,17 @@
+\section{Related Work}
+
+\subsection{Overconfidence in Neural Networks}
+
+The tendency of neural networks to exhibit overconfidence has been documented extensively~\cite{guo2017calibration,ovadia2019can,lin2021truthfulqa}. This ``Skynet problem'' emerges from three fundamental issues:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Softmax saturation:} Driving outputs toward corners of the probability simplex, eliminating nuanced uncertainty
+    \item \textbf{Lack of intrinsic uncertainty representation:} No architectural mechanism to express ``I do not know''
+    \item \textbf{Optimization pressure:} Cross-entropy loss favoring confident (but wrong) predictions over calibrated uncertainty
+\end{itemize}
+
+Our pyramidal architecture addresses these issues through geometric constraints rather than post-hoc corrections. By embedding epistemic gates directly in the architecture, we prevent overconfidence at its source rather than attempting to correct it after training.
+
+\subsection{General Context}
+
+Aletheion builds on transformer advancements~\cite{vaswani2017attention,brown2020language}, scaling studies in language models, hallucination analyses~\cite{ji2023survey,lin2021truthfulqa}, and uncertainty estimation techniques including Bayesian approximations and deep ensembles~\cite{blundell2015weight,gal2016dropout,lakshminarayanan2017simple}. Recent work on eliciting model uncertainty underscores the need for architectural primitives rather than post-hoc estimates~\cite{lin2022teaching,kadavath2022language,malinin2021uncertainty}.
+

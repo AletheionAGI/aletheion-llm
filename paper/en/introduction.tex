@@ -1,0 +1,35 @@
+\section{Introduction}
+
+\subsection{The Skynet Problem}
+
+Modern large language models suffer from a fundamental flaw: as they grow more capable, they become more overconfident. This ``Skynet problem''---named after the fictional AI that believed itself infallible---manifests as poor calibration despite high accuracy. Models assign near-certainty to predictions even when uncertain, making them unreliable for high-stakes decisions.
+
+Traditional approaches address this through post-hoc calibration, temperature scaling, or ensemble methods. We propose a different path: architectural solutions that encode epistemic humility at the geometric level.
+
+\subsection{Background and Motivation}
+
+Large language models (LLMs) deliver impressive generative capabilities yet remain unreliable in high-stakes settings. They hallucinate citations, contradict themselves across turns, flatter users even when prompted with false statements, and rarely admit uncertainty. These behaviors undermine safety, reliability, and trustworthiness in downstream deployments~\cite{aletheion_failures}. Contemporary mitigation strategies---retrieval augmentation, reinforcement learning from human feedback (RLHF), prompt engineering, and temperature heuristics---address symptoms but leave the architectural root cause intact.
+
+\subsection{The Problem with Modern LLMs}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Hallucination:} Transformers confidently produce fabricated facts when the hidden state lacks evidence, leading to erroneous citations and reports.
+    \item \textbf{Inconsistency:} Autoregressive decoding produces context-dependent contradictions because there is no persistent epistemic state that aggregates evidence across turns.
+    \item \textbf{Sycophancy:} Preference optimization pushes models to agree with users instead of contesting falsehoods, reinforcing misinformation.
+    \item \textbf{Inability to express doubt:} Softmax-based decoders must emit a normalized distribution, even when logits are uninformative, eliminating the option to say ``I do not know.''
+\end{itemize}
+
+\subsection{Previous Approaches}
+Retrieval augmented generation, RLHF or DPO, prompt engineering, confidence calibration, and temperature tuning provide partial relief but do not model epistemic uncertainty within the network. Bayesian ensembles and Monte Carlo dropout offer uncertainty estimates yet remain post-hoc, costly, or incompatible with production-scale decoding~\cite{aletheion_fundamentals,gal2016dropout,lakshminarayanan2017simple}.
+
+\subsection{Our Insight}
+Softmax appears throughout the transformer pipeline: attention weights, head aggregation, output vocabularies, mixture-of-experts gates, and auxiliary routing mechanisms~\cite{aletheion_fundamentals}. Each instance forces a probability distribution even when the upstream representation encodes insufficient evidence. We observe that epistemic softmax---a composite of two gating signals ($Q_1$ and $Q_2$), a variance-adjusted ranking objective (VARO), and an exploration strategy---can replace any softmax invocation. The key question is: \emph{what if this replacement is applied fractally across the entire network?}
+
+\subsection{Contributions}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Root-cause analysis:} We identify forced normalization via softmax as the shared trigger of five dominant failure modes in LLMs~\cite{aletheion_failures}.
+    \item \textbf{Epistemic softmax primitive:} We define a differentiable operator that augments logits with explicit epistemic confidence while remaining compatible with transformer training pipelines.
+    \item \textbf{Fractal architecture:} We formalize the Aletheion principle---replace every softmax with epistemic softmax---and present implementation levels from output-only to full-stack integration.
+    \item \textbf{Training methodology:} We introduce the VARO objective for calibrating epistemic confidence and describe gradient flow through the new gates.
+    \item \textbf{Theoretical and experimental roadmap:} We analyze uncertainty propagation, computational overhead, and outline evaluation protocols for near-term validation.
+\end{enumerate}
+
