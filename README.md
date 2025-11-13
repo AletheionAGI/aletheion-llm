@@ -1628,7 +1628,7 @@ AletheionGuard-Pypi is dual-licensed under:
 - **GNU AGPL-3.0** – for open source and non-commercial use.
 - **Aletheion Commercial License** – for proprietary or commercial use.
 
-Commercial use **requires a paid license** from Alethea Tech.
+Commercial use **requires a paid license** from AlethionAGI.
 For details, contact [contact@aletheionagi.com](mailto:contact@aletheionagi.com).
 
 
