@@ -1623,21 +1623,14 @@ For the theoretical framework:
 
 ## License
 
-Aletheion is **dual-licensed** to support both open-source and commercial use:
+AletheionGuard-Pypi is dual-licensed under:
 
-### Open Source License
-**[GNU Affero General Public License v3.0](LICENSE-AGPL.md)**
-- ✅ Free for research and non-commercial use
-- ✅ Modifications must be shared under AGPL
-- ✅ Full source code transparency
+- **GNU AGPL-3.0** – for open source and non-commercial use.
+- **Aletheion Commercial License** – for proprietary or commercial use.
 
-### Commercial License
-**[Aletheion Commercial License](LICENSE-COMMERCIAL.md)**
-- ✅ Proprietary deployments allowed
-- ✅ No copyleft obligations
-- ✅ Custom terms available
+Commercial use **requires a paid license** from Alethea Tech.
+For details, contact [contact@aletheionagi.com](mailto:contact@aletheionagi.com).
 
-**Need a commercial license?** Contact [contact@alethea.tech](mailto:contact@alethea.tech) to discuss terms.
 
 ---
 
